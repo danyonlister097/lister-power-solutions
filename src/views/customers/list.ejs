@@ -1,0 +1,31 @@
+<%- include('../partials/header', { title: 'Customers' }) %>
+<div class="page-header">
+  <h1>Customers</h1>
+  <a class="btn btn-primary" href="/customers/new">+ New customer</a>
+</div>
+
+<form method="get" action="/customers" class="card">
+  <label>
+    Search by name
+    <input type="text" name="q" value="<%= q %>" placeholder="Start typing a customer name...">
+  </label>
+</form>
+
+<% if (customers.length === 0) { %>
+  <div class="empty-state">No customers found<%= q ? ` matching "${q}"` : '' %>.</div>
+<% } else { %>
+  <ul class="list">
+    <% customers.forEach(c => { %>
+      <li>
+        <a class="list-item" href="/customers/<%= c.id %>">
+          <span>
+            <span class="list-item-title"><%= c.name %></span><br>
+            <span class="list-item-meta"><%= [c.address_city, c.address_state].filter(Boolean).join(', ') || 'No address on file' %></span>
+          </span>
+          <span class="list-item-meta"><%= c.phone || c.email || '' %></span>
+        </a>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+<%- include('../partials/footer') %>

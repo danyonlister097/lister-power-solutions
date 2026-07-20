@@ -1,0 +1,81 @@
+<%- include('../partials/header', { title: 'Quick Task' }) %>
+<div class="page-header">
+  <h1>Quick Task</h1>
+</div>
+
+<div class="card card-narrow">
+  <form method="post" action="/tasks">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>
+      What needs doing?
+      <input type="text" name="title" placeholder="e.g. Pick up switchboard parts" required autofocus>
+    </label>
+    <label>
+      Assign to (optional)
+      <select name="assigned_to">
+        <option value="">Anyone</option>
+        <% users.forEach(u => { %>
+          <option value="<%= u.id %>"><%= u.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Add task</button>
+    </div>
+  </form>
+</div>
+
+<div class="section-heading">Open (<%= open.length %>)</div>
+<% if (!open.length) { %>
+  <p class="text-muted">Nothing outstanding.</p>
+<% } else { %>
+  <ul class="list">
+    <% open.forEach(t => { %>
+      <li>
+        <span class="list-item">
+          <form method="post" action="/tasks/<%= t.id %>/toggle" class="task-toggle-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="task-check" title="Mark done" aria-label="Mark done"></button>
+          </form>
+          <span class="task-body">
+            <span class="list-item-title"><%= t.title %></span><br>
+            <span class="list-item-meta"><%= t.assignee_name || 'Anyone' %> · added by <%= t.creator_name %></span>
+          </span>
+          <span class="actions">
+            <form method="post" action="/tasks/<%= t.id %>/delete">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="btn-link">Delete</button>
+            </form>
+          </span>
+        </span>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+
+<% if (done.length) { %>
+  <div class="section-heading">Recently completed</div>
+  <ul class="list">
+    <% done.forEach(t => { %>
+      <li>
+        <span class="list-item task-list-item-done">
+          <form method="post" action="/tasks/<%= t.id %>/toggle" class="task-toggle-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="task-check task-check-done" title="Mark not done" aria-label="Mark not done">&check;</button>
+          </form>
+          <span class="task-body">
+            <span class="list-item-title task-title-done"><%= t.title %></span><br>
+            <span class="list-item-meta"><%= t.assignee_name || 'Anyone' %></span>
+          </span>
+          <span class="actions">
+            <form method="post" action="/tasks/<%= t.id %>/delete">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="btn-link">Delete</button>
+            </form>
+          </span>
+        </span>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+<%- include('../partials/footer') %>

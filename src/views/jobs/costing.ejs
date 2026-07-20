@@ -1,0 +1,41 @@
+<%- include('../partials/header', { title: 'Job Costing', wide: true }) %>
+<div class="page-header">
+  <h1>Job Costing</h1>
+  <a class="btn btn-secondary btn-sm" href="/jobs">Back to jobs</a>
+</div>
+
+<% if (!rows.length) { %>
+  <p class="text-muted">No jobs yet.</p>
+<% } else { %>
+  <div class="timesheet-scroll">
+    <table class="timesheet-table">
+      <thead>
+        <tr>
+          <th>Job</th>
+          <th>Customer</th>
+          <th>Quoted</th>
+          <th>Cost</th>
+          <th>Profit</th>
+          <th>Margin</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(r => { %>
+          <tr>
+            <td><a href="/jobs/<%= r.id %>"><%= r.title %></a></td>
+            <td><%= r.customer_name %></td>
+            <td><%= formatMoney(r.quoted_amount) %></td>
+            <td><%= formatMoney(r.total_cost) %></td>
+            <td class="<%= r.profit !== null && r.profit < 0 ? 'timesheet-overtime' : '' %>">
+              <%= formatMoney(r.profit) %>
+            </td>
+            <td>
+              <%= r.profit !== null && r.quoted_amount ? Math.round((r.profit / r.quoted_amount) * 100) + '%' : '—' %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+<% } %>
+<%- include('../partials/footer') %>

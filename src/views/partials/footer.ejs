@@ -1,0 +1,19 @@
+<% if (currentUser) { %>
+      </main>
+      <footer class="site-footer">
+        <img src="/img/logo-icon.png" alt="" class="site-footer-logo">
+        <span>Lister Power Solutions &middot; Internal use only</span>
+      </footer>
+    </div>
+  </div>
+  <%- include('confirm-modal') %>
+<% } else { %>
+  </main>
+  <footer class="site-footer site-footer-guest">
+    <img src="/img/logo-icon.png" alt="" class="site-footer-logo">
+    <span>Lister Power Solutions &middot; Internal use only</span>
+  </footer>
+<% } %>
+<script src="/js/app.js"></script>
+</body>
+</html>

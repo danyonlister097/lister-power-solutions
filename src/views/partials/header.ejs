@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= typeof title !== 'undefined' ? title + ' · Lister Power Solutions' : 'Lister Power Solutions' %></title>
+  <link rel="icon" href="/img/logo-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<%
+  var icons = {
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
+    plane: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>',
+    checklist: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h11M10 12h11M10 18h11"/><path d="m3 6 1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17"/></svg>',
+    chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4V5z"/></svg>',
+    forms: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg>',
+    box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
+    toolbox: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="20" height="11" rx="2"/><path d="M8 9V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v3"/><path d="M2 13h20"/><path d="M10 13v2M14 13v2"/></svg>',
+    calculator: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8"/><path d="M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01M16 19h.01"/></svg>',
+  };
+
+  var path = typeof currentPath !== 'undefined' ? currentPath : '';
+  function starts(prefix) { return path.indexOf(prefix) === 0; }
+
+  var sideItems = [];
+  if (currentUser) {
+    sideItems.push({ href: '/timeclock', label: 'Time Clock', icon: 'clock', active: starts('/timeclock') });
+    sideItems.push({ href: '/leave', label: 'Request Leave', icon: 'plane', active: starts('/leave') });
+    sideItems.push({ href: '/tasks', label: 'Quick Task', icon: 'checklist', active: starts('/tasks') });
+    sideItems.push({ href: '/chat', label: 'Chat', icon: 'chat', active: starts('/chat') });
+    sideItems.push({ href: '/forms', label: 'Forms', icon: 'forms', active: starts('/forms') });
+    sideItems.push({ href: '/inventory', label: 'Inventory', icon: 'box', active: starts('/inventory') });
+    sideItems.push({ href: '/assets', label: 'Asset Register', icon: 'toolbox', active: starts('/assets') });
+    sideItems.push({ href: '/tools', label: 'Tools', icon: 'calculator', active: starts('/tools') });
+  }
+%>
+<% if (currentUser) { %>
+  <header class="topbar">
+    <a class="brand" href="<%= currentUser.role === 'admin' ? '/dashboard' : '/jobs' %>">
+      <img src="/img/logo-icon.png" alt="" class="brand-logo">
+      Lister Power Solutions
+    </a>
+    <nav class="nav">
+      <% if (currentUser.role === 'admin') { %>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/jobs/schedule">Schedule</a>
+        <a href="/jobs">Jobs</a>
+        <a href="/customers">Customers</a>
+        <a href="/quotes">Quotes</a>
+        <a href="/invoices">Invoices</a>
+        <a href="/users">Employees</a>
+      <% } else { %>
+        <a href="/jobs">Jobs</a>
+      <% } %>
+    </nav>
+    <form class="logout-form" method="post" action="/logout">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <span class="whoami"><%= currentUser.name %> (<%= currentUser.role %>)</span>
+      <button type="submit" class="btn-link">Log out</button>
+    </form>
+  </header>
+  <script>
+    (function () {
+      var topbar = document.querySelector('.topbar');
+      if (!topbar) return;
+      function syncTopbarHeight() {
+        document.documentElement.style.setProperty('--topbar-h', topbar.offsetHeight + 'px');
+      }
+      syncTopbarHeight();
+      if (window.ResizeObserver) {
+        new ResizeObserver(syncTopbarHeight).observe(topbar);
+      } else {
+        window.addEventListener('resize', syncTopbarHeight);
+      }
+    })();
+  </script>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <% sideItems.forEach(function (item) { %>
+          <a class="sidebar-link<%= item.active ? ' sidebar-link-active' : '' %>" href="<%= item.href %>" title="<%= item.label %>">
+            <span class="sidebar-icon"><%- icons[item.icon] %></span>
+            <span class="sidebar-label"><%= item.label %></span>
+          </a>
+        <% }) %>
+      </nav>
+    </aside>
+    <div class="app-main">
+      <main class="container<%= typeof wide !== 'undefined' && wide ? ' container-wide' : '' %>">
+        <% if (typeof flash !== 'undefined' && flash) { %>
+          <div class="flash flash-<%= flash.type %>"><%= flash.message %></div>
+        <% } %>
+<% } else { %>
+  <main class="container<%= typeof wide !== 'undefined' && wide ? ' container-wide' : '' %>">
+    <% if (typeof flash !== 'undefined' && flash) { %>
+      <div class="flash flash-<%= flash.type %>"><%= flash.message %></div>
+    <% } %>
+<% } %>

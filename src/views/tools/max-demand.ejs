@@ -1,0 +1,133 @@
+<%- include('../partials/header', { title: 'Maximum Demand Calculator' }) %>
+<div class="page-header">
+  <h1>Maximum Demand Calculator</h1>
+  <a class="btn btn-secondary btn-sm" href="/tools">All tools</a>
+</div>
+
+<div class="flash flash-error" style="margin-bottom: 1.25rem;">
+  <strong>Reference tool only.</strong> This sums each load's connected wattage against a demand/diversity factor you set. The pre-filled demand factors below are commonly-cited <em>starting points</em>, not a transcription of the current AS/NZS 3000 Appendix C tables &mdash; installation type (single dwelling, multiple dwellings, commercial) changes the correct factors significantly. Always confirm the applicable demand factors against the current official AS/NZS 3000 before using the result for design or compliance.
+</div>
+
+<div class="card card-narrow">
+  <h2 class="leave-form-title">Supply</h2>
+  <div class="form-row form-row-2">
+    <label>
+      Phase
+      <select id="md-phase">
+        <option value="1">Single phase</option>
+        <option value="3">Three phase</option>
+      </select>
+    </label>
+    <label>
+      Nominal voltage (V)
+      <input type="number" id="md-voltage" step="1" value="230">
+    </label>
+  </div>
+  <label>
+    Power factor
+    <input type="number" id="md-pf" step="0.01" min="0.1" max="1" value="1">
+  </label>
+</div>
+
+<div class="card card-narrow">
+  <h2 class="leave-form-title">Load schedule</h2>
+  <div id="md-rows"></div>
+  <div class="actions">
+    <button type="button" class="btn btn-secondary btn-sm" id="md-add-row">+ Add load</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Result</h2>
+  <div id="md-result"></div>
+</div>
+
+<script src="/js/max-demand.js"></script>
+<script>
+  (function () {
+    var rowsContainer = document.getElementById('md-rows');
+    var result = document.getElementById('md-result');
+    var supplyEls = {
+      phase: document.getElementById('md-phase'),
+      voltage: document.getElementById('md-voltage'),
+      pf: document.getElementById('md-pf'),
+    };
+
+    function fmt(n, dp) {
+      return Number.isFinite(n) ? n.toFixed(dp === undefined ? 2 : dp) : '—';
+    }
+
+    function addRow(name, loadW, quantity, demandFactorPct) {
+      var row = document.createElement('div');
+      row.className = 'form-row';
+      row.style.gridTemplateColumns = '2fr 1fr 1fr 1fr auto';
+      row.style.display = 'grid';
+      row.style.gap = '0.5rem';
+      row.style.alignItems = 'end';
+      row.style.marginBottom = '0.75rem';
+      row.innerHTML =
+        '<label>Load<input type="text" class="md-name" value="' + name + '"></label>' +
+        '<label>Connected (W)<input type="number" class="md-load" step="10" min="0" value="' + loadW + '"></label>' +
+        '<label>Qty<input type="number" class="md-qty" step="1" min="1" value="' + quantity + '"></label>' +
+        '<label>Demand factor (%)<input type="number" class="md-factor" step="1" min="0" max="100" value="' + demandFactorPct + '"></label>' +
+        '<button type="button" class="btn-link md-remove" style="margin-bottom:0.6rem;">Remove</button>';
+      rowsContainer.appendChild(row);
+
+      row.querySelectorAll('input').forEach(function (input) {
+        input.addEventListener('input', render);
+      });
+      row.querySelector('.md-remove').addEventListener('click', function () {
+        row.remove();
+        render();
+      });
+    }
+
+    function render() {
+      var items = Array.from(rowsContainer.children).map(function (row) {
+        return {
+          name: row.querySelector('.md-name').value || 'Load',
+          loadW: Number.parseFloat(row.querySelector('.md-load').value) || 0,
+          quantity: Number.parseInt(row.querySelector('.md-qty').value, 10) || 0,
+          demandFactorPct: Number.parseFloat(row.querySelector('.md-factor').value) || 0,
+        };
+      });
+
+      var r = window.MaxDemand.calculate(items, {
+        phase: Number.parseInt(supplyEls.phase.value, 10),
+        voltage: Number.parseFloat(supplyEls.voltage.value) || 0,
+        powerFactor: Number.parseFloat(supplyEls.pf.value) || 1,
+      });
+
+      result.innerHTML =
+        '<div class="leave-stats">' +
+        '<div class="leave-stat leave-stat-pending"><span class="leave-stat-value">' + fmt(r.totalConnectedW / 1000) + ' kW</span><span class="leave-stat-label">Total connected load</span></div>' +
+        '<div class="leave-stat leave-stat-approved"><span class="leave-stat-value">' + fmt(r.totalDemandKw) + ' kW</span><span class="leave-stat-label">Maximum demand</span></div>' +
+        '<div class="leave-stat leave-stat-declined"><span class="leave-stat-value">' + fmt(r.designCurrent) + ' A</span><span class="leave-stat-label">Design current</span></div>' +
+        '</div>' +
+        '<p class="text-muted" style="margin-top:0.75rem;">Overall diversity ratio applied: ' + fmt(r.diversityRatio * 100, 0) + '%</p>';
+    }
+
+    supplyEls.phase.addEventListener('change', function () {
+      if (supplyEls.phase.value === '3' && supplyEls.voltage.value === '230') supplyEls.voltage.value = '400';
+      if (supplyEls.phase.value === '1' && supplyEls.voltage.value === '400') supplyEls.voltage.value = '230';
+      render();
+    });
+    supplyEls.voltage.addEventListener('input', render);
+    supplyEls.pf.addEventListener('input', render);
+
+    document.getElementById('md-add-row').addEventListener('click', function () {
+      addRow('Additional load', 1000, 1, 100);
+      render();
+    });
+
+    // Typical starting points for a single dwelling - adjust per the
+    // disclaimer above before relying on these.
+    addRow('Lighting', 3000, 1, 66);
+    addRow('General power (GPO)', 4000, 1, 50);
+    addRow('Hot water (off-peak/controlled)', 3600, 1, 100);
+    addRow('Cooking (oven + cooktop)', 6000, 1, 40);
+    addRow('Air conditioning', 5000, 1, 100);
+    render();
+  })();
+</script>
+<%- include('../partials/footer') %>

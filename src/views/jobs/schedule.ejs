@@ -1,0 +1,142 @@
+<%- include('../partials/header', { title: 'Schedule', wide: true }) %>
+<div class="page-header">
+  <h1>Schedule</h1>
+  <div class="actions">
+    <a class="btn btn-secondary btn-sm" href="/jobs">List view</a>
+    <a class="btn btn-primary btn-sm" href="/jobs/new">+ New job</a>
+  </div>
+</div>
+
+<div class="sched-view-tabs">
+  <a href="?view=day&start=<%= days[0].iso %>" class="<%= view === 'day' ? 'active' : '' %>">Day</a>
+  <a href="?view=week&start=<%= days[0].iso %>" class="<%= view === 'week' ? 'active' : '' %>">Week</a>
+  <a href="/jobs/schedule?view=month&month=<%= monthIso %>">Month</a>
+</div>
+
+<div class="sched-nav">
+  <a class="btn btn-secondary btn-sm" href="?view=<%= view %>&start=<%= prevStartIso %>">&larr; Prev</a>
+  <span class="sched-week-label"><%= weekLabel %></span>
+  <a class="btn btn-secondary btn-sm" href="?view=<%= view %>&start=<%= nextStartIso %>">Next &rarr;</a>
+</div>
+
+<div class="sched-scroll">
+  <div class="sched-grid" id="sched-grid" data-csrf="<%= csrfToken %>">
+    <div class="sched-cell sched-corner">Trades</div>
+    <% days.forEach(d => { %>
+      <a class="sched-cell sched-day-header" href="/jobs/new?date=<%= d.iso %>" title="Add job on <%= d.label %>">
+        <span class="sched-day-label"><%= d.label %></span>
+        <span class="sched-day-plus" aria-hidden="true">+</span>
+      </a>
+    <% }) %>
+
+    <% const avatarColors = ['#12b8a0', '#e2622b', '#7c5cff', '#1d5fae', '#c2185b', '#0f9d58']; %>
+    <% rows.forEach(row => { %>
+      <div
+        class="sched-cell sched-row-header <%= row.id === null ? 'sched-row-header-unassigned' : '' %>"
+        <% if (row.id !== null) { %>draggable="true" data-user-id="<%= row.id %>"<% } %>
+      >
+        <% if (row.id === null) { %>
+          <%= row.name %>
+        <% } else {
+             const initials = row.name.trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase();
+             const color = avatarColors[row.id % avatarColors.length];
+        %>
+          <div class="tech-row-info">
+            <span class="tech-avatar" style="background: <%= color %>;"><%= initials %></span>
+            <div>
+              <div class="tech-name"><%= row.name %></div>
+              <div class="tech-stats">
+                <span class="tech-stat">
+                  <svg class="stat-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.3"/><path d="M8 4.6V8l2.2 1.3"/></svg>
+                  <%= row.hoursLabel %>
+                </span>
+                <span class="tech-stat">
+                  <svg class="stat-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 4.5h10M3 8h10M3 11.5h10"/></svg>
+                  <%= row.shiftCount %>
+                </span>
+              </div>
+              <div class="tech-utilisation">
+                <div class="tech-utilisation-bar">
+                  <div class="tech-utilisation-fill <%= row.utilisationPct > 100 ? 'tech-utilisation-over' : '' %>" style="width: <%= Math.min(row.utilisationPct, 100) %>%;"></div>
+                </div>
+                <span class="tech-utilisation-label"><%= row.utilisationPct %>% of 38h</span>
+              </div>
+            </div>
+          </div>
+        <% } %>
+      </div>
+      <% row.days.forEach((dayJobs, i) => { %>
+        <div class="sched-cell sched-day-cell" data-day="<%= days[i].iso %>" data-tech-id="<%= row.id === null ? '' : row.id %>">
+          <% dayJobs.forEach(j => {
+               const address = [j.site_address_street, j.site_address_city, j.site_address_state, j.site_address_postcode].filter(Boolean).join(', ');
+          %>
+            <div
+              class="shift-block shift-<%= j.status %>"
+              <% if (j.color) { %>style="background-color: <%= j.color %>;"<% } %>
+              draggable="true"
+              tabindex="0"
+              role="button"
+              data-job-id="<%= j.id %>"
+              data-title="<%= j.title %>"
+              data-customer="<%= j.customer_name %>"
+              data-status="<%= j.status %>"
+              data-start="<%= j.scheduled_start %>"
+              data-end="<%= j.scheduled_end || '' %>"
+              data-assignee="<%= j.assigneeNames || 'Unassigned' %>"
+              data-address="<%= address %>"
+              data-description="<%= j.description || '' %>"
+              data-notes="<%= j.notes || '' %>"
+              data-all-day="<%= j.all_day ? '1' : '' %>"
+            >
+              <button type="button" class="shift-menu-btn" data-job-id="<%= j.id %>" aria-label="Job options" title="Job options">&#8942;</button>
+              <span class="shift-time">
+                <% if (j.all_day) { %>All day<% } else { %>
+                  <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %><% if (j.scheduled_end) { %> - <%= new Date(j.scheduled_end).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %><% } %>
+                <% } %>
+              </span>
+              <span class="shift-title"><%= j.title %></span>
+              <span class="shift-customer"><%= j.customer_name %></span>
+            </div>
+          <% }) %>
+        </div>
+      <% }) %>
+    <% }) %>
+  </div>
+</div>
+
+<div class="card sched-summary">
+  <span><strong>Shifts</strong> <%= summary.shifts %></span>
+  <span><strong>Hours</strong> <%= summary.hours %></span>
+  <span><strong>Users</strong> <%= summary.users %></span>
+  <span><strong>Labour cost</strong> <%= summary.labourCost %></span>
+</div>
+
+<div id="job-modal" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="job-modal-title">
+    <button type="button" class="modal-close" id="job-modal-close" aria-label="Close">&times;</button>
+    <span class="badge" id="job-modal-status"></span>
+    <h2 id="job-modal-title"></h2>
+    <dl class="detail-grid">
+      <dt>Customer</dt><dd id="job-modal-customer"></dd>
+      <dt>Assigned to</dt><dd id="job-modal-assignee"></dd>
+      <dt>Scheduled</dt><dd id="job-modal-time"></dd>
+      <dt>Job site</dt><dd id="job-modal-address"></dd>
+      <dt class="job-modal-optional" id="job-modal-description-label">Description</dt><dd class="job-modal-optional" id="job-modal-description"></dd>
+      <dt class="job-modal-optional" id="job-modal-notes-label">Notes</dt><dd class="job-modal-optional" id="job-modal-notes"></dd>
+    </dl>
+    <div class="actions">
+      <a class="btn btn-secondary btn-sm" id="job-modal-open">Open full page</a>
+      <a class="btn btn-primary btn-sm" id="job-modal-edit">Edit job</a>
+    </div>
+  </div>
+</div>
+
+<div id="shift-context-menu" class="context-menu" hidden>
+  <a href="#" class="context-menu-item" data-action="edit">Edit</a>
+  <button type="button" class="context-menu-item" data-action="duplicate">Duplicate</button>
+  <button type="button" class="context-menu-item" data-action="unassign">Unassign</button>
+  <button type="button" class="context-menu-item context-menu-danger" data-action="delete">Delete</button>
+</div>
+
+<script src="/js/schedule.js"></script>
+<%- include('../partials/footer') %>

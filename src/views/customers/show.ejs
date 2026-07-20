@@ -1,0 +1,119 @@
+<%- include('../partials/header', { title: customer.name }) %>
+<div class="page-header">
+  <h1><%= customer.name %></h1>
+  <div class="actions">
+    <a class="btn btn-secondary btn-sm" href="/customers/<%= customer.id %>/edit">Edit</a>
+    <a class="btn btn-primary btn-sm" href="/jobs/new?customer_id=<%= customer.id %>">+ New job</a>
+  </div>
+</div>
+
+<div class="card">
+  <dl class="detail-grid">
+    <dt>Contact</dt><dd><%= customer.contact_name || '—' %></dd>
+    <dt>Phone</dt><dd><%= customer.phone || '—' %></dd>
+    <dt>Email</dt><dd><%= customer.email || '—' %></dd>
+    <dt>Address</dt>
+    <dd>
+      <% const addr = [customer.address_street, customer.address_city, customer.address_state, customer.address_postcode].filter(Boolean).join(', '); %>
+      <%= addr || '—' %>
+    </dd>
+    <% if (customer.notes) { %>
+      <dt>Notes</dt><dd><%= customer.notes %></dd>
+    <% } %>
+  </dl>
+
+  <form method="post" action="/customers/<%= customer.id %>/delete"
+        data-confirm="Remove this customer? This cannot be undone from the UI.">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <button type="submit" class="btn btn-danger btn-sm">Remove customer</button>
+  </form>
+</div>
+
+<h2>Jobs</h2>
+<% if (jobs.length === 0) { %>
+  <div class="empty-state">No jobs for this customer yet.</div>
+<% } else { %>
+  <ul class="list">
+    <% jobs.forEach(j => { %>
+      <li>
+        <a class="list-item" href="/jobs/<%= j.id %>">
+          <span>
+            <span class="list-item-title"><%= j.title %></span><br>
+            <span class="list-item-meta">
+              <% if (!j.scheduled_start) { %>Not scheduled
+              <% } else if (j.all_day) { %><%= new Date(j.scheduled_start).toLocaleDateString('en-AU') %> &middot; All day
+              <% } else { %><%= new Date(j.scheduled_start).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %><% } %>
+            </span>
+          </span>
+          <span class="badge badge-<%= j.status %>"><%= j.status.replace('_', ' ') %></span>
+        </a>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+
+<div class="section-heading">Assets (<%= assets.length %>)</div>
+<% if (!assets.length) { %>
+  <p class="text-muted">No assets recorded for this property yet.</p>
+<% } else { %>
+  <ul class="list">
+    <% assets.forEach(a => { %>
+      <li>
+        <a class="list-item" href="/customers/<%= customer.id %>/assets/<%= a.id %>">
+          <span>
+            <span class="list-item-title"><%= a.name %></span><br>
+            <span class="list-item-meta"><%= a.type %><% if (a.make || a.model) { %> &middot; <%= [a.make, a.model].filter(Boolean).join(' ') %><% } %></span>
+          </span>
+          <span class="badge badge-scheduled"><%= a.service_count %> job<%= a.service_count === 1 ? '' : 's' %></span>
+        </a>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+
+<div class="card card-narrow">
+  <h2 class="leave-form-title">Add an asset</h2>
+  <form method="post" action="/customers/<%= customer.id %>/assets">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="form-row form-row-2">
+      <label>
+        Type
+        <select name="type">
+          <% assetTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
+        </select>
+      </label>
+      <label>
+        Name / label
+        <input type="text" name="name" required maxlength="120" placeholder="e.g. Lounge room split system">
+      </label>
+    </div>
+    <div class="form-row form-row-2">
+      <label>
+        Make
+        <input type="text" name="make" maxlength="80">
+      </label>
+      <label>
+        Model
+        <input type="text" name="model" maxlength="80">
+      </label>
+    </div>
+    <div class="form-row form-row-2">
+      <label>
+        Serial number
+        <input type="text" name="serial_number" maxlength="80">
+      </label>
+      <label>
+        Install date
+        <input type="date" name="install_date">
+      </label>
+    </div>
+    <label>
+      Notes
+      <textarea name="notes"></textarea>
+    </label>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Add asset</button>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer') %>

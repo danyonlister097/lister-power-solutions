@@ -1,0 +1,65 @@
+<%- include('../partials/header', { title: 'Edit Time — ' + editedUser.name }) %>
+<div class="page-header">
+  <h1>Edit Time &mdash; <%= editedUser.name %></h1>
+  <a class="btn btn-secondary btn-sm" href="/timeclock/team?date=<%= dateIso %>">Back to Today</a>
+</div>
+
+<div class="sched-nav">
+  <span class="sched-week-label"><%= dateLabel %></span>
+</div>
+
+<div class="section-heading">Clock events</div>
+<% if (!events.length) { %>
+  <p class="text-muted">No clock events this day.</p>
+<% } else { %>
+  <ul class="list">
+    <% events.forEach(e => { %>
+      <li>
+        <div class="timeclock-edit-row">
+          <form method="post" action="/timeclock/events/<%= e.id %>" class="timeclock-edit-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <select name="type">
+              <option value="in" <%= e.type === 'in' ? 'selected' : '' %>>Clock in</option>
+              <option value="out" <%= e.type === 'out' ? 'selected' : '' %>>Clock out</option>
+            </select>
+            <input type="time" name="time" value="<%= e.occurred_at.slice(11, 16) %>" required>
+            <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+          </form>
+          <span class="timeclock-edit-meta">
+            <% if (e.latitude !== null) { %>
+              <a href="https://www.google.com/maps?q=<%= e.latitude %>,<%= e.longitude %>" target="_blank" rel="noopener">&#128205; location</a>
+            <% } else { %>
+              <span class="text-muted">no location (manual entry)</span>
+            <% } %>
+          </span>
+          <form method="post" action="/timeclock/events/<%= e.id %>/delete" data-confirm="Delete this clock event?">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="btn-link">Delete</button>
+          </form>
+        </div>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+
+<div class="card card-narrow">
+  <h2 class="leave-form-title">Add a clock event</h2>
+  <form method="post" action="/timeclock/edit/<%= editedUser.id %>/<%= dateIso %>/events">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>
+      Type
+      <select name="type">
+        <option value="in">Clock in</option>
+        <option value="out">Clock out</option>
+      </select>
+    </label>
+    <label>
+      Time
+      <input type="time" name="time" required>
+    </label>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Add event</button>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer') %>

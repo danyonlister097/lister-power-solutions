@@ -1,0 +1,53 @@
+<%- include('../partials/header', { title: 'Photo Folders', wide: true }) %>
+<div class="page-header">
+  <h1>Photo Folders</h1>
+  <a class="btn btn-secondary btn-sm" href="/chat">Back to chat</a>
+</div>
+
+<% if (currentUser.role === 'admin') { %>
+  <div class="card card-narrow">
+    <h2 class="leave-form-title">New folder</h2>
+    <form method="post" action="/chat/folders">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>
+        Folder name
+        <input type="text" name="name" required maxlength="80" placeholder="e.g. Smith Residence - switchboard">
+      </label>
+      <label>
+        Link to customer (optional)
+        <select name="customer_id">
+          <option value="">None</option>
+          <% customers.forEach(c => { %><option value="<%= c.id %>"><%= c.name %></option><% }) %>
+        </select>
+      </label>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Create folder</button>
+      </div>
+    </form>
+  </div>
+<% } %>
+
+<div class="section-heading">All folders (<%= folders.length %>)</div>
+<% if (!folders.length) { %>
+  <p class="text-muted">No photo folders yet.</p>
+<% } else { %>
+  <div class="folder-grid">
+    <% folders.forEach(f => { %>
+      <a class="folder-card" href="/chat/folders/<%= f.id %>">
+        <div class="folder-card-thumb">
+          <% if (f.cover_image_id) { %>
+            <img src="/chat/folders/<%= f.id %>/images/<%= f.cover_image_id %>" alt="">
+          <% } else { %>
+            <span class="folder-card-icon">&#128193;</span>
+          <% } %>
+        </div>
+        <div class="folder-card-body">
+          <div class="folder-card-name"><%= f.name %></div>
+          <% if (f.customer_name) { %><div class="folder-card-customer"><%= f.customer_name %></div><% } %>
+          <div class="folder-card-count"><%= f.image_count %> photo<%= f.image_count === 1 ? '' : 's' %></div>
+        </div>
+      </a>
+    <% }) %>
+  </div>
+<% } %>
+<%- include('../partials/footer') %>

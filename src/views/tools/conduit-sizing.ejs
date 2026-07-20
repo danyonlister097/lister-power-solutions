@@ -1,0 +1,123 @@
+<%- include('../partials/header', { title: 'Conduit Sizing Calculator' }) %>
+<div class="page-header">
+  <h1>Conduit Sizing Calculator</h1>
+  <a class="btn btn-secondary btn-sm" href="/tools">All tools</a>
+</div>
+
+<div class="flash flash-error" style="margin-bottom: 1.25rem;">
+  <strong>Reference tool only.</strong> Cable diameters, conduit internal areas and space factors are indicative approximations, not manufacturer-specific figures. Always verify against the current official AS/NZS 3000 guidance and the actual cable/conduit datasheets before installing.
+</div>
+
+<div class="card card-narrow">
+  <h2 class="leave-form-title">Cables in this conduit run</h2>
+  <div id="cd-rows"></div>
+  <div class="actions">
+    <button type="button" class="btn btn-secondary btn-sm" id="cd-add-row">+ Add cable</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Result</h2>
+  <div id="cd-result"></div>
+
+  <div class="section-heading">All standard conduit sizes</div>
+  <div class="timesheet-scroll">
+    <table class="timesheet-table">
+      <thead>
+        <tr>
+          <th>Conduit size (mm)</th>
+          <th>Internal area (mm&sup2;)</th>
+          <th>Fill</th>
+          <th>OK?</th>
+        </tr>
+      </thead>
+      <tbody id="cd-result-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="/js/electrical-tables.js"></script>
+<script src="/js/conduit-sizing.js"></script>
+<script>
+  (function () {
+    var rowsContainer = document.getElementById('cd-rows');
+    var result = document.getElementById('cd-result');
+    var resultBody = document.getElementById('cd-result-body');
+    var sizes = window.ElectricalTables.SIZES;
+    var rowCount = 0;
+
+    function fmt(n, dp) {
+      return Number.isFinite(n) ? n.toFixed(dp === undefined ? 1 : dp) : '—';
+    }
+
+    function addRow(size, quantity) {
+      rowCount += 1;
+      var row = document.createElement('div');
+      row.className = 'form-row form-row-2';
+      row.style.alignItems = 'end';
+      row.innerHTML =
+        '<label>Cable size (mm&sup2;)<select class="cd-size">' +
+        sizes.map(function (s) { return '<option value="' + s + '"' + (s === size ? ' selected' : '') + '>' + s + '</option>'; }).join('') +
+        '</select></label>' +
+        '<div style="display:flex; gap:0.5rem; align-items:end;">' +
+        '<label style="flex:1;">Quantity<input type="number" class="cd-qty" min="1" step="1" value="' + (quantity || 1) + '"></label>' +
+        '<button type="button" class="btn-link cd-remove" style="margin-bottom:0.6rem;">Remove</button>' +
+        '</div>';
+      rowsContainer.appendChild(row);
+
+      row.querySelector('.cd-size').addEventListener('change', render);
+      row.querySelector('.cd-qty').addEventListener('input', render);
+      row.querySelector('.cd-remove').addEventListener('click', function () {
+        row.remove();
+        render();
+      });
+    }
+
+    function render() {
+      var cables = Array.from(rowsContainer.children).map(function (row) {
+        return {
+          size: Number.parseFloat(row.querySelector('.cd-size').value),
+          quantity: Number.parseInt(row.querySelector('.cd-qty').value, 10) || 0,
+        };
+      }).filter(function (c) { return c.quantity > 0; });
+
+      if (!cables.length) {
+        result.innerHTML = '<p class="text-muted">Add at least one cable to size the conduit.</p>';
+        resultBody.innerHTML = '';
+        return;
+      }
+
+      var r = window.ConduitSizing.calculate(cables);
+
+      result.innerHTML =
+        '<div class="leave-stats">' +
+        '<div class="leave-stat leave-stat-approved"><span class="leave-stat-value">' + (r.recommended ? r.recommended.size + ' mm' : 'None fits') + '</span><span class="leave-stat-label">Recommended conduit</span></div>' +
+        '<div class="leave-stat leave-stat-pending"><span class="leave-stat-value">' + fmt(r.totalAreaMm2) + ' mm&sup2;</span><span class="leave-stat-label">Total cable area</span></div>' +
+        '<div class="leave-stat leave-stat-declined"><span class="leave-stat-value">' + fmt(r.spaceFactor * 100, 0) + '%</span><span class="leave-stat-label">Max space factor (' + r.totalCables + ' cable' + (r.totalCables === 1 ? '' : 's') + ')</span></div>' +
+        '</div>';
+
+      resultBody.innerHTML = r.rows
+        .map(function (row) {
+          var isRecommended = r.recommended && row.size === r.recommended.size;
+          return (
+            '<tr' + (isRecommended ? ' style="background: var(--color-primary-tint);"' : '') + '>' +
+            '<td>' + row.size + (isRecommended ? ' <span class="badge badge-completed">recommended</span>' : '') + '</td>' +
+            '<td>' + fmt(row.areaMm2, 0) + '</td>' +
+            '<td>' + fmt(row.fillPct) + '%</td>' +
+            '<td>' + (row.ok ? '&#10003;' : '&#10007;') + '</td>' +
+            '</tr>'
+          );
+        })
+        .join('');
+    }
+
+    document.getElementById('cd-add-row').addEventListener('click', function () {
+      addRow(2.5, 1);
+      render();
+    });
+
+    addRow(2.5, 3);
+    render();
+  })();
+</script>
+<%- include('../partials/footer') %>

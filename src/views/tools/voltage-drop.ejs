@@ -1,0 +1,120 @@
+<%- include('../partials/header', { title: 'Voltage Drop Calculator' }) %>
+<div class="page-header">
+  <h1>Voltage Drop Calculator</h1>
+  <a class="btn btn-secondary btn-sm" href="/tools">All tools</a>
+</div>
+
+<div class="flash flash-error" style="margin-bottom: 1.25rem;">
+  <strong>Reference tool only.</strong> Figures are indicative values in the style of AS/NZS 3008.1.1. Always verify against the current official standards or manufacturer data before relying on the result.
+</div>
+
+<div class="card card-narrow">
+  <div class="form-row form-row-2">
+    <label>
+      Cable size (mm&sup2;)
+      <select id="vd-size"></select>
+    </label>
+    <label>
+      Conductor material
+      <select id="vd-conductor">
+        <option value="copper">Copper</option>
+        <option value="aluminium">Aluminium</option>
+      </select>
+    </label>
+  </div>
+  <div class="form-row form-row-2">
+    <label>
+      Load current (A)
+      <input type="number" id="vd-current" step="0.1" min="0.1" value="20">
+    </label>
+    <label>
+      Phase
+      <select id="vd-phase">
+        <option value="1">Single phase</option>
+        <option value="3">Three phase</option>
+      </select>
+    </label>
+  </div>
+  <div class="form-row form-row-2">
+    <label>
+      Nominal voltage (V)
+      <input type="number" id="vd-voltage" step="1" value="230">
+    </label>
+    <label>
+      Cable length, one-way (m)
+      <input type="number" id="vd-length" step="0.5" min="1" value="20">
+    </label>
+  </div>
+  <label>
+    Max allowable voltage drop (%)
+    <input type="number" id="vd-maxpct" step="0.1" min="0.5" max="10" value="5">
+  </label>
+</div>
+
+<div class="card">
+  <h2>Result</h2>
+  <div id="vd-result"></div>
+</div>
+
+<script src="/js/electrical-tables.js"></script>
+<script src="/js/voltage-drop.js"></script>
+<script>
+  (function () {
+    var sizeSelect = document.getElementById('vd-size');
+    window.VoltageDrop.SIZES.forEach(function (s) {
+      var opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s;
+      if (s === 2.5) opt.selected = true;
+      sizeSelect.appendChild(opt);
+    });
+
+    var els = {
+      size: sizeSelect,
+      conductor: document.getElementById('vd-conductor'),
+      current: document.getElementById('vd-current'),
+      phase: document.getElementById('vd-phase'),
+      voltage: document.getElementById('vd-voltage'),
+      length: document.getElementById('vd-length'),
+      maxpct: document.getElementById('vd-maxpct'),
+    };
+    var result = document.getElementById('vd-result');
+
+    function fmt(n, dp) {
+      return Number.isFinite(n) ? n.toFixed(dp === undefined ? 2 : dp) : '—';
+    }
+
+    els.phase.addEventListener('change', function () {
+      if (els.phase.value === '3' && els.voltage.value === '230') els.voltage.value = '400';
+      if (els.phase.value === '1' && els.voltage.value === '400') els.voltage.value = '230';
+    });
+
+    function render() {
+      var r = window.VoltageDrop.calculate({
+        size: Number.parseFloat(els.size.value),
+        conductor: els.conductor.value,
+        current: Number.parseFloat(els.current.value) || 0,
+        phase: Number.parseInt(els.phase.value, 10),
+        voltage: Number.parseFloat(els.voltage.value) || 0,
+        length: Number.parseFloat(els.length.value) || 0,
+        maxVdropPct: Number.parseFloat(els.maxpct.value) || 5,
+      });
+
+      result.innerHTML =
+        '<div class="leave-stats">' +
+        '<div class="leave-stat ' + (r.ok ? 'leave-stat-approved' : 'leave-stat-declined') + '"><span class="leave-stat-value">' + fmt(r.vdropVolts) + ' V</span><span class="leave-stat-label">Voltage drop</span></div>' +
+        '<div class="leave-stat leave-stat-pending"><span class="leave-stat-value">' + fmt(r.vdropPct) + '%</span><span class="leave-stat-label">Percentage drop</span></div>' +
+        '<div class="leave-stat ' + (r.ok ? 'leave-stat-approved' : 'leave-stat-declined') + '"><span class="leave-stat-value">' + (r.ok ? 'Pass' : 'Fail') + '</span><span class="leave-stat-label">Within ' + fmt(Number.parseFloat(els.maxpct.value), 1) + '% limit</span></div>' +
+        '</div>' +
+        '<p class="text-muted" style="margin-top:0.75rem;">Allowed drop: ' + fmt(r.allowedVolts) + ' V &middot; Reference: ' + fmt(r.mvam, 3) + ' mV/A/m</p>';
+    }
+
+    Object.keys(els).forEach(function (key) {
+      els[key].addEventListener('input', render);
+      els[key].addEventListener('change', render);
+    });
+
+    render();
+  })();
+</script>
+<%- include('../partials/footer') %>

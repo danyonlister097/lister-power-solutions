@@ -1,0 +1,56 @@
+<%- include('../partials/header', { title: jobForm.name }) %>
+<div class="page-header">
+  <h1><%= jobForm.name %></h1>
+  <div class="actions">
+    <a class="btn btn-secondary btn-sm" href="/forms">All templates</a>
+    <a class="btn btn-secondary btn-sm" href="/forms/job/<%= jobForm.id %>/download" target="_blank" rel="noopener">Download</a>
+    <form method="post" action="/forms/job/<%= jobForm.id %>/delete" data-confirm="Delete this form?">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="leave-stats">
+  <div class="leave-stat <%= jobForm.completed ? 'leave-stat-approved' : 'leave-stat-pending' %>">
+    <span class="leave-stat-value"><%= jobForm.completed ? 'Completed' : 'Blank' %></span>
+    <span class="leave-stat-label">Status</span>
+  </div>
+  <div class="leave-stat <%= jobForm.job_id ? 'leave-stat-approved' : 'leave-stat-declined' %>">
+    <span class="leave-stat-value">
+      <% if (jobForm.job_id) { %>
+        <a href="/jobs/<%= jobForm.job_id %>"><%= jobForm.job_title %></a>
+      <% } else { %>
+        Unassigned
+      <% } %>
+    </span>
+    <span class="leave-stat-label">Job</span>
+  </div>
+</div>
+
+<div class="card card-narrow">
+  <h2 class="leave-form-title">Save</h2>
+  <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+  <form method="post" action="/forms/job/<%= jobForm.id %>/upload" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>
+      Upload completed version <span style="font-weight:400;">(optional)</span>
+      <input type="file" name="file" accept=".pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png">
+    </label>
+    <% if (!jobForm.job_id) { %>
+      <label>
+        Assign to job
+        <select name="job_id" required>
+          <option value="">Select a job...</option>
+          <% jobs.forEach(j => { %>
+            <option value="<%= j.id %>"><%= j.title %> &mdash; <%= j.customer_name %></option>
+          <% }) %>
+        </select>
+      </label>
+    <% } %>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer') %>

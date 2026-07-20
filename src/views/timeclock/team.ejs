@@ -1,0 +1,84 @@
+<%- include('../partials/header', { title: 'Time Clock', wide: true }) %>
+<div class="page-header">
+  <h1>Time Clock</h1>
+  <a class="btn btn-secondary btn-sm" href="/timeclock/me">My time clock</a>
+</div>
+
+<div class="sched-view-tabs">
+  <a href="/timeclock/team" class="active">Today</a>
+  <a href="/timeclock/timesheets">Timesheets</a>
+</div>
+
+<div class="sched-nav">
+  <a class="btn btn-secondary btn-sm" href="?date=<%= prevDayIso %>">&larr; Prev</a>
+  <span class="sched-week-label"><%= dayLabel %></span>
+  <a class="btn btn-secondary btn-sm" href="?date=<%= nextDayIso %>">Next &rarr;</a>
+  <% if (dayIso !== todayIso) { %><a class="btn btn-secondary btn-sm" href="/timeclock/team">Jump to today</a><% } %>
+</div>
+
+<% if (mapMarkers.length) { %>
+  <div class="section-heading">Locations</div>
+  <script type="application/json" id="team-map-data"><%- JSON.stringify(mapMarkers).replace(/</g, '\\u003c') %></script>
+  <div id="team-map" class="team-map"></div>
+<% } %>
+
+<div class="timesheet-scroll">
+  <table class="timesheet-table">
+    <thead>
+      <tr>
+        <th>Employee</th>
+        <th>Clock in</th>
+        <th>Clock out</th>
+        <th>Daily total</th>
+        <th>Regular</th>
+        <th>Overtime</th>
+        <th>Location</th>
+        <th>Edit</th>
+      </tr>
+    </thead>
+    <tbody>
+      <%
+        var avatarColors = ['#12b8a0', '#e2622b', '#7c5cff', '#1d5fae', '#c2185b', '#0f9d58'];
+        function initialsFor(name) { return name.trim().split(/\s+/).map(function (p) { return p[0]; }).join('').slice(0, 2).toUpperCase(); }
+        function colorFor(id) { return avatarColors[id % avatarColors.length]; }
+      %>
+      <% rows.forEach(function (r) { %>
+        <tr>
+          <td>
+            <div class="tech-row-info">
+              <span class="tech-avatar" style="background: <%= colorFor(r.id) %>;"><%= initialsFor(r.name) %></span>
+              <span class="tech-name"><%= r.name %></span>
+            </div>
+          </td>
+          <td><%= r.clockIn ? new Date(r.clockIn).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) : '--' %></td>
+          <td>
+            <% if (r.clockOut) { %>
+              <%= new Date(r.clockOut).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %>
+            <% } else if (r.stillIn) { %>
+              <span class="timesheet-live-badge">Still in<span class="timesheet-live-dot"></span></span>
+            <% } else { %>
+              --
+            <% } %>
+          </td>
+          <td><%= formatHours(r.totalMinutes) %></td>
+          <td><%= formatHours(r.regularMinutes) %></td>
+          <td class="<%= r.overtimeMinutes > 0 ? 'timesheet-overtime' : '' %>"><%= formatHours(r.overtimeMinutes) %></td>
+          <td>
+            <% if (r.hasLocation) { %>
+              <a href="https://www.google.com/maps?q=<%= r.lastLat %>,<%= r.lastLng %>" target="_blank" rel="noopener" title="View on map">&#128205;</a>
+            <% } else { %>
+              <span class="text-muted">--</span>
+            <% } %>
+          </td>
+          <td><a class="btn btn-secondary btn-sm" href="/timeclock/edit/<%= r.id %>/<%= dayIso %>">Edit</a></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<% if (mapMarkers.length) { %>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="/js/team-map.js"></script>
+<% } %>
+<%- include('../partials/footer') %>

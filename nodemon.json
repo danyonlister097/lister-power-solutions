@@ -1,0 +1,6 @@
+{
+  "watch": ["src", "scripts", "package.json"],
+  "ignore": ["src/views/**"],
+  "ext": "js,json",
+  "delay": 300
+}

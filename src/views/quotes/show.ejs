@@ -1,0 +1,123 @@
+<%- include('../partials/header', { title: quote.quote_number }) %>
+<div class="page-header">
+  <h1><a href="/quotes" class="btn-link" style="font-weight:400;">&larr; Quotes</a></h1>
+</div>
+
+<div class="card">
+  <div class="page-header" style="margin-bottom: 0.75rem;">
+    <h2 style="margin:0;"><%= quote.quote_number %></h2>
+    <span class="badge badge-<%= quote.status %>"><%= quote.status %></span>
+  </div>
+  <p class="text-muted" style="margin-top:0;">
+    <%= quote.title %> &middot; <%= quote.customer_name %><% if (quote.customer_email) { %> &middot; <%= quote.customer_email %><% } %><br>
+    Created <%= formatAuDate(quote.created_at) %><% if (quote.sent_at) { %> &middot; Sent <%= formatAuDate(quote.sent_at) %><% } %><% if (quote.decided_at) { %> &middot; Decided <%= formatAuDate(quote.decided_at) %><% } %>
+  </p>
+
+  <% if (quote.job_id) { %>
+    <p><a href="/jobs/<%= quote.job_id %>">View linked job: <%= quote.job_title %> &rarr;</a></p>
+  <% } %>
+
+  <% if (quote.status === 'draft' || quote.status === 'sent') { %>
+    <form method="post" action="/quotes/<%= quote.id %>" class="form-row form-row-2" data-preserve-scroll>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>
+        Title
+        <input type="text" name="title" required maxlength="120" value="<%= quote.title %>">
+      </label>
+      <label>
+        Notes
+        <textarea name="notes" rows="2"><%= quote.notes || '' %></textarea>
+      </label>
+      <div class="actions" style="grid-column: 1 / -1;">
+        <button type="submit" class="btn btn-secondary btn-sm">Save details</button>
+      </div>
+    </form>
+  <% } else if (quote.notes) { %>
+    <p><%= quote.notes %></p>
+  <% } %>
+
+  <div class="actions" style="margin-top: 1rem;">
+    <a href="/quotes/<%= quote.id %>/print" target="_blank" class="btn btn-secondary btn-sm">Print / Save PDF</a>
+    <% if (quote.status === 'draft') { %>
+      <form method="post" action="/quotes/<%= quote.id %>/send" style="display:inline;">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-secondary btn-sm">Mark as sent</button>
+      </form>
+    <% } %>
+    <% if (quote.status === 'draft' || quote.status === 'sent') { %>
+      <form method="post" action="/quotes/<%= quote.id %>/accept" style="display:inline;" data-confirm="Accept this quote? This creates a job for <%= quote.customer_name %> and carries the total across as the quoted amount." data-confirm-ok-label="Accept" data-confirm-variant="primary">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-primary btn-sm">Accept &amp; create job</button>
+      </form>
+      <form method="post" action="/quotes/<%= quote.id %>/decline" style="display:inline;" data-confirm="Mark this quote as declined?" data-confirm-ok-label="Decline" data-confirm-variant="secondary">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-secondary btn-sm">Decline</button>
+      </form>
+    <% } %>
+    <% if (quote.status === 'draft') { %>
+      <form method="post" action="/quotes/<%= quote.id %>/delete" style="display:inline;" data-confirm="Delete this draft quote? This cannot be undone.">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn-link" style="color: var(--color-danger);">Delete</button>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Line items</h2>
+  <% if (!items.length) { %>
+    <p class="text-muted">No line items yet.</p>
+  <% } else { %>
+    <ul class="list">
+      <% items.forEach(i => { %>
+        <li>
+          <span class="list-item">
+            <span>
+              <span class="list-item-title"><%= i.description %></span><br>
+              <span class="list-item-meta"><%= i.category %> &middot; <%= i.quantity %> &times; <%= formatMoney(i.unit_price) %> = <%= formatMoney(i.quantity * i.unit_price) %></span>
+            </span>
+            <% if (quote.status === 'draft' || quote.status === 'sent') { %>
+              <form method="post" action="/quotes/<%= quote.id %>/items/<%= i.id %>/delete" data-confirm="Remove this line item?" data-confirm-ok-label="Remove">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn-link">Remove</button>
+              </form>
+            <% } %>
+          </span>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+
+  <p style="text-align:right; font-weight:700;">Total (inc. GST): <%= formatMoney(total) %></p>
+
+  <% if (quote.status === 'draft' || quote.status === 'sent') { %>
+    <div class="section-heading">Add item</div>
+    <form method="post" action="/quotes/<%= quote.id %>/items" class="form-row form-row-2">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>
+        Category
+        <select name="category">
+          <% CATEGORIES.forEach(c => { %>
+            <option value="<%= c %>"><%= c %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>
+        Description
+        <input type="text" name="description" required placeholder="e.g. Switchboard upgrade - labour">
+      </label>
+      <label>
+        Quantity
+        <input type="number" name="quantity" step="any" value="1" required>
+      </label>
+      <label>
+        Unit price ($, inc. GST)
+        <input type="number" name="unit_price" step="0.01" required>
+      </label>
+      <div class="actions" style="grid-column: 1 / -1;">
+        <button type="submit" class="btn btn-primary btn-sm">Add item</button>
+      </div>
+    </form>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

@@ -1,0 +1,355 @@
+<%- include('../partials/header', { title: job.title }) %>
+<div class="page-header">
+  <h1><%= job.title %></h1>
+  <div class="actions">
+    <span class="badge badge-<%= job.status %>"><%= job.status.replace('_', ' ') %></span>
+    <a class="page-close" href="<%= closeUrl %>" aria-label="Close" title="Close">&times;</a>
+  </div>
+</div>
+
+<div class="card">
+  <dl class="detail-grid">
+    <dt>Customer</dt>
+    <dd>
+      <% if (currentUser.role === 'admin') { %>
+        <a href="/customers/<%= job.customer_id %>"><%= job.customer_name %></a>
+      <% } else { %>
+        <%= job.customer_name %>
+      <% } %>
+    </dd>
+    <dt>Scheduled</dt>
+    <dd>
+      <% if (job.all_day) { %>
+        <%= new Date(job.scheduled_start).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }) %> &middot; All day
+      <% } else if (job.scheduled_start) { %>
+        <%= new Date(job.scheduled_start).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %><% if (job.scheduled_end) { %> &ndash; <%= new Date(job.scheduled_end).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %><% } %>
+      <% } else { %>Not scheduled<% } %>
+    </dd>
+    <dt>Job site</dt>
+    <dd>
+      <% const site = [job.site_address_street, job.site_address_city, job.site_address_state, job.site_address_postcode].filter(Boolean).join(', '); %>
+      <% if (site) { %>
+        <a href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(site) %>" target="_blank" rel="noopener"><%= site %></a>
+      <% } else { %>—<% } %>
+    </dd>
+    <dt>Assigned to</dt>
+    <dd><%= job.assigneeNames || 'Unassigned' %></dd>
+    <% if (job.description) { %><dt>Description</dt><dd><%= job.description %></dd><% } %>
+    <% if (job.notes) { %><dt>Notes</dt><dd><%= job.notes %></dd><% } %>
+    <% if (linkedAssets.length) { %>
+      <dt>Assets serviced</dt>
+      <dd>
+        <% linkedAssets.forEach(function (a, i) { %><% if (currentUser.role === 'admin') { %><a href="/customers/<%= job.customer_id %>/assets/<%= a.id %>"><%= a.name %></a><% } else { %><%= a.name %><% } %><%= i < linkedAssets.length - 1 ? ', ' : '' %><% }) %>
+      </dd>
+    <% } %>
+  </dl>
+
+  <% if (currentUser.role === 'admin') { %>
+    <div class="actions">
+      <a class="btn btn-secondary btn-sm" href="/jobs/<%= job.id %>/edit">Edit job</a>
+      <form method="post" action="/jobs/<%= job.id %>/duplicate">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-secondary btn-sm">Duplicate</button>
+      </form>
+      <form method="post" action="/jobs/<%= job.id %>/delete" data-confirm="Delete this job? This cannot be undone.">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+      </form>
+    </div>
+  <% } %>
+</div>
+
+<div class="card">
+  <h2>Update status</h2>
+  <form method="post" action="/jobs/<%= job.id %>/status" class="form-row form-row-2" data-preserve-scroll>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <select name="status">
+      <% STATUSES.forEach(s => { %>
+        <option value="<%= s %>" <%= job.status === s ? 'selected' : '' %>><%= s.replace('_', ' ') %></option>
+      <% }) %>
+    </select>
+    <button type="submit" class="btn btn-primary">Update status</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Photos</h2>
+  <% if (attachments.length === 0) { %>
+    <div class="empty-state">No photos yet.</div>
+  <% } else { %>
+    <div class="attachment-grid">
+      <% attachments.forEach(a => { %>
+        <div class="attachment-item">
+          <a href="/jobs/<%= job.id %>/attachments/<%= a.id %>" target="_blank" rel="noopener">
+            <img src="/jobs/<%= job.id %>/attachments/<%= a.id %>" alt="<%= a.original_name %>">
+          </a>
+          <form method="post" action="/jobs/<%= job.id %>/attachments/<%= a.id %>/delete"
+                data-confirm="Remove this photo?" data-preserve-scroll>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="attachment-delete" aria-label="Remove photo">&times;</button>
+          </form>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <form method="post" action="/jobs/<%= job.id %>/attachments" enctype="multipart/form-data" class="attachment-upload-form" data-preserve-scroll>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>
+      Add photos
+      <input type="file" name="photos" accept="image/*" capture="environment" multiple>
+    </label>
+    <button type="submit" class="btn btn-primary btn-sm">Upload</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="page-header" style="margin-bottom: 0.75rem;">
+    <h2 style="margin: 0;">Forms &amp; certificates</h2>
+    <a class="btn btn-secondary btn-sm" href="/forms?forJob=<%= job.id %>">+ Add form</a>
+  </div>
+  <% if (jobForms.length === 0) { %>
+    <div class="empty-state">No forms attached to this job yet.</div>
+  <% } else { %>
+    <ul class="list">
+      <% jobForms.forEach(f => { %>
+        <li>
+          <span class="list-item">
+            <span>
+              <span class="list-item-title"><%= f.name %></span><br>
+              <span class="list-item-meta"><%= new Date(f.updated_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+            </span>
+            <span class="actions">
+              <span class="badge <%= f.completed ? 'badge-completed' : 'badge-scheduled' %>"><%= f.completed ? 'completed' : 'blank' %></span>
+              <a class="btn btn-secondary btn-sm" href="/forms/job/<%= f.id %>/download" target="_blank" rel="noopener">View</a>
+              <button type="button" class="btn btn-secondary btn-sm job-form-upload-toggle" data-target="job-form-upload-<%= f.id %>">Upload completed</button>
+              <form method="post" action="/forms/job/<%= f.id %>/delete" data-confirm="Remove this form from the job?" data-preserve-scroll>
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn-link">Remove</button>
+              </form>
+            </span>
+          </span>
+          <form method="post" action="/forms/job/<%= f.id %>/upload" enctype="multipart/form-data" id="job-form-upload-<%= f.id %>" class="job-form-upload-form" hidden data-preserve-scroll>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="file" name="file" accept=".pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png" required>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          </form>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<div class="card">
+  <h2>Stock used</h2>
+  <% if (stockAllocations.length === 0) { %>
+    <div class="empty-state">No stock allocated yet.</div>
+  <% } else { %>
+    <ul class="list">
+      <% stockAllocations.forEach(a => { %>
+        <li>
+          <span class="list-item">
+            <span class="list-item-title"><%= a.item_name %></span>
+            <span class="actions">
+              <span class="badge badge-scheduled"><%= a.quantity %> <%= a.item_unit %></span>
+              <form method="post" action="/inventory/allocations/<%= a.id %>/delete" data-confirm="Remove this stock allocation? The quantity will be returned to inventory." data-preserve-scroll>
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn-link">Remove</button>
+              </form>
+            </span>
+          </span>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+  <% if (inventoryItems.length === 0) { %>
+    <p class="text-muted">No inventory items set up yet. <a href="/inventory">Add some</a>.</p>
+  <% } else { %>
+    <form method="post" action="/inventory/allocate" class="form-row form-row-2" id="stock-allocate-form" data-preserve-scroll>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="job_id" value="<%= job.id %>">
+      <input type="hidden" name="item_id" id="stock-item-id">
+      <label class="autocomplete">
+        Item
+        <input type="text" id="stock-item-search" placeholder="Search inventory item..." autocomplete="off">
+        <div id="stock-item-results" class="autocomplete-results" hidden></div>
+      </label>
+      <label>
+        Quantity
+        <input type="number" name="quantity" step="any" min="0.01" required>
+      </label>
+      <div class="actions" style="grid-column: 1 / -1;">
+        <button type="submit" class="btn btn-primary btn-sm">Allocate to this job</button>
+      </div>
+    </form>
+    <script>
+      (function () {
+        var items = <%- JSON.stringify(inventoryItems.map((i) => ({ id: i.id, name: i.name, unit: i.unit, qty: i.quantity_on_hand }))) %>;
+        var search = document.getElementById('stock-item-search');
+        var hiddenId = document.getElementById('stock-item-id');
+        var results = document.getElementById('stock-item-results');
+        var form = document.getElementById('stock-allocate-form');
+
+        function closeResults() {
+          results.hidden = true;
+          results.innerHTML = '';
+        }
+
+        search.addEventListener('input', function () {
+          hiddenId.value = '';
+          var q = search.value.trim().toLowerCase();
+          if (!q) return closeResults();
+
+          var matches = items.filter(function (i) { return i.name.toLowerCase().indexOf(q) !== -1; }).slice(0, 15);
+          if (!matches.length) {
+            results.innerHTML = '<div class="autocomplete-empty">No matching items</div>';
+            results.hidden = false;
+            return;
+          }
+
+          results.innerHTML = matches
+            .map(function (i) {
+              return '<div class="autocomplete-result" data-id="' + i.id + '" data-name="' + i.name.replace(/"/g, '&quot;') + '">' +
+                i.name + ' <span class="autocomplete-meta">(' + i.qty + ' ' + i.unit + ' on hand)</span></div>';
+            })
+            .join('');
+          results.hidden = false;
+        });
+
+        results.addEventListener('click', function (e) {
+          var row = e.target.closest('.autocomplete-result');
+          if (!row) return;
+          hiddenId.value = row.getAttribute('data-id');
+          search.value = row.getAttribute('data-name');
+          closeResults();
+        });
+
+        document.addEventListener('click', function (e) {
+          if (e.target !== search && !results.contains(e.target)) closeResults();
+        });
+
+        form.addEventListener('submit', function (e) {
+          if (!hiddenId.value) {
+            e.preventDefault();
+            search.focus();
+            search.setCustomValidity('Please choose an item from the list.');
+            search.reportValidity();
+          } else {
+            search.setCustomValidity('');
+          }
+        });
+      })();
+    </script>
+  <% } %>
+</div>
+
+<% if (currentUser.role === 'admin') { %>
+  <div class="card">
+    <h2>Job costing</h2>
+    <div class="leave-stats">
+      <div class="leave-stat leave-stat-pending">
+        <span class="leave-stat-value"><%= formatMoney(costing.quotedAmount) %></span>
+        <span class="leave-stat-label">Quoted</span>
+      </div>
+      <div class="leave-stat leave-stat-declined">
+        <span class="leave-stat-value"><%= formatMoney(costing.totalCost) %></span>
+        <span class="leave-stat-label">Total cost</span>
+      </div>
+      <div class="leave-stat leave-stat-approved">
+        <span class="leave-stat-value"><%= formatMoney(costing.profit) %></span>
+        <span class="leave-stat-label">Profit</span>
+      </div>
+    </div>
+
+    <form method="post" action="/jobs/<%= job.id %>/costing/quote" class="form-row form-row-2" data-preserve-scroll>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>
+        Quoted amount ($)
+        <input type="number" name="quoted_amount" step="0.01" value="<%= costing.quotedAmount !== null ? costing.quotedAmount : '' %>">
+      </label>
+      <div class="actions">
+        <button type="submit" class="btn btn-secondary btn-sm">Save quote</button>
+      </div>
+    </form>
+
+    <div class="section-heading">Cost items</div>
+    <% if (!costing.costItems.length) { %>
+      <p class="text-muted">No cost items yet.</p>
+    <% } else { %>
+      <ul class="list">
+        <% costing.costItems.forEach(i => { %>
+          <li>
+            <span class="list-item">
+              <span>
+                <span class="list-item-title"><%= i.description %></span><br>
+                <span class="list-item-meta"><%= i.category %> &middot; <%= i.quantity %> &times; $<%= i.unit_cost.toFixed(2) %> = $<%= (i.quantity * i.unit_cost).toFixed(2) %></span>
+              </span>
+              <form method="post" action="/jobs/<%= job.id %>/costing/items/<%= i.id %>/delete" data-confirm="Remove this cost item?" data-preserve-scroll>
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn-link">Remove</button>
+              </form>
+            </span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+
+    <form method="post" action="/jobs/<%= job.id %>/costing/items" class="form-row form-row-2" data-preserve-scroll>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>
+        Category
+        <select name="category">
+          <% costing.categories.forEach(c => { %>
+            <option value="<%= c %>"><%= c %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>
+        Description
+        <input type="text" name="description" required placeholder="e.g. Danyon - 3.5 hrs">
+      </label>
+      <label>
+        Quantity
+        <input type="number" name="quantity" step="any" value="1" required>
+      </label>
+      <label>
+        Unit cost ($)
+        <input type="number" name="unit_cost" step="0.01" required>
+      </label>
+      <div class="actions" style="grid-column: 1 / -1;">
+        <button type="submit" class="btn btn-primary btn-sm">Add cost item</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="page-header" style="margin-bottom: 0.75rem;">
+      <h2 style="margin:0;">Invoices</h2>
+      <form method="post" action="/invoices">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="job_id" value="<%= job.id %>">
+        <button type="submit" class="btn btn-primary btn-sm">+ Create invoice</button>
+      </form>
+    </div>
+    <% if (!jobInvoices.length) { %>
+      <p class="text-muted">No invoices raised for this job yet.</p>
+    <% } else { %>
+      <ul class="list">
+        <% jobInvoices.forEach(inv => {
+             var eff = (inv.status === 'sent' && inv.due_date && inv.due_date < new Date().toISOString().slice(0, 10)) ? 'overdue' : inv.status;
+        %>
+          <li>
+            <span class="list-item">
+              <span>
+                <a href="/invoices/<%= inv.id %>" class="list-item-title"><%= inv.invoice_number %></a><br>
+                <span class="list-item-meta"><%= formatMoney(inv.total) %> &middot; issued <%= formatAuDate(inv.issue_date) %></span>
+              </span>
+              <span class="badge badge-<%= eff %>"><%= eff %></span>
+            </span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+<% } %>
+<%- include('../partials/footer') %>

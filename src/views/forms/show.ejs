@@ -1,0 +1,54 @@
+<%- include('../partials/header', { title: template.name }) %>
+<div class="page-header">
+  <h1><%= template.name %></h1>
+  <div class="actions">
+    <a class="btn btn-secondary btn-sm" href="/forms">All templates</a>
+    <a class="btn btn-secondary btn-sm" href="/forms/<%= template.id %>/download" target="_blank" rel="noopener">Download blank</a>
+    <% if (currentUser.role === 'admin') { %>
+      <form method="post" action="/forms/<%= template.id %>/delete" data-confirm="Delete this template? Copies already created for jobs will be unaffected.">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-danger btn-sm">Delete template</button>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<div class="card card-narrow">
+  <h2 class="leave-form-title">Create new for a job</h2>
+  <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+  <form method="post" action="/forms/<%= template.id %>/duplicate">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>
+      Job
+      <select name="job_id" required>
+        <option value="">Select a job...</option>
+        <% jobs.forEach(j => { %>
+          <option value="<%= j.id %>"><%= j.title %> &mdash; <%= j.customer_name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Create new blank copy</button>
+    </div>
+  </form>
+</div>
+
+<div class="section-heading">Used on (<%= history.length %>)</div>
+<% if (!history.length) { %>
+  <p class="text-muted">Not used on any job yet.</p>
+<% } else { %>
+  <ul class="list">
+    <% history.forEach(h => { %>
+      <li>
+        <a class="list-item" href="/jobs/<%= h.job_id %>">
+          <span>
+            <span class="list-item-title"><%= h.job_title %></span><br>
+            <span class="list-item-meta">Added by <%= h.created_by_name %> &middot; <%= new Date(h.created_at).toLocaleDateString('en-AU') %></span>
+          </span>
+          <span class="badge <%= h.completed ? 'badge-completed' : 'badge-scheduled' %>"><%= h.completed ? 'completed' : 'blank' %></span>
+        </a>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+<%- include('../partials/footer') %>

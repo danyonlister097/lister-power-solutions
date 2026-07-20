@@ -1,0 +1,96 @@
+<%- include('../partials/header', { title: 'Schedule', wide: true }) %>
+<div class="page-header">
+  <h1>Schedule</h1>
+  <div class="actions">
+    <a class="btn btn-secondary btn-sm" href="/jobs">List view</a>
+    <a class="btn btn-primary btn-sm" href="/jobs/new">+ New job</a>
+  </div>
+</div>
+
+<div class="sched-view-tabs">
+  <a href="?view=day&start=<%= todayIso %>">Day</a>
+  <a href="?view=week&start=<%= todayIso %>">Week</a>
+  <a href="?view=month" class="active">Month</a>
+</div>
+
+<div class="sched-nav">
+  <a class="btn btn-secondary btn-sm" href="?view=month&month=<%= prevMonthIso %>">&larr; Prev</a>
+  <span class="sched-week-label"><%= monthLabel %></span>
+  <a class="btn btn-secondary btn-sm" href="?view=month&month=<%= nextMonthIso %>">Next &rarr;</a>
+</div>
+
+<div class="month-grid" id="sched-grid" data-csrf="<%= csrfToken %>">
+  <div class="month-cell month-header-cell">Mon</div>
+  <div class="month-cell month-header-cell">Tue</div>
+  <div class="month-cell month-header-cell">Wed</div>
+  <div class="month-cell month-header-cell">Thu</div>
+  <div class="month-cell month-header-cell">Fri</div>
+  <div class="month-cell month-header-cell">Sat</div>
+  <div class="month-cell month-header-cell">Sun</div>
+
+  <% weeks.forEach(week => { week.forEach(day => { %>
+    <div class="month-cell month-day-cell <%= day.inMonth ? '' : 'month-day-outside' %> <%= day.iso === todayIso ? 'month-day-today' : '' %>"
+         data-href="?view=day&start=<%= day.iso %>" data-day="<%= day.iso %>">
+      <a class="month-day-number" href="?view=day&start=<%= day.iso %>"><%= day.date.getDate() %></a>
+      <% day.jobs.slice(0, 3).forEach(j => {
+           const address = [j.site_address_street, j.site_address_city, j.site_address_state, j.site_address_postcode].filter(Boolean).join(', ');
+      %>
+        <div
+          class="month-job-chip shift-block shift-<%= j.status %>"
+          <% if (j.color) { %>style="background-color: <%= j.color %>;"<% } %>
+          draggable="true"
+          tabindex="0"
+          role="button"
+          data-job-id="<%= j.id %>"
+          data-title="<%= j.title %>"
+          data-customer="<%= j.customer_name %>"
+          data-status="<%= j.status %>"
+          data-start="<%= j.scheduled_start %>"
+          data-end="<%= j.scheduled_end || '' %>"
+          data-assignee="<%= j.assigneeNames || 'Unassigned' %>"
+          data-address="<%= address %>"
+          data-description="<%= j.description || '' %>"
+          data-notes="<%= j.notes || '' %>"
+          data-all-day="<%= j.all_day ? '1' : '' %>"
+        >
+          <% if (j.all_day) { %>All day
+          <% } else { %><%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %><% if (j.scheduled_end) { %>&ndash;<%= new Date(j.scheduled_end).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %><% } %><% } %>
+          <%= j.title %>
+        </div>
+      <% }) %>
+      <% if (day.jobs.length > 3) { %>
+        <span class="month-job-more">+<%= day.jobs.length - 3 %> more</span>
+      <% } %>
+    </div>
+  <% }) }) %>
+</div>
+
+<div id="job-modal" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="job-modal-title">
+    <button type="button" class="modal-close" id="job-modal-close" aria-label="Close">&times;</button>
+    <span class="badge" id="job-modal-status"></span>
+    <h2 id="job-modal-title"></h2>
+    <dl class="detail-grid">
+      <dt>Customer</dt><dd id="job-modal-customer"></dd>
+      <dt>Assigned to</dt><dd id="job-modal-assignee"></dd>
+      <dt>Scheduled</dt><dd id="job-modal-time"></dd>
+      <dt>Job site</dt><dd id="job-modal-address"></dd>
+      <dt class="job-modal-optional" id="job-modal-description-label">Description</dt><dd class="job-modal-optional" id="job-modal-description"></dd>
+      <dt class="job-modal-optional" id="job-modal-notes-label">Notes</dt><dd class="job-modal-optional" id="job-modal-notes"></dd>
+    </dl>
+    <div class="actions">
+      <a class="btn btn-secondary btn-sm" id="job-modal-open">Open full page</a>
+      <a class="btn btn-primary btn-sm" id="job-modal-edit">Edit job</a>
+    </div>
+  </div>
+</div>
+
+<div id="shift-context-menu" class="context-menu" hidden>
+  <a href="#" class="context-menu-item" data-action="edit">Edit</a>
+  <button type="button" class="context-menu-item" data-action="duplicate">Duplicate</button>
+  <button type="button" class="context-menu-item" data-action="unassign">Unassign</button>
+  <button type="button" class="context-menu-item context-menu-danger" data-action="delete">Delete</button>
+</div>
+
+<script src="/js/schedule.js"></script>
+<%- include('../partials/footer') %>

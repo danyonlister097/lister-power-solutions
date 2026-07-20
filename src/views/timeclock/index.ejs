@@ -1,0 +1,62 @@
+<%- include('../partials/header', { title: 'Time Clock' }) %>
+<div class="page-header">
+  <h1>Time Clock</h1>
+  <% if (currentUser.role === 'admin') { %>
+    <a class="btn btn-secondary btn-sm" href="/timeclock/team">Team view</a>
+  <% } %>
+</div>
+
+<div class="card card-narrow timeclock-status">
+  <div class="timeclock-state <%= isClockedIn ? 'timeclock-state-in' : 'timeclock-state-out' %>">
+    <%= isClockedIn ? 'Clocked in' : 'Clocked out' %>
+  </div>
+  <% if (lastEvent) { %>
+    <p class="timeclock-since">
+      since <%= new Date(lastEvent.occurred_at).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) %>
+    </p>
+    <p class="timeclock-location">
+      <% if (lastEvent.latitude !== null && lastEvent.latitude !== undefined) { %>
+        <a href="https://www.google.com/maps?q=<%= lastEvent.latitude %>,<%= lastEvent.longitude %>" target="_blank" rel="noopener" class="timeclock-location-link">&#128205; Location recorded</a>
+      <% } else { %>
+        <span class="text-muted">&#128205; Location unavailable</span>
+      <% } %>
+    </p>
+  <% } %>
+  <form method="post" action="/timeclock/toggle" id="clock-toggle-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="latitude" id="clock-lat">
+    <input type="hidden" name="longitude" id="clock-lng">
+    <input type="hidden" name="accuracy" id="clock-accuracy">
+    <button type="submit" class="btn btn-primary btn-clock-toggle <%= isClockedIn ? 'btn-danger' : 'btn-primary' %>">
+      <%= isClockedIn ? 'Clock out' : 'Clock in' %>
+    </button>
+    <p class="timeclock-locating" id="clock-locating" hidden>Getting your location&hellip;</p>
+    <p class="timeclock-location-error" id="clock-location-error" hidden></p>
+  </form>
+</div>
+
+<div class="section-heading">Recent activity</div>
+<% if (!recent.length) { %>
+  <p class="text-muted">No clock events yet.</p>
+<% } else { %>
+  <ul class="list">
+    <% recent.forEach(e => { %>
+      <li>
+        <span class="list-item">
+          <span>
+            <span class="list-item-title"><%= e.type === 'in' ? 'Clocked in' : 'Clocked out' %></span><br>
+            <span class="list-item-meta">
+              <%= new Date(e.occurred_at).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) %>
+              <% if (e.latitude !== null) { %>
+                &middot; <a href="https://www.google.com/maps?q=<%= e.latitude %>,<%= e.longitude %>" target="_blank" rel="noopener">map</a>
+              <% } %>
+            </span>
+          </span>
+          <span class="badge <%= e.type === 'in' ? 'badge-completed' : 'badge-unscheduled' %>"><%= e.type %></span>
+        </span>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+<script src="/js/timeclock.js"></script>
+<%- include('../partials/footer') %>

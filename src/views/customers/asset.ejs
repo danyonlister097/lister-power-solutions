@@ -1,0 +1,80 @@
+<%- include('../partials/header', { title: asset.name }) %>
+<div class="page-header">
+  <h1><%= asset.name %></h1>
+  <div class="actions">
+    <a class="btn btn-secondary btn-sm" href="/customers/<%= customer.id %>">Back to <%= customer.name %></a>
+    <form method="post" action="/customers/<%= customer.id %>/assets/<%= asset.id %>/delete" data-confirm="Delete this asset? Its service history link will also be removed.">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="card card-narrow">
+  <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+  <form method="post" action="/customers/<%= customer.id %>/assets/<%= asset.id %>">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="form-row form-row-2">
+      <label>
+        Type
+        <select name="type">
+          <% assetTypes.forEach(t => { %><option value="<%= t %>" <%= asset.type === t ? 'selected' : '' %>><%= t %></option><% }) %>
+        </select>
+      </label>
+      <label>
+        Name / label
+        <input type="text" name="name" value="<%= asset.name %>" required maxlength="120">
+      </label>
+    </div>
+    <div class="form-row form-row-2">
+      <label>
+        Make
+        <input type="text" name="make" value="<%= asset.make || '' %>" maxlength="80">
+      </label>
+      <label>
+        Model
+        <input type="text" name="model" value="<%= asset.model || '' %>" maxlength="80">
+      </label>
+    </div>
+    <div class="form-row form-row-2">
+      <label>
+        Serial number
+        <input type="text" name="serial_number" value="<%= asset.serial_number || '' %>" maxlength="80">
+      </label>
+      <label>
+        Install date
+        <input type="date" name="install_date" value="<%= asset.install_date || '' %>">
+      </label>
+    </div>
+    <label>
+      Notes
+      <textarea name="notes"><%= asset.notes || '' %></textarea>
+    </label>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Save changes</button>
+    </div>
+  </form>
+</div>
+
+<div class="section-heading">Service history (<%= history.length %>)</div>
+<% if (!history.length) { %>
+  <p class="text-muted">Not linked to any job yet. Link it from the job's edit page.</p>
+<% } else { %>
+  <ul class="list">
+    <% history.forEach(j => { %>
+      <li>
+        <a class="list-item" href="/jobs/<%= j.id %>">
+          <span>
+            <span class="list-item-title"><%= j.title %></span><br>
+            <span class="list-item-meta">
+              <% if (!j.scheduled_start) { %>Not scheduled
+              <% } else { %><%= new Date(j.scheduled_start).toLocaleDateString('en-AU') %><% } %>
+            </span>
+          </span>
+          <span class="badge badge-<%= j.status %>"><%= j.status.replace('_', ' ') %></span>
+        </a>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+<%- include('../partials/footer') %>

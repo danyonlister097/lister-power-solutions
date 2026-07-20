@@ -1,0 +1,69 @@
+<%- include('../partials/header', { title: 'Time Clock', wide: true }) %>
+<div class="page-header">
+  <h1>Time Clock</h1>
+  <a class="btn btn-secondary btn-sm" href="/timeclock/me">My time clock</a>
+</div>
+
+<div class="sched-view-tabs">
+  <a href="/timeclock/team">Today</a>
+  <a href="/timeclock/timesheets" class="active">Timesheets</a>
+</div>
+
+<div class="sched-nav">
+  <a class="btn btn-secondary btn-sm" href="?start=<%= prevStartIso %>">&larr; Prev</a>
+  <span class="sched-week-label"><%= formatAuDate(startIso) %> &ndash; <%= formatAuDate(endIso) %></span>
+  <a class="btn btn-secondary btn-sm" href="?start=<%= nextStartIso %>">Next &rarr;</a>
+</div>
+
+<div class="leave-stats">
+  <div class="leave-stat leave-stat-approved">
+    <span class="leave-stat-value"><%= formatHours(totalRegularMinutes, true) %></span>
+    <span class="leave-stat-label">Total regular</span>
+  </div>
+  <div class="leave-stat leave-stat-declined">
+    <span class="leave-stat-value"><%= formatHours(totalOvertimeMinutes, true) %></span>
+    <span class="leave-stat-label">Total overtime</span>
+  </div>
+  <div class="leave-stat leave-stat-pending">
+    <span class="leave-stat-value"><%= formatHours(totalRegularMinutes + totalOvertimeMinutes, true) %></span>
+    <span class="leave-stat-label">Total paid hours</span>
+  </div>
+</div>
+
+<div class="timesheet-scroll">
+  <table class="timesheet-table timesheet-grid">
+    <thead>
+      <tr>
+        <th class="timesheet-sticky-col">Employee</th>
+        <% days.forEach(function (day) { %><th><%= day.label %></th><% }) %>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      <%
+        var avatarColors = ['#12b8a0', '#e2622b', '#7c5cff', '#1d5fae', '#c2185b', '#0f9d58'];
+        function initialsFor(name) { return name.trim().split(/\s+/).map(function (p) { return p[0]; }).join('').slice(0, 2).toUpperCase(); }
+        function colorFor(id) { return avatarColors[id % avatarColors.length]; }
+      %>
+      <% rows.forEach(function (r) { %>
+        <tr>
+          <td class="timesheet-sticky-col">
+            <div class="tech-row-info">
+              <span class="tech-avatar" style="background: <%= colorFor(r.id) %>;"><%= initialsFor(r.name) %></span>
+              <span class="tech-name"><%= r.name %></span>
+            </div>
+          </td>
+          <% r.cells.forEach(function (cell, i) { %>
+            <td class="<%= cell.minutes > 480 ? 'timesheet-overtime' : '' %>">
+              <a class="timesheet-cell-link" href="/timeclock/edit/<%= r.id %>/<%= days[i].iso %>" title="Edit this day">
+                <%= cell.minutes ? formatHours(cell.minutes) : '--' %><% if (cell.stillIn) { %><span class="timesheet-live-dot" title="Still clocked in"></span><% } %>
+              </a>
+            </td>
+          <% }) %>
+          <td class="timesheet-total-col"><%= formatHours(r.totalMinutes) %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

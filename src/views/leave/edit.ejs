@@ -1,0 +1,36 @@
+<%- include('../partials/header', { title: 'Edit Leave' }) %>
+<div class="page-header">
+  <h1>Edit Leave &mdash; <%= request.user_name %></h1>
+  <a class="btn btn-secondary btn-sm" href="/leave">Back to Request Leave</a>
+</div>
+
+<div class="card card-narrow">
+  <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+  <form method="post" action="/leave/<%= request.id %>">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="form-row form-row-2">
+      <label>
+        Start date
+        <input type="date" name="start_date" value="<%= request.start_date %>" required>
+      </label>
+      <label>
+        End date
+        <input type="date" name="end_date" value="<%= request.end_date %>" required>
+      </label>
+    </div>
+    <% if (request.reason) { %>
+      <label>
+        Employee's reason
+        <textarea disabled><%= request.reason %></textarea>
+      </label>
+    <% } %>
+    <label>
+      Admin comment <span style="font-weight:400;">(visible internally, not to the employee)</span>
+      <textarea name="admin_comment" placeholder="e.g. Adjusted dates to cover the Smith Residence job"><%= request.admin_comment || '' %></textarea>
+    </label>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Save changes</button>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer') %>

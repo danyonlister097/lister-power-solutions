@@ -1,0 +1,43 @@
+<%- include('../partials/header', { title: 'Tools', wide: true }) %>
+<div class="page-header">
+  <h1>Tools</h1>
+</div>
+
+<div class="form-template-grid">
+  <a class="form-template-card tools-card" href="/tools/cable-sizing">
+    <span class="form-template-icon">&#9889;</span>
+    <span class="form-template-body">
+      <span class="form-template-name">Cable Sizing Calculator</span>
+      <span class="form-template-meta">AS/NZS 3008.1.1 current rating &amp; voltage drop</span>
+    </span>
+  </a>
+  <a class="form-template-card tools-card" href="/tools/voltage-drop">
+    <span class="form-template-icon">&#128267;</span>
+    <span class="form-template-body">
+      <span class="form-template-name">Voltage Drop Calculator</span>
+      <span class="form-template-meta">Check drop for a chosen cable size</span>
+    </span>
+  </a>
+  <a class="form-template-card tools-card" href="/tools/conduit-sizing">
+    <span class="form-template-icon">&#128268;</span>
+    <span class="form-template-body">
+      <span class="form-template-name">Conduit Sizing Calculator</span>
+      <span class="form-template-meta">Conduit fill for a set of cables</span>
+    </span>
+  </a>
+  <a class="form-template-card tools-card" href="/tools/breaker-sizing">
+    <span class="form-template-icon">&#128267;</span>
+    <span class="form-template-body">
+      <span class="form-template-name">Circuit Breaker Sizing Calculator</span>
+      <span class="form-template-meta">Protective device rating (I<sub>b</sub> &le; I<sub>n</sub> &le; I<sub>z</sub>)</span>
+    </span>
+  </a>
+  <a class="form-template-card tools-card" href="/tools/max-demand">
+    <span class="form-template-icon">&#128202;</span>
+    <span class="form-template-body">
+      <span class="form-template-name">Maximum Demand Calculator</span>
+      <span class="form-template-meta">Load schedule with diversity factors</span>
+    </span>
+  </a>
+</div>
+<%- include('../partials/footer') %>

@@ -1,0 +1,63 @@
+<aside class="chat-sidebar">
+  <form class="chat-search-form" action="/chat/search" method="get">
+    <input type="text" name="q" placeholder="Search all chats...">
+  </form>
+
+  <a class="chat-folders-link" href="/chat/folders">Photo folders</a>
+
+  <div class="chat-sidebar-header">
+    <span>Channels</span>
+    <button type="button" class="btn-link" id="chat-new-channel-toggle">+ New</button>
+  </div>
+  <form id="chat-new-channel-form" class="chat-new-channel-form" method="post" action="/chat/channels" hidden>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="text" name="name" placeholder="Channel name" required maxlength="60">
+    <button type="submit" class="btn btn-primary btn-sm">Create</button>
+  </form>
+
+  <% var hasCurrent = typeof channel !== 'undefined' && channel; %>
+  <a
+    class="chat-unread-toggle<%= typeof unreadOnly !== 'undefined' && unreadOnly ? ' active' : '' %>"
+    href="<%= hasCurrent ? ('/chat/c/' + channel.id + (typeof unreadOnly !== 'undefined' && unreadOnly ? '' : '?unreadOnly=1')) : '/chat' %>"
+  >
+    Unread only
+  </a>
+
+  <%
+    var pinSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M8 3h8l-1 6 3 3v2H6v-2l3-3-1-6z"/></svg>';
+
+    function renderChannelRow(c) {
+      var isCurrent = hasCurrent && channel.id === c.id;
+      if (typeof unreadOnly !== 'undefined' && unreadOnly && c.unread_count === 0 && !isCurrent) return;
+  %>
+      <a
+        class="chat-channel-link<%= isCurrent ? ' active' : '' %>"
+        href="/chat/c/<%= c.id %>"
+        draggable="true"
+        data-channel-id="<%= c.id %>"
+        data-pinned="<%= c.pinned ? '1' : '0' %>"
+      >
+        <span class="chat-channel-name">#<%= c.name %></span>
+        <button type="button" class="chat-channel-pin<%= c.pinned ? ' chat-channel-pin-active' : '' %>" data-channel-id="<%= c.id %>" title="<%= c.pinned ? 'Unpin channel' : 'Pin channel' %>">
+          <%- pinSvg %>
+        </button>
+        <% if (c.unread_count > 0) { %><span class="chat-unread-badge"><%= c.unread_count %></span><% } %>
+      </a>
+  <%
+    }
+
+    var pinned = channels.filter(function (c) { return c.pinned; });
+    var unpinned = channels.filter(function (c) { return !c.pinned; });
+  %>
+
+  <% if (pinned.length) { %>
+    <div class="chat-sidebar-header chat-sidebar-header-pinned">Pinned</div>
+    <nav class="chat-channel-list" data-section="pinned">
+      <% pinned.forEach(renderChannelRow) %>
+    </nav>
+  <% } %>
+
+  <nav class="chat-channel-list" data-section="channels">
+    <% unpinned.forEach(renderChannelRow) %>
+  </nav>
+</aside>

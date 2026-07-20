@@ -1,0 +1,415 @@
+<%- include('../partials/header', { title: 'Inventory', wide: true }) %>
+<div class="page-header">
+  <h1>Inventory</h1>
+  <% if (currentUser.role === 'admin') { %>
+    <div class="actions">
+      <button type="button" class="btn btn-danger btn-sm" id="bulk-delete-btn" hidden>Delete selected (<span id="bulk-delete-count">0</span>)</button>
+      <button type="button" class="btn btn-primary" id="add-stock-open">+ Add stock</button>
+    </div>
+  <% } %>
+</div>
+
+<% if (items.length) { %>
+  <div class="card inventory-filters">
+    <label style="flex:2;min-width:200px;">
+      Search
+      <input type="search" id="inventory-search" placeholder="Search by name or category…" autocomplete="off">
+    </label>
+    <label style="flex:1;min-width:160px;">
+      Category
+      <select id="inventory-category-filter">
+        <option value="">All categories</option>
+      </select>
+    </label>
+    <label style="flex:1;min-width:200px;">
+      Sort by
+      <select id="inventory-sort">
+        <option value="name-asc">Name (A&ndash;Z)</option>
+        <option value="name-desc">Name (Z&ndash;A)</option>
+        <option value="qty-asc">On hand (Low&ndash;High)</option>
+        <option value="qty-desc">On hand (High&ndash;Low)</option>
+        <option value="cost-asc">Cost ex GST (Low&ndash;High)</option>
+        <option value="cost-desc">Cost ex GST (High&ndash;Low)</option>
+      </select>
+    </label>
+    <label style="flex:0 0 120px;min-width:100px;">
+      Per page
+      <select id="inventory-page-size">
+        <option value="20" selected>20</option>
+        <option value="40">40</option>
+        <option value="80">80</option>
+      </select>
+    </label>
+  </div>
+<% } %>
+<div class="section-heading">Stock (<span id="inventory-count"><%= items.length %></span>)</div>
+<% if (!items.length) { %>
+  <p class="text-muted">No inventory items yet.</p>
+<% } else { %>
+  <div class="timesheet-scroll">
+    <table class="timesheet-table" id="inventory-table">
+      <thead>
+        <tr>
+          <% if (currentUser.role === 'admin') { %><th><input type="checkbox" id="select-all-items" aria-label="Select all items"></th><% } %>
+          <th>Item</th>
+          <th>Category</th>
+          <th>On hand</th>
+          <th>Cost (ex GST)</th>
+          <th>Cost (inc GST)</th>
+          <% if (currentUser.role === 'admin') { %><th></th><% } %>
+        </tr>
+      </thead>
+      <tbody>
+        <% items.forEach(item => {
+             var low = item.reorder_threshold !== null && item.quantity_on_hand <= item.reorder_threshold;
+        %>
+          <tr data-name="<%= item.name.toLowerCase() %>" data-category="<%= (item.category || '').toLowerCase() %>" data-qty="<%= item.quantity_on_hand %>" data-cost="<%= item.unit_cost !== null ? item.unit_cost : '' %>">
+            <% if (currentUser.role === 'admin') { %><td><input type="checkbox" class="item-select" value="<%= item.id %>" aria-label="Select <%= item.name %>"></td><% } %>
+            <td><a href="/inventory/<%= item.id %>"><%= item.name %></a></td>
+            <td><%= item.category || '—' %></td>
+            <td class="<%= low ? 'timesheet-overtime' : '' %>">
+              <%= item.quantity_on_hand %> <%= item.unit %><% if (low) { %> <span class="badge badge-cancelled">low stock</span><% } %>
+            </td>
+            <td><%= formatMoney(item.unit_cost) %></td>
+            <td><%= formatMoney(item.unit_cost_inc_gst) %></td>
+            <% if (currentUser.role === 'admin') { %>
+              <td class="row-menu-cell">
+                <button type="button" class="row-menu-btn" data-item-id="<%= item.id %>" data-item-name="<%= item.name %>" aria-label="Item options" title="Item options">&#8942;</button>
+              </td>
+            <% } %>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="inventory-pagination">
+    <button type="button" class="btn btn-secondary btn-sm" id="inventory-prev-page">&larr; Previous</button>
+    <span id="inventory-page-info" class="text-muted"></span>
+    <button type="button" class="btn btn-secondary btn-sm" id="inventory-next-page">Next &rarr;</button>
+  </div>
+
+  <div id="inventory-row-menu" class="context-menu" hidden>
+    <a href="#" class="context-menu-item" data-action="edit">Edit</a>
+    <button type="button" class="context-menu-item context-menu-danger" data-action="delete">Delete</button>
+  </div>
+  <form id="inventory-row-delete-form" method="post" style="display:none;">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  </form>
+  <form id="bulk-delete-form" method="post" action="/inventory/bulk-delete" style="display:none;">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  </form>
+  <% if (currentUser.role === 'admin') { %>
+    <script>
+      (function () {
+        var selectAll = document.getElementById('select-all-items');
+        var bulkBtn = document.getElementById('bulk-delete-btn');
+        var bulkCount = document.getElementById('bulk-delete-count');
+        var bulkForm = document.getElementById('bulk-delete-form');
+
+        function itemCheckboxes() {
+          return Array.prototype.slice.call(document.querySelectorAll('.item-select'));
+        }
+
+        function updateBulkBar() {
+          var checked = itemCheckboxes().filter(function (cb) { return cb.checked; });
+          bulkCount.textContent = checked.length;
+          bulkBtn.hidden = checked.length === 0;
+        }
+
+        if (selectAll) {
+          selectAll.addEventListener('change', function () {
+            itemCheckboxes().forEach(function (cb) {
+              if (!cb.closest('tr').hidden) cb.checked = selectAll.checked;
+            });
+            updateBulkBar();
+          });
+        }
+
+        itemCheckboxes().forEach(function (cb) {
+          cb.addEventListener('change', function () {
+            if (!cb.checked && selectAll) selectAll.checked = false;
+            updateBulkBar();
+          });
+        });
+
+        bulkBtn.addEventListener('click', function () {
+          var checked = itemCheckboxes().filter(function (cb) { return cb.checked; });
+          if (!checked.length) return;
+          var message = 'Delete ' + checked.length + ' selected item' + (checked.length === 1 ? '' : 's') + '? Items with allocation history will be skipped.';
+          window.showConfirm('Are you sure?', message, function () {
+            bulkForm.querySelectorAll('input[name="item_ids"]').forEach(function (el) { el.remove(); });
+            checked.forEach(function (cb) {
+              var input = document.createElement('input');
+              input.type = 'hidden';
+              input.name = 'item_ids';
+              input.value = cb.value;
+              bulkForm.appendChild(input);
+            });
+            bulkForm.submit();
+          });
+        });
+      })();
+    </script>
+  <% } %>
+  <script>
+    (function () {
+      var searchInput = document.getElementById('inventory-search');
+      var categorySelect = document.getElementById('inventory-category-filter');
+      var sortSelect = document.getElementById('inventory-sort');
+      var pageSizeSelect = document.getElementById('inventory-page-size');
+      var countEl = document.getElementById('inventory-count');
+      var tbody = document.querySelector('#inventory-table tbody');
+      var rows = Array.prototype.slice.call(document.querySelectorAll('#inventory-table tbody tr'));
+      var prevBtn = document.getElementById('inventory-prev-page');
+      var nextBtn = document.getElementById('inventory-next-page');
+      var pageInfo = document.getElementById('inventory-page-info');
+      var currentPage = 1;
+
+      // Populate the category dropdown from whatever categories actually
+      // appear in the table, so it never drifts out of sync with the data.
+      var categories = [];
+      rows.forEach(function (row) {
+        var cat = row.getAttribute('data-category');
+        if (cat && categories.indexOf(cat) === -1) categories.push(cat);
+      });
+      categories.sort().forEach(function (cat) {
+        var option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat.replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+        categorySelect.appendChild(option);
+      });
+
+      function getFilteredSortedRows() {
+        var q = searchInput.value.trim().toLowerCase();
+        var cat = categorySelect.value;
+        var filtered = rows.filter(function (row) {
+          var matchesSearch = !q || row.getAttribute('data-name').indexOf(q) !== -1 || row.getAttribute('data-category').indexOf(q) !== -1;
+          var matchesCategory = !cat || row.getAttribute('data-category') === cat;
+          return matchesSearch && matchesCategory;
+        });
+
+        var mode = sortSelect.value;
+        var parts = mode.split('-');
+        var key = parts[0];
+        var dir = parts[1] === 'desc' ? -1 : 1;
+        var attr = key === 'name' ? 'data-name' : key === 'qty' ? 'data-qty' : 'data-cost';
+        filtered.sort(function (a, b) {
+          if (key === 'name') {
+            return a.getAttribute(attr).localeCompare(b.getAttribute(attr)) * dir;
+          }
+          var av = parseFloat(a.getAttribute(attr));
+          var bv = parseFloat(b.getAttribute(attr));
+          if (isNaN(av)) av = dir === 1 ? Infinity : -Infinity;
+          if (isNaN(bv)) bv = dir === 1 ? Infinity : -Infinity;
+          return (av - bv) * dir;
+        });
+
+        return filtered;
+      }
+
+      function render() {
+        var filtered = getFilteredSortedRows();
+        countEl.textContent = filtered.length;
+
+        var pageSize = Number.parseInt(pageSizeSelect.value, 10) || 20;
+        var totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+
+        var start = (currentPage - 1) * pageSize;
+        var pageRows = filtered.slice(start, start + pageSize);
+        var visible = new Set(pageRows);
+
+        // Reorder the table body to match the sorted, filtered order (page
+        // rows first, then the rest) so the visible slice always renders as
+        // a single contiguous, correctly-ordered chunk.
+        pageRows.forEach(function (row) { tbody.appendChild(row); });
+        filtered.forEach(function (row) {
+          if (!visible.has(row)) tbody.appendChild(row);
+        });
+
+        rows.forEach(function (row) {
+          var show = visible.has(row);
+          row.hidden = !show;
+          if (!show) {
+            var cb = row.querySelector('.item-select');
+            if (cb && cb.checked) {
+              cb.checked = false;
+              cb.dispatchEvent(new Event('change'));
+            }
+          }
+        });
+
+        pageInfo.textContent = filtered.length ? 'Page ' + currentPage + ' of ' + totalPages : 'No items';
+        prevBtn.disabled = currentPage <= 1;
+        nextBtn.disabled = currentPage >= totalPages;
+      }
+
+      searchInput.addEventListener('input', function () { currentPage = 1; render(); });
+      categorySelect.addEventListener('change', function () { currentPage = 1; render(); });
+      sortSelect.addEventListener('change', function () { currentPage = 1; render(); });
+      pageSizeSelect.addEventListener('change', function () { currentPage = 1; render(); });
+      prevBtn.addEventListener('click', function () { currentPage -= 1; render(); });
+      nextBtn.addEventListener('click', function () { currentPage += 1; render(); });
+
+      render();
+    })();
+  </script>
+  <script>
+    (function () {
+      var menu = document.getElementById('inventory-row-menu');
+      var deleteForm = document.getElementById('inventory-row-delete-form');
+      var activeBtn = null;
+
+      function closeMenu() {
+        menu.hidden = true;
+        if (activeBtn) activeBtn.classList.remove('row-menu-btn-active');
+        activeBtn = null;
+      }
+
+      document.querySelectorAll('.row-menu-btn').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (activeBtn === btn) {
+            closeMenu();
+            return;
+          }
+          if (activeBtn) activeBtn.classList.remove('row-menu-btn-active');
+          activeBtn = btn;
+          btn.classList.add('row-menu-btn-active');
+          var rect = btn.getBoundingClientRect();
+          menu.style.top = window.scrollY + rect.bottom + 4 + 'px';
+          menu.style.left = window.scrollX + rect.right - 140 + 'px';
+          menu.hidden = false;
+        });
+      });
+
+      document.addEventListener('click', function (e) {
+        if (menu.hidden) return;
+        if (e.target.closest('#inventory-row-menu') || e.target.closest('.row-menu-btn')) return;
+        closeMenu();
+      });
+
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !menu.hidden) closeMenu();
+      });
+
+      menu.addEventListener('click', function (e) {
+        var item = e.target.closest('.context-menu-item');
+        if (!item) return;
+        e.preventDefault();
+        var action = item.getAttribute('data-action');
+        var btn = activeBtn;
+        closeMenu();
+        if (!btn) return;
+        var itemId = btn.getAttribute('data-item-id');
+        var itemName = btn.getAttribute('data-item-name');
+
+        if (action === 'edit') {
+          window.location.href = '/inventory/' + itemId;
+          return;
+        }
+
+        if (action === 'delete') {
+          window.showConfirm('Are you sure?', 'Delete \'' + itemName + '\'? Only possible if it has no allocation history.', function () {
+            deleteForm.action = '/inventory/' + itemId + '/delete';
+            deleteForm.submit();
+          });
+        }
+      });
+    })();
+  </script>
+<% } %>
+
+<% if (currentUser.role === 'admin') { %>
+  <div id="add-stock-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="add-stock-modal-title">
+      <button type="button" class="modal-close" id="add-stock-close" aria-label="Close">&times;</button>
+      <h2 id="add-stock-modal-title">Add stock item</h2>
+      <form method="post" action="/inventory">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label>
+          Name
+          <input type="text" name="name" required maxlength="120" placeholder="e.g. GPO Double Powerpoint">
+        </label>
+        <div class="form-row form-row-2">
+          <label>
+            Category (optional)
+            <select name="category" id="add-stock-category">
+              <option value="">No category</option>
+              <% categories.forEach(c => { %>
+                <option value="<%= c %>"><%= c %></option>
+              <% }) %>
+              <option value="__new__">+ Add new category…</option>
+            </select>
+          </label>
+          <label>
+            Unit
+            <input type="text" name="unit" value="each" maxlength="20">
+          </label>
+        </div>
+        <label id="add-stock-new-category-field" style="display:none;">
+          New category name
+          <input type="text" name="new_category" id="add-stock-new-category" maxlength="60" placeholder="e.g. Consumables">
+        </label>
+        <div class="form-row form-row-2">
+          <label>
+            Starting quantity
+            <input type="number" name="quantity_on_hand" value="0" step="any">
+          </label>
+          <label>
+            Reorder threshold (optional)
+            <input type="number" name="reorder_threshold" step="any" placeholder="Low stock warning">
+          </label>
+        </div>
+        <div class="form-row form-row-2">
+          <label>
+            Unit cost, ex GST (optional, $)
+            <input type="number" name="unit_cost" id="new-item-unit-cost" step="0.01" placeholder="Used for job material costing">
+          </label>
+          <label>
+            Unit cost, inc GST (optional, $)
+            <input type="number" name="unit_cost_inc_gst" id="new-item-unit-cost-inc" step="0.01">
+          </label>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">Add item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var modal = document.getElementById('add-stock-modal');
+      var openBtn = document.getElementById('add-stock-open');
+      var closeBtn = document.getElementById('add-stock-close');
+
+      openBtn.addEventListener('click', function () { modal.hidden = false; });
+      closeBtn.addEventListener('click', function () { modal.hidden = true; });
+      modal.addEventListener('click', function (e) {
+        if (e.target === modal) modal.hidden = true;
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !modal.hidden) modal.hidden = true;
+      });
+
+      var ex = document.getElementById('new-item-unit-cost');
+      var inc = document.getElementById('new-item-unit-cost-inc');
+      ex.addEventListener('input', function () {
+        if (!ex.value) return;
+        inc.value = (Number.parseFloat(ex.value) * 1.1).toFixed(2);
+      });
+
+      var categorySelect = document.getElementById('add-stock-category');
+      var newCategoryField = document.getElementById('add-stock-new-category-field');
+      var newCategoryInput = document.getElementById('add-stock-new-category');
+      categorySelect.addEventListener('change', function () {
+        var isNew = categorySelect.value === '__new__';
+        newCategoryField.style.display = isNew ? '' : 'none';
+        newCategoryInput.required = isNew;
+      });
+    })();
+  </script>
+<% } %>
+<%- include('../partials/footer') %>

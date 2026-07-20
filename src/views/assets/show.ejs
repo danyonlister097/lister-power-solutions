@@ -1,0 +1,162 @@
+<%- include('../partials/header', { title: asset.name }) %>
+<div class="page-header">
+  <h1><%= asset.name %></h1>
+  <div class="actions">
+    <a class="btn btn-secondary btn-sm" href="<%= closeUrl %>">All assets</a>
+    <% if (currentUser.role === 'admin') { %>
+      <form method="post" action="/assets/<%= asset.id %>/delete" data-confirm="Delete this asset from the register?">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="returnTo" value="<%= closeUrl %>">
+        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+      </form>
+    <% } %>
+    <a class="page-close" href="<%= closeUrl %>" aria-label="Close" title="Close">&times;</a>
+  </div>
+</div>
+
+<div class="leave-stats">
+  <div class="leave-stat leave-stat-pending">
+    <span class="leave-stat-value"><%= asset.category %></span>
+    <span class="leave-stat-label">Category</span>
+  </div>
+  <div class="leave-stat <%= asset.status === 'active' ? 'leave-stat-approved' : asset.status === 'lost' ? 'leave-stat-declined' : 'leave-stat-pending' %>">
+    <span class="leave-stat-value"><%= asset.status.replace('_', ' ') %></span>
+    <span class="leave-stat-label">Status</span>
+  </div>
+  <div class="leave-stat leave-stat-pending">
+    <span class="leave-stat-value"><%= formatMoney(asset.purchase_cost) %></span>
+    <span class="leave-stat-label">Purchase cost</span>
+  </div>
+</div>
+
+<div class="card card-narrow">
+  <h2 class="leave-form-title">Details</h2>
+  <p><strong>Brand:</strong> <%= asset.brand || '—' %></p>
+  <p><strong>Model:</strong> <%= asset.model || '—' %></p>
+  <p><strong>Serial number:</strong> <%= asset.serial_number || '—' %></p>
+  <p><strong>Purchase date:</strong> <%= asset.purchase_date ? formatAuDate(asset.purchase_date) : '—' %></p>
+  <p><strong>Assigned to:</strong> <%= asset.assigned_to_name || 'Unassigned' %></p>
+  <p><strong>Location:</strong> <%= asset.location || '—' %></p>
+  <p><strong>Next service/inspection due:</strong> <%= asset.next_service_due ? formatAuDate(asset.next_service_due) : '—' %></p>
+  <p><strong>Registration expiry:</strong> <%= asset.registration_expiry ? formatAuDate(asset.registration_expiry) : '—' %></p>
+  <p><strong>Current odometer:</strong> <%= asset.current_odometer_km !== null ? asset.current_odometer_km.toLocaleString() + ' km' : '—' %></p>
+  <p><strong>Service due at:</strong> <%= asset.service_due_at_km !== null ? asset.service_due_at_km.toLocaleString() + ' km' : '—' %></p>
+  <p><strong>Notes:</strong> <%= asset.notes || '—' %></p>
+</div>
+
+<% if (currentUser.role === 'admin') { %>
+  <div class="card card-narrow">
+    <h2 class="leave-form-title">Edit asset</h2>
+    <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+    <form method="post" action="/assets/<%= asset.id %>">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="returnTo" value="<%= closeUrl %>">
+      <label>
+        Asset name
+        <input type="text" name="name" value="<%= asset.name %>" required maxlength="120">
+      </label>
+      <div class="form-row form-row-2">
+        <label>
+          Category
+          <select name="category" id="edit-asset-category">
+            <% CATEGORIES.forEach(c => { %>
+              <option value="<%= c %>" <%= asset.category === c ? 'selected' : '' %>><%= c %></option>
+            <% }) %>
+            <option value="__new__">+ Add new category…</option>
+          </select>
+        </label>
+        <label>
+          Status
+          <select name="status">
+            <% STATUSES.forEach(s => { %>
+              <option value="<%= s %>" <%= asset.status === s ? 'selected' : '' %>><%= s.replace('_', ' ') %></option>
+            <% }) %>
+          </select>
+        </label>
+      </div>
+      <label id="edit-asset-new-category-field" style="display:none;">
+        New category name
+        <input type="text" name="new_category" id="edit-asset-new-category" maxlength="60" placeholder="e.g. Generators">
+      </label>
+      <div class="form-row form-row-2">
+        <label>
+          Brand
+          <input type="text" name="brand" value="<%= asset.brand || '' %>" maxlength="60">
+        </label>
+        <label>
+          Model
+          <input type="text" name="model" value="<%= asset.model || '' %>" maxlength="60">
+        </label>
+      </div>
+      <div class="form-row form-row-2">
+        <label>
+          Serial number
+          <input type="text" name="serial_number" value="<%= asset.serial_number || '' %>" maxlength="120">
+        </label>
+        <label>
+          Purchase date
+          <input type="date" name="purchase_date" value="<%= asset.purchase_date || '' %>">
+        </label>
+      </div>
+      <div class="form-row form-row-2">
+        <label>
+          Purchase cost ($)
+          <input type="number" name="purchase_cost" value="<%= asset.purchase_cost !== null ? asset.purchase_cost : '' %>" step="0.01">
+        </label>
+        <label>
+          Assigned to
+          <select name="assigned_to">
+            <option value="">Unassigned</option>
+            <% techs.forEach(t => { %>
+              <option value="<%= t.id %>" <%= String(asset.assigned_to) === String(t.id) ? 'selected' : '' %>><%= t.name %></option>
+            <% }) %>
+          </select>
+        </label>
+      </div>
+      <label>
+        Location
+        <input type="text" name="location" value="<%= asset.location || '' %>" maxlength="80">
+      </label>
+      <div class="form-row form-row-2">
+        <label>
+          Next service/inspection due
+          <input type="date" name="next_service_due" value="<%= asset.next_service_due || '' %>">
+        </label>
+        <label>
+          Registration expiry <span style="font-weight:400;">(vehicles)</span>
+          <input type="date" name="registration_expiry" value="<%= asset.registration_expiry || '' %>">
+        </label>
+      </div>
+      <div class="form-row form-row-2">
+        <label>
+          Current odometer (km) <span style="font-weight:400;">(vehicles)</span>
+          <input type="number" name="current_odometer_km" value="<%= asset.current_odometer_km !== null ? asset.current_odometer_km : '' %>" step="1" min="0">
+        </label>
+        <label>
+          Service due at (km)
+          <input type="number" name="service_due_at_km" value="<%= asset.service_due_at_km !== null ? asset.service_due_at_km : '' %>" step="1" min="0">
+        </label>
+      </div>
+      <label>
+        Notes
+        <textarea name="notes"><%= asset.notes || '' %></textarea>
+      </label>
+      <div class="actions">
+        <button type="submit" class="btn btn-secondary">Save changes</button>
+      </div>
+    </form>
+  </div>
+  <script>
+    (function () {
+      var select = document.getElementById('edit-asset-category');
+      var field = document.getElementById('edit-asset-new-category-field');
+      var input = document.getElementById('edit-asset-new-category');
+      select.addEventListener('change', function () {
+        var isNew = select.value === '__new__';
+        field.style.display = isNew ? '' : 'none';
+        input.required = isNew;
+      });
+    })();
+  </script>
+<% } %>
+<%- include('../partials/footer') %>

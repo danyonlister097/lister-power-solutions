@@ -1,0 +1,150 @@
+<%- include('../partials/header', { title: item.name }) %>
+<div class="page-header">
+  <h1><%= item.name %></h1>
+  <div class="actions">
+    <a class="btn btn-secondary btn-sm" href="/inventory">All inventory</a>
+    <% if (currentUser.role === 'admin') { %>
+      <form method="post" action="/inventory/<%= item.id %>/delete" data-confirm="Delete this item? Only possible if it has no allocation history.">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<div class="leave-stats">
+  <div class="leave-stat <%= item.reorder_threshold !== null && item.quantity_on_hand <= item.reorder_threshold ? 'leave-stat-declined' : 'leave-stat-approved' %>">
+    <span class="leave-stat-value"><%= item.quantity_on_hand %> <%= item.unit %></span>
+    <span class="leave-stat-label">On hand</span>
+  </div>
+  <div class="leave-stat leave-stat-pending">
+    <span class="leave-stat-value"><%= formatMoney(item.unit_cost) %></span>
+    <span class="leave-stat-label">Unit cost (ex GST)</span>
+  </div>
+  <div class="leave-stat leave-stat-pending">
+    <span class="leave-stat-value"><%= formatMoney(item.unit_cost_inc_gst) %></span>
+    <span class="leave-stat-label">Unit cost (inc GST)</span>
+  </div>
+</div>
+
+<% if (currentUser.role === 'admin') { %>
+  <div class="card card-narrow">
+    <h2 class="leave-form-title">Adjust stock</h2>
+    <form method="post" action="/inventory/<%= item.id %>/adjust">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>
+        Quantity change (use a negative number to remove stock)
+        <input type="number" name="delta" step="any" required placeholder="e.g. 50 or -5">
+      </label>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Apply</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card card-narrow">
+    <h2 class="leave-form-title">Edit item</h2>
+    <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+    <form method="post" action="/inventory/<%= item.id %>">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>
+        Name
+        <input type="text" name="name" value="<%= item.name %>" required maxlength="120">
+      </label>
+      <div class="form-row form-row-2">
+        <label>
+          Category
+          <select name="category" id="edit-item-category">
+            <option value="">No category</option>
+            <% categories.forEach(c => { %>
+              <option value="<%= c %>" <%= item.category === c ? 'selected' : '' %>><%= c %></option>
+            <% }) %>
+            <option value="__new__">+ Add new category&hellip;</option>
+          </select>
+        </label>
+        <label>
+          Unit
+          <input type="text" name="unit" value="<%= item.unit %>" maxlength="20">
+        </label>
+      </div>
+      <label id="edit-item-new-category-field" style="display:none;">
+        New category name
+        <input type="text" name="new_category" id="edit-item-new-category" maxlength="60" placeholder="e.g. Consumables">
+      </label>
+      <div class="form-row form-row-2">
+        <label>
+          Reorder threshold
+          <input type="number" name="reorder_threshold" value="<%= item.reorder_threshold !== null ? item.reorder_threshold : '' %>" step="any">
+        </label>
+        <label>
+          Unit cost, ex GST ($)
+          <input type="number" name="unit_cost" id="edit-item-unit-cost" value="<%= item.unit_cost !== null ? item.unit_cost : '' %>" step="0.01">
+        </label>
+      </div>
+      <div class="form-row form-row-2">
+        <label>
+          Unit cost, inc GST ($)
+          <input type="number" name="unit_cost_inc_gst" id="edit-item-unit-cost-inc" value="<%= item.unit_cost_inc_gst !== null ? item.unit_cost_inc_gst : '' %>" step="0.01">
+        </label>
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn btn-secondary">Save changes</button>
+      </div>
+    </form>
+  </div>
+  <script>
+    (function () {
+      var select = document.getElementById('edit-item-category');
+      var field = document.getElementById('edit-item-new-category-field');
+      var input = document.getElementById('edit-item-new-category');
+      select.addEventListener('change', function () {
+        var isNew = select.value === '__new__';
+        field.style.display = isNew ? '' : 'none';
+        input.required = isNew;
+      });
+    })();
+  </script>
+<% } %>
+
+<div class="card">
+  <h2>Movements</h2>
+  <p class="text-muted" style="margin-top:0;">Every time this item is allocated to a job, it counts as a movement out of stock. Use this to spot dead or slow-moving stock worth clearing out.</p>
+  <div class="leave-stats">
+    <div class="leave-stat <%= movements.daysSinceLastMovement === null ? 'leave-stat-declined' : movements.daysSinceLastMovement > 90 ? 'leave-stat-declined' : 'leave-stat-approved' %>">
+      <span class="leave-stat-value">
+        <% if (movements.lastMovementAt === null) { %>Never<% } else { %><%= formatAuDate(movements.lastMovementAt) %><% } %>
+      </span>
+      <span class="leave-stat-label">
+        Last movement<% if (movements.daysSinceLastMovement !== null) { %> (<%= movements.daysSinceLastMovement %> day<%= movements.daysSinceLastMovement === 1 ? '' : 's' %> ago)<% } %>
+      </span>
+    </div>
+    <div class="leave-stat <%= movements.recentQty > 0 ? 'leave-stat-approved' : 'leave-stat-declined' %>">
+      <span class="leave-stat-value"><%= movements.recentQty %> <%= item.unit %></span>
+      <span class="leave-stat-label">Moved in last 90 days (<%= movements.recentCount %> job<%= movements.recentCount === 1 ? '' : 's' %>)</span>
+    </div>
+    <div class="leave-stat leave-stat-pending">
+      <span class="leave-stat-value"><%= movements.totalQty %> <%= item.unit %></span>
+      <span class="leave-stat-label">Moved all-time (<%= movements.totalCount %> job<%= movements.totalCount === 1 ? '' : 's' %>)</span>
+    </div>
+  </div>
+
+  <div class="section-heading">Movement history</div>
+  <% if (!allocations.length) { %>
+    <p class="text-muted">Not allocated to any job yet.</p>
+  <% } else { %>
+    <ul class="list">
+      <% allocations.forEach(a => { %>
+        <li>
+          <a class="list-item" href="/jobs/<%= a.job_id %>">
+            <span>
+              <span class="list-item-title"><%= a.job_title %></span><br>
+              <span class="list-item-meta">Allocated by <%= a.allocated_by_name %> &middot; <%= new Date(a.created_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+            </span>
+            <span class="badge badge-scheduled"><%= a.quantity %> <%= item.unit %></span>
+          </a>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

@@ -1,0 +1,197 @@
+<%- include('../partials/header', { title: 'Dashboard', wide: true }) %>
+<div class="page-header">
+  <h1>Dashboard</h1>
+</div>
+
+<div class="leave-stats">
+  <div class="leave-stat leave-stat-pending">
+    <span class="leave-stat-value"><%= jobsThisWeek %></span>
+    <span class="leave-stat-label">Jobs this week</span>
+  </div>
+  <div class="leave-stat leave-stat-pending">
+    <span class="leave-stat-value"><%= jobsToday %></span>
+    <span class="leave-stat-label">Jobs today</span>
+  </div>
+  <div class="leave-stat leave-stat-approved">
+    <span class="leave-stat-value"><%= formatMoney(revenueThisMonth) %></span>
+    <span class="leave-stat-label">Revenue this month</span>
+  </div>
+  <div class="leave-stat leave-stat-declined">
+    <span class="leave-stat-value"><%= overdueInvoices.length %></span>
+    <span class="leave-stat-label">Overdue invoices (<%= formatMoney(overdueTotal) %>)</span>
+  </div>
+  <div class="leave-stat">
+    <span class="leave-stat-value"><%= outstandingQuotes.length %></span>
+    <span class="leave-stat-label">Outstanding quotes (<%= formatMoney(outstandingQuotesTotal) %>)</span>
+  </div>
+  <div class="leave-stat <%= upcomingMaintenance.some(m => m.overdue) ? 'leave-stat-declined' : 'leave-stat-pending' %>">
+    <span class="leave-stat-value"><%= upcomingMaintenance.length %></span>
+    <span class="leave-stat-label">Vehicles &amp; equipment due for service</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Job pipeline</h2>
+  <div class="job-board">
+    <div class="job-board-col">
+      <div class="job-board-col-head job-board-col-unassigned">Unassigned (<%= jobBoard.unassigned.length %>)</div>
+      <% if (!jobBoard.unassigned.length) { %>
+        <p class="text-muted job-board-empty">Nothing here.</p>
+      <% } else { %>
+        <% jobBoard.unassigned.forEach(j => { %>
+          <a href="/jobs/<%= j.id %>" class="job-card job-card-unassigned">
+            <span class="job-card-title"><%= j.title %></span>
+            <span class="job-card-meta"><%= j.customer_name %></span>
+          </a>
+        <% }) %>
+      <% } %>
+    </div>
+    <div class="job-board-col">
+      <div class="job-board-col-head job-board-col-scheduled">Scheduled (<%= jobBoard.scheduled.length %>)</div>
+      <% if (!jobBoard.scheduled.length) { %>
+        <p class="text-muted job-board-empty">Nothing here.</p>
+      <% } else { %>
+        <% jobBoard.scheduled.forEach(j => { %>
+          <a href="/jobs/<%= j.id %>" class="job-card job-card-scheduled">
+            <span class="job-card-title"><%= j.title %></span>
+            <span class="job-card-meta"><%= j.customer_name %></span>
+          </a>
+        <% }) %>
+      <% } %>
+    </div>
+    <div class="job-board-col">
+      <div class="job-board-col-head job-board-col-completed">Completed (<%= jobBoard.completed.length %>)</div>
+      <% if (!jobBoard.completed.length) { %>
+        <p class="text-muted job-board-empty">Nothing here.</p>
+      <% } else { %>
+        <% jobBoard.completed.forEach(j => { %>
+          <a href="/jobs/<%= j.id %>" class="job-card job-card-completed">
+            <span class="job-card-title"><%= j.title %></span>
+            <span class="job-card-meta"><%= j.customer_name %></span>
+          </a>
+        <% }) %>
+      <% } %>
+    </div>
+    <div class="job-board-col">
+      <div class="job-board-col-head job-board-col-invoiced">Invoiced (<%= jobBoard.invoiced.length %>)</div>
+      <% if (!jobBoard.invoiced.length) { %>
+        <p class="text-muted job-board-empty">Nothing here.</p>
+      <% } else { %>
+        <% jobBoard.invoiced.forEach(j => { %>
+          <a href="/jobs/<%= j.id %>" class="job-card job-card-invoiced">
+            <span class="job-card-title"><%= j.title %></span>
+            <span class="job-card-meta"><%= j.customer_name %></span>
+          </a>
+        <% }) %>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<div class="form-row form-row-2">
+  <div class="card">
+    <h2>Overdue invoices</h2>
+    <% if (!overdueInvoices.length) { %>
+      <p class="text-muted">Nothing overdue.</p>
+    <% } else { %>
+      <ul class="list">
+        <% overdueInvoices.forEach(inv => { %>
+          <li>
+            <span class="list-item">
+              <span>
+                <a href="/invoices/<%= inv.id %>" class="list-item-title"><%= inv.invoice_number %></a><br>
+                <span class="list-item-meta"><%= inv.customer_name %> &middot; <%= inv.job_title %> &middot; due <%= formatAuDate(inv.due_date) %></span>
+              </span>
+              <span><%= formatMoney(inv.total) %></span>
+            </span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>Outstanding quotes</h2>
+    <% if (!outstandingQuotes.length) { %>
+      <p class="text-muted">No quotes awaiting a decision.</p>
+    <% } else { %>
+      <ul class="list">
+        <% outstandingQuotes.forEach(q => { %>
+          <li>
+            <span class="list-item">
+              <span>
+                <a href="/quotes/<%= q.id %>" class="list-item-title"><%= q.title %></a><br>
+                <span class="list-item-meta"><%= q.customer_name %></span>
+              </span>
+              <span><%= formatMoney(q.total) %></span>
+            </span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+</div>
+
+<div class="form-row form-row-2">
+  <div class="card">
+    <h2>Technician utilisation (this week)</h2>
+    <% if (!utilisation.length) { %>
+      <p class="text-muted">No active technicians.</p>
+    <% } else { %>
+      <ul class="list">
+        <% utilisation.forEach(u => { %>
+          <li>
+            <span class="list-item">
+              <span class="list-item-title"><%= u.name %></span>
+              <span><%= u.pct %>%</span>
+            </span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>Low stock items</h2>
+    <% if (!lowStockItems.length) { %>
+      <p class="text-muted">Nothing below its reorder threshold.</p>
+    <% } else { %>
+      <ul class="list">
+        <% lowStockItems.forEach(item => { %>
+          <li>
+            <span class="list-item">
+              <a href="/inventory/<%= item.id %>" class="list-item-title"><%= item.name %></a>
+              <span class="badge badge-cancelled"><%= item.quantity_on_hand %> <%= item.unit %></span>
+            </span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Vehicles &amp; equipment &mdash; upcoming maintenance</h2>
+  <% if (!upcomingMaintenance.length) { %>
+    <p class="text-muted">Nothing due for service, inspection or registration renewal in the next 30 days.</p>
+  <% } else { %>
+    <ul class="list">
+      <% upcomingMaintenance.forEach(m => { %>
+        <li>
+          <span class="list-item">
+            <span>
+              <a href="/assets/<%= m.id %>?returnTo=/dashboard" class="list-item-title"><%= m.name %></a><br>
+              <span class="list-item-meta">
+                <%= m.category %> &middot; <%= m.reason %>
+                <% if (m.dueDateIso) { %> <%= formatAuDate(m.dueDateIso) %><% } %>
+                <% if (m.dueKm !== undefined) { %> <%= m.dueKm.toLocaleString() %> km (currently <%= m.currentKm.toLocaleString() %> km)<% } %>
+              </span>
+            </span>
+            <span class="badge badge-<%= m.overdue ? 'cancelled' : 'scheduled' %>"><%= m.overdue ? 'overdue' : 'due soon' %></span>
+          </span>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

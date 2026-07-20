@@ -1,0 +1,84 @@
+<%- include('../partials/header', { title: 'Forms & Certificates', wide: true }) %>
+<div class="page-header">
+  <h1>Forms &amp; Certificates</h1>
+</div>
+
+<% if (forJob) { %>
+  <div class="flash flash-success">
+    Choosing a form to add to <strong><%= forJob.title %></strong>.
+    <a href="/jobs/<%= forJob.id %>">Cancel</a>
+  </div>
+<% } %>
+
+<div class="section-heading">Templates (<%= templates.length %>)</div>
+<% if (!templates.length) { %>
+  <p class="text-muted">No form templates yet.</p>
+<% } else { %>
+  <div class="form-template-grid">
+    <% templates.forEach(t => { %>
+      <div class="form-template-card form-template-card-clickable">
+        <form method="post" action="/forms/<%= t.id %>/duplicate" class="form-template-card-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <% if (forJob) { %><input type="hidden" name="job_id" value="<%= forJob.id %>"><% } %>
+          <button
+            type="submit"
+            class="form-template-card-btn"
+            title="<%= forJob ? 'Use this template for ' + forJob.title : 'Create a new blank copy' %>"
+            aria-label="<%= forJob ? 'Use ' + t.name + ' for ' + forJob.title : 'Create a new blank copy from ' + t.name %>"
+          >
+            <span class="form-template-icon">&#128196;</span>
+            <span class="form-template-body">
+              <span class="form-template-name"><%= t.name %></span>
+              <span class="form-template-meta"><%= t.use_count %> job<%= t.use_count === 1 ? '' : 's' %> using this</span>
+            </span>
+          </button>
+        </form>
+        <% if (!forJob) { %>
+          <a class="btn-link form-template-manage-link" href="/forms/<%= t.id %>">Manage</a>
+        <% } %>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+
+<% if (!forJob) { %>
+  <div class="section-heading">Drafts not yet assigned to a job (<%= drafts.length %>)</div>
+  <% if (!drafts.length) { %>
+    <p class="text-muted">No drafts waiting to be assigned.</p>
+  <% } else { %>
+    <ul class="list">
+      <% drafts.forEach(d => { %>
+        <li>
+          <a class="list-item" href="/forms/job/<%= d.id %>">
+            <span>
+              <span class="list-item-title"><%= d.name %></span><br>
+              <span class="list-item-meta">Created by <%= d.created_by_name %> &middot; <%= new Date(d.created_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+            </span>
+            <span class="badge badge-unscheduled">unassigned</span>
+          </a>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+
+  <% if (currentUser.role === 'admin') { %>
+    <div class="section-heading">Upload a blank template</div>
+    <div class="card card-narrow">
+      <form method="post" action="/forms" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label>
+          Template name
+          <input type="text" name="name" required maxlength="120" placeholder="e.g. Certificate of Electrical Safety">
+        </label>
+        <label>
+          File
+          <input type="file" name="file" accept=".pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png" required>
+        </label>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">Upload template</button>
+        </div>
+      </form>
+    </div>
+  <% } %>
+<% } %>
+<%- include('../partials/footer') %>

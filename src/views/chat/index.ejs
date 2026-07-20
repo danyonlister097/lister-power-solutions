@@ -1,0 +1,55 @@
+<%- include('../partials/header', { title: '#' + channel.name, wide: true }) %>
+<div class="page-header">
+  <h1>Chat</h1>
+</div>
+
+<div class="chat-layout">
+  <%- include('_sidebar', { channels: channels, channel: channel, unreadOnly: unreadOnly, csrfToken: csrfToken }) %>
+
+  <div class="chat-main">
+    <div class="chat-main-header">
+      <h2 class="chat-channel-title">#<%= channel.name %></h2>
+      <form class="chat-date-filter" method="get" action="/chat/c/<%= channel.id %>">
+        <input type="date" name="from" value="<%= from %>">
+        <span class="chat-date-filter-sep">&ndash;</span>
+        <input type="date" name="to" value="<%= to %>">
+        <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+        <% if (from || to) { %><a class="btn-link" href="/chat/c/<%= channel.id %>">Clear</a><% } %>
+      </form>
+    </div>
+
+    <div
+      class="chat-panel"
+      id="chat-panel"
+      data-csrf="<%= csrfToken %>"
+      data-current-user-id="<%= currentUser.id %>"
+      data-channel-id="<%= channel.id %>"
+      data-last-id="<%= messages.length ? messages[messages.length - 1].id : 0 %>"
+      data-live="<%= (from || to) ? '0' : '1' %>"
+    >
+      <div class="chat-messages" id="chat-messages">
+        <% if (!messages.length) { %>
+          <p class="text-muted chat-empty">No messages<%= (from || to) ? ' in this date range.' : ' yet — say hello.' %></p>
+        <% } %>
+        <% messages.forEach(m => { %>
+          <div class="chat-message <%= m.user_id === currentUser.id ? 'chat-message-own' : '' %>">
+            <div class="chat-message-meta"><%= m.user_name %> &middot; <%= new Date(m.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) %></div>
+            <div class="chat-message-body"><%= m.body %></div>
+          </div>
+        <% }) %>
+      </div>
+      <% if (from || to) { %>
+        <div class="chat-filtered-notice">Viewing a filtered date range &mdash; <a href="/chat/c/<%= channel.id %>">clear the filter</a> to send a message.</div>
+      <% } else { %>
+        <form id="chat-form" class="chat-form" method="post" action="/chat/c/<%= channel.id %>">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="text" name="body" id="chat-input" placeholder="Message #<%= channel.name %>..." autocomplete="off" required maxlength="2000">
+          <button type="submit" class="btn btn-primary">Send</button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<script src="/js/chat.js"></script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,56 @@
+<%- include('../partials/header', { title: 'Search chats', wide: true }) %>
+<div class="page-header">
+  <h1>Chat</h1>
+</div>
+
+<div class="chat-layout">
+  <%- include('_sidebar', { channels: channels, csrfToken: csrfToken }) %>
+
+  <div class="chat-main">
+    <div class="card chat-search-card">
+      <form method="get" action="/chat/search">
+        <label>
+          Search text
+          <input type="text" name="q" value="<%= q %>" placeholder="Search all channels...">
+        </label>
+        <div class="form-row form-row-2">
+          <label>
+            From
+            <input type="date" name="from" value="<%= from %>">
+          </label>
+          <label>
+            To
+            <input type="date" name="to" value="<%= to %>">
+          </label>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">Search</button>
+        </div>
+      </form>
+    </div>
+
+    <% if (q || from || to) { %>
+      <div class="section-heading">Results (<%= results.length %>)</div>
+      <% if (!results.length) { %>
+        <p class="text-muted">No messages found.</p>
+      <% } else { %>
+        <div class="chat-search-results">
+          <% results.forEach(r => { %>
+            <a class="chat-search-result" href="/chat/c/<%= r.channel_id %>">
+              <div class="chat-search-result-head">
+                <span class="chat-search-result-channel">#<%= r.channel_name %></span>
+                <span class="chat-search-result-user"><%= r.user_name %></span>
+                <span class="chat-search-result-date"><%= new Date(r.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+              </div>
+              <div class="chat-search-result-body"><%= r.body %></div>
+            </a>
+          <% }) %>
+        </div>
+      <% } %>
+    <% } else { %>
+      <p class="text-muted">Search by text, date range, or both.</p>
+    <% } %>
+  </div>
+</div>
+<script src="/js/chat.js"></script>
+<%- include('../partials/footer') %>

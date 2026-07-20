@@ -1,0 +1,96 @@
+<%- include('../partials/header', { title: 'Circuit Breaker Sizing Calculator' }) %>
+<div class="page-header">
+  <h1>Circuit Breaker Sizing Calculator</h1>
+  <a class="btn btn-secondary btn-sm" href="/tools">All tools</a>
+</div>
+
+<div class="flash flash-error" style="margin-bottom: 1.25rem;">
+  <strong>Reference tool only.</strong> Applies the standard AS/NZS 3000 protective device coordination rule (I<sub>b</sub> &le; I<sub>n</sub> &le; I<sub>z</sub>) to standard MCB ratings. It does not check discrimination/selectivity between devices, fault level (kA rating), RCD requirements, or motor/inrush characteristics. Always verify the final selection against the current official AS/NZS 3000 and the device manufacturer's data.
+</div>
+
+<div class="card card-narrow">
+  <div class="form-row form-row-2">
+    <label>
+      Design current, I<sub>b</sub> (A) <span style="font-weight:400;">&mdash; the load's actual current</span>
+      <input type="number" id="bs-ib" step="0.1" min="0.1" value="18">
+    </label>
+    <label>
+      Cable current-carrying capacity, I<sub>z</sub> (A) <span style="font-weight:400;">&mdash; from the Cable Sizing Calculator</span>
+      <input type="number" id="bs-iz" step="0.1" min="0.1" value="23">
+    </label>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Result</h2>
+  <div id="bs-result"></div>
+
+  <div class="section-heading">All standard ratings</div>
+  <div class="timesheet-scroll">
+    <table class="timesheet-table">
+      <thead>
+        <tr>
+          <th>Rating I<sub>n</sub> (A)</th>
+          <th>I<sub>n</sub> &ge; I<sub>b</sub>?</th>
+          <th>I<sub>n</sub> &le; I<sub>z</sub>?</th>
+          <th>Suitable?</th>
+        </tr>
+      </thead>
+      <tbody id="bs-result-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="/js/electrical-tables.js"></script>
+<script src="/js/breaker-sizing.js"></script>
+<script>
+  (function () {
+    var els = {
+      ib: document.getElementById('bs-ib'),
+      iz: document.getElementById('bs-iz'),
+    };
+    var result = document.getElementById('bs-result');
+    var body = document.getElementById('bs-result-body');
+
+    function render() {
+      var designCurrent = Number.parseFloat(els.ib.value) || 0;
+      var cableCapacity = Number.parseFloat(els.iz.value) || 0;
+      var r = window.BreakerSizing.calculate({ designCurrent: designCurrent, cableCapacity: cableCapacity });
+
+      if (r.cableExceeded) {
+        result.innerHTML = '<div class="flash flash-error">Design current exceeds the cable\'s stated capacity - the cable itself needs to be upsized before a protective device can be selected.</div>';
+      } else if (!r.recommended) {
+        result.innerHTML = '<div class="flash flash-error">No standard rating up to 250A satisfies I<sub>b</sub> &le; I<sub>n</sub> &le; I<sub>z</sub> for these values.</div>';
+      } else {
+        result.innerHTML =
+          '<div class="leave-stats">' +
+          '<div class="leave-stat leave-stat-approved"><span class="leave-stat-value">' + r.recommended.rating + ' A</span><span class="leave-stat-label">Recommended device rating</span></div>' +
+          '<div class="leave-stat leave-stat-pending"><span class="leave-stat-value">' + designCurrent + ' A</span><span class="leave-stat-label">Design current I' + '<sub>b</sub>' + '</span></div>' +
+          '<div class="leave-stat leave-stat-declined"><span class="leave-stat-value">' + cableCapacity + ' A</span><span class="leave-stat-label">Cable capacity</span></div>' +
+          '</div>';
+      }
+
+      body.innerHTML = r.candidates
+        .map(function (c) {
+          var suitable = c.meetsDesignCurrent && c.withinCableCapacity;
+          var isRecommended = r.recommended && c.rating === r.recommended.rating;
+          return (
+            '<tr' + (isRecommended ? ' style="background: var(--color-primary-tint);"' : '') + '>' +
+            '<td>' + c.rating + (isRecommended ? ' <span class="badge badge-completed">recommended</span>' : '') + '</td>' +
+            '<td>' + (c.meetsDesignCurrent ? '&#10003;' : '&#10007;') + '</td>' +
+            '<td>' + (c.withinCableCapacity ? '&#10003;' : '&#10007;') + '</td>' +
+            '<td>' + (suitable ? '&#10003;' : '&#10007;') + '</td>' +
+            '</tr>'
+          );
+        })
+        .join('');
+    }
+
+    Object.keys(els).forEach(function (key) {
+      els[key].addEventListener('input', render);
+    });
+
+    render();
+  })();
+</script>
+<%- include('../partials/footer') %>

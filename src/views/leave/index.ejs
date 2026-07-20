@@ -1,0 +1,180 @@
+<%- include('../partials/header', { title: 'Request Leave' }) %>
+<div class="page-header">
+  <h1>Request Leave</h1>
+</div>
+
+<div class="leave-stats">
+  <div class="leave-stat leave-stat-pending">
+    <span class="leave-stat-value"><%= pending.length %></span>
+    <span class="leave-stat-label">Pending</span>
+  </div>
+  <div class="leave-stat leave-stat-approved">
+    <span class="leave-stat-value"><%= approved.length %></span>
+    <span class="leave-stat-label">Approved</span>
+  </div>
+  <div class="leave-stat leave-stat-declined">
+    <span class="leave-stat-value"><%= declined.length %></span>
+    <span class="leave-stat-label">Declined</span>
+  </div>
+</div>
+
+<div class="card card-narrow leave-form-card">
+  <h2 class="leave-form-title">Submit a request</h2>
+  <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+  <form method="post" action="/leave">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="form-row form-row-2">
+      <label>
+        Start date
+        <input type="date" name="start_date" required>
+      </label>
+      <label>
+        End date
+        <input type="date" name="end_date" required>
+      </label>
+    </div>
+    <label>
+      Reason (optional)
+      <textarea name="reason"></textarea>
+    </label>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Submit request</button>
+    </div>
+  </form>
+</div>
+
+<%
+  var avatarColors = ['#12b8a0', '#e2622b', '#7c5cff', '#1d5fae', '#c2185b', '#0f9d58'];
+  function initialsFor(name) {
+    return name.trim().split(/\s+/).map(function (p) { return p[0]; }).join('').slice(0, 2).toUpperCase();
+  }
+  function colorFor(id) { return avatarColors[id % avatarColors.length]; }
+
+  function renderSection(label, rows, variant, emptyText) {
+%>
+  <div class="section-heading"><%= label %> (<%= rows.length %>)</div>
+  <% if (!rows.length) { %>
+    <p class="text-muted"><%= emptyText %></p>
+  <% } else { %>
+    <div class="leave-list">
+      <% rows.forEach(function (r) { %>
+        <div class="leave-card leave-card-<%= variant %> <%= (isAdmin && variant !== 'pending') ? 'row-menu-hover-target' : '' %>">
+          <span class="tech-avatar" style="background: <%= colorFor(r.user_id) %>;"><%= initialsFor(r.user_name) %></span>
+          <div class="leave-card-body">
+            <div class="leave-card-name"><%= r.user_name %></div>
+            <div class="leave-dates"><%= formatAuDate(r.start_date) %> &ndash; <%= formatAuDate(r.end_date) %></div>
+            <% if (r.reason) { %><div class="leave-reason"><%= r.reason %></div><% } %>
+            <% if (r.decided_by_name) { %>
+              <div class="leave-meta"><%= variant === 'approved' ? 'Approved' : 'Declined' %> by <%= r.decided_by_name %></div>
+            <% } %>
+            <% if (r.admin_comment) { %><div class="leave-card-admin-comment">Note: <%= r.admin_comment %></div><% } %>
+          </div>
+          <div class="leave-card-actions">
+            <span class="badge badge-<%= variant === 'pending' ? 'scheduled' : variant === 'approved' ? 'completed' : 'cancelled' %>"><%= variant === 'pending' ? 'pending' : variant === 'approved' ? 'approved' : 'declined' %></span>
+            <% if (variant === 'pending' && isAdmin) { %>
+              <form method="post" action="/leave/<%= r.id %>/decide">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="action" value="approve">
+                <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+              </form>
+              <form method="post" action="/leave/<%= r.id %>/decide">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="action" value="deny">
+                <button type="submit" class="btn btn-secondary btn-sm">Deny</button>
+              </form>
+            <% } %>
+            <% if (variant === 'pending' && r.user_id === currentUserId) { %>
+              <form method="post" action="/leave/<%= r.id %>/cancel">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn-link">Cancel</button>
+              </form>
+            <% } %>
+          </div>
+          <% if (isAdmin && variant !== 'pending') { %>
+            <button type="button" class="row-menu-btn" data-leave-id="<%= r.id %>" aria-label="Leave options" title="Leave options">&#8942;</button>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+<%
+  }
+
+  renderSection('Pending', pending, 'pending', 'No pending leave requests.');
+  renderSection('Approved leave', approved, 'approved', 'No approved leave yet.');
+  renderSection('Declined leave', declined, 'declined', 'No declined leave.');
+%>
+
+<% if (isAdmin) { %>
+  <div id="leave-row-menu" class="context-menu" hidden>
+    <a href="#" class="context-menu-item" data-action="edit">Edit</a>
+    <button type="button" class="context-menu-item context-menu-danger" data-action="delete">Delete</button>
+  </div>
+  <form id="leave-row-delete-form" method="post" style="display:none;">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  </form>
+  <script>
+    (function () {
+      var menu = document.getElementById('leave-row-menu');
+      var deleteForm = document.getElementById('leave-row-delete-form');
+      var activeBtn = null;
+
+      function closeMenu() {
+        menu.hidden = true;
+        if (activeBtn) activeBtn.classList.remove('row-menu-btn-active');
+        activeBtn = null;
+      }
+
+      document.querySelectorAll('.row-menu-btn[data-leave-id]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (activeBtn === btn) {
+            closeMenu();
+            return;
+          }
+          if (activeBtn) activeBtn.classList.remove('row-menu-btn-active');
+          activeBtn = btn;
+          btn.classList.add('row-menu-btn-active');
+          var rect = btn.getBoundingClientRect();
+          menu.style.top = window.scrollY + rect.bottom + 4 + 'px';
+          menu.style.left = window.scrollX + rect.right - 140 + 'px';
+          menu.hidden = false;
+        });
+      });
+
+      document.addEventListener('click', function (e) {
+        if (menu.hidden) return;
+        if (e.target.closest('#leave-row-menu') || e.target.closest('.row-menu-btn[data-leave-id]')) return;
+        closeMenu();
+      });
+
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !menu.hidden) closeMenu();
+      });
+
+      menu.addEventListener('click', function (e) {
+        var item = e.target.closest('.context-menu-item');
+        if (!item) return;
+        e.preventDefault();
+        var action = item.getAttribute('data-action');
+        var btn = activeBtn;
+        closeMenu();
+        if (!btn) return;
+        var leaveId = btn.getAttribute('data-leave-id');
+
+        if (action === 'edit') {
+          window.location.href = '/leave/' + leaveId + '/edit';
+          return;
+        }
+
+        if (action === 'delete') {
+          window.showConfirm('Are you sure?', 'Delete this leave record? This cannot be undone.', function () {
+            deleteForm.action = '/leave/' + leaveId + '/delete';
+            deleteForm.submit();
+          });
+        }
+      });
+    })();
+  </script>
+<% } %>
+<%- include('../partials/footer') %>

@@ -1,0 +1,142 @@
+<%- include('../partials/header', { title: title }) %>
+<h1><%= title %></h1>
+
+<form method="post" action="<%= job.id ? `/jobs/${job.id}` : '/jobs' %>" class="card">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <% if (typeof returnTo !== 'undefined' && returnTo) { %><input type="hidden" name="returnTo" value="<%= returnTo %>"><% } %>
+  <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+
+  <label>
+    Customer *
+    <select name="customer_id" required>
+      <option value="">Select a customer...</option>
+      <% customers.forEach(c => { %>
+        <option value="<%= c.id %>" <%= String(job.customer_id) === String(c.id) ? 'selected' : '' %>><%= c.name %></option>
+      <% }) %>
+    </select>
+  </label>
+
+  <label>
+    Job title *
+    <input type="text" name="title" value="<%= job.title || '' %>" required autofocus>
+  </label>
+
+  <label>
+    Description
+    <textarea name="description"><%= job.description || '' %></textarea>
+  </label>
+
+  <div class="form-field">
+    <span class="form-field-label">Assigned techs</span>
+    <div class="tech-checkbox-list">
+      <% techs.forEach(t => { %>
+        <label class="tech-checkbox">
+          <input type="checkbox" name="assigned_to" value="<%= t.id %>" <%= (job.assigneeIds || []).map(String).includes(String(t.id)) ? 'checked' : '' %>>
+          <%= t.name %>
+        </label>
+      <% }) %>
+    </div>
+  </div>
+
+  <div class="form-field">
+    <span class="form-field-label">Job colour <span style="font-weight:400;">(shows on the schedule chip &mdash; leave unset to colour by status)</span></span>
+    <input type="hidden" name="color" id="job-color-input" value="<%= job.color || '' %>">
+    <div class="color-swatch-list">
+      <button type="button" class="color-swatch color-swatch-none <%= !job.color ? 'color-swatch-selected' : '' %>" data-color="" title="No colour (use status colour)">&times;</button>
+      <% colors.forEach(c => { %>
+        <button type="button" class="color-swatch <%= job.color === c.value ? 'color-swatch-selected' : '' %>" data-color="<%= c.value %>" style="background: <%= c.value %>;" title="<%= c.name %>"></button>
+      <% }) %>
+    </div>
+  </div>
+
+  <% if (job.id) { %>
+    <label>
+      Status
+      <select name="status">
+        <% STATUSES.forEach(s => { %>
+          <option value="<%= s %>" <%= job.status === s ? 'selected' : '' %>><%= s.replace('_', ' ') %></option>
+        <% }) %>
+      </select>
+    </label>
+  <% } %>
+
+  <div class="section-heading">Schedule</div>
+  <div class="form-row form-row-2">
+    <label>
+      Date
+      <input type="date" name="date" id="job-date" value="<%= job.date || '' %>">
+    </label>
+    <label class="toggle-label">
+      <span>All day</span>
+      <span class="toggle-switch">
+        <input type="checkbox" name="all_day" id="job-all-day" value="on" <%= job.all_day ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </span>
+    </label>
+  </div>
+  <div class="form-row form-row-2" id="job-time-row">
+    <label>
+      Start time
+      <input type="time" name="start_time" id="job-start-time" value="<%= job.start_time || '' %>">
+    </label>
+    <label>
+      Finish time
+      <input type="time" name="end_time" id="job-end-time" value="<%= job.end_time || '' %>">
+    </label>
+  </div>
+
+  <div class="section-heading">Job site address (defaults to customer address if left blank)</div>
+  <label>
+    Street
+    <input type="text" name="site_address_street" value="<%= job.site_address_street || '' %>">
+  </label>
+  <div class="form-row form-row-2">
+    <label>
+      City / Suburb
+      <input type="text" name="site_address_city" value="<%= job.site_address_city || '' %>">
+    </label>
+    <label>
+      State
+      <input type="text" name="site_address_state" value="<%= job.site_address_state || '' %>">
+    </label>
+  </div>
+  <label>
+    Postcode
+    <input type="text" name="site_address_postcode" value="<%= job.site_address_postcode || '' %>">
+  </label>
+
+  <label>
+    Notes
+    <textarea name="notes"><%= job.notes || '' %></textarea>
+  </label>
+
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Save job</button>
+    <a class="btn btn-secondary" href="<%= (typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/jobs/schedule' %>">Cancel</a>
+  </div>
+</form>
+
+<script>
+  (function () {
+    var allDay = document.getElementById('job-all-day');
+    var startTime = document.getElementById('job-start-time');
+    var endTime = document.getElementById('job-end-time');
+    allDay.addEventListener('change', function () {
+      if (allDay.checked) {
+        startTime.value = '07:00';
+        endTime.value = '15:00';
+      }
+    });
+
+    var colorInput = document.getElementById('job-color-input');
+    var swatches = document.querySelectorAll('.color-swatch');
+    swatches.forEach(function (swatch) {
+      swatch.addEventListener('click', function () {
+        colorInput.value = swatch.getAttribute('data-color');
+        swatches.forEach(function (s) { s.classList.remove('color-swatch-selected'); });
+        swatch.classList.add('color-swatch-selected');
+      });
+    });
+  })();
+</script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,125 @@
+<%- include('../partials/header', { title: invoice.invoice_number }) %>
+<div class="page-header">
+  <h1><a href="/invoices" class="btn-link" style="font-weight:400;">&larr; Invoices</a></h1>
+</div>
+
+<div class="card">
+  <div class="page-header" style="margin-bottom: 0.75rem;">
+    <h2 style="margin:0;"><%= invoice.invoice_number %></h2>
+    <span class="badge badge-<%= effectiveStatus %>"><%= effectiveStatus %></span>
+  </div>
+  <p class="text-muted" style="margin-top:0;">
+    <a href="/jobs/<%= invoice.job_id %>"><%= invoice.job_title %></a> &middot; <%= invoice.customer_name %><% if (invoice.customer_email) { %> &middot; <%= invoice.customer_email %><% } %><br>
+    Issued <%= formatAuDate(invoice.issue_date) %><% if (invoice.due_date) { %> &middot; Due <%= formatAuDate(invoice.due_date) %><% } %><% if (invoice.paid_at) { %> &middot; Paid <%= formatAuDate(invoice.paid_at) %><% } %>
+  </p>
+
+  <% if (invoice.status !== 'paid' && invoice.status !== 'cancelled') { %>
+    <form method="post" action="/invoices/<%= invoice.id %>" class="form-row form-row-2" data-preserve-scroll>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>
+        Issue date
+        <input type="date" name="issue_date" value="<%= invoice.issue_date %>" required>
+      </label>
+      <label>
+        Due date
+        <input type="date" name="due_date" value="<%= invoice.due_date || '' %>">
+      </label>
+      <label style="grid-column: 1 / -1;">
+        Notes
+        <textarea name="notes" rows="2"><%= invoice.notes || '' %></textarea>
+      </label>
+      <div class="actions" style="grid-column: 1 / -1;">
+        <button type="submit" class="btn btn-secondary btn-sm">Save details</button>
+      </div>
+    </form>
+  <% } else if (invoice.notes) { %>
+    <p><%= invoice.notes %></p>
+  <% } %>
+
+  <div class="actions" style="margin-top: 1rem;">
+    <a href="/invoices/<%= invoice.id %>/print" target="_blank" class="btn btn-secondary btn-sm">Print / Save PDF</a>
+    <% if (invoice.status === 'draft') { %>
+      <form method="post" action="/invoices/<%= invoice.id %>/send" style="display:inline;">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-secondary btn-sm">Mark as sent</button>
+      </form>
+    <% } %>
+    <% if (invoice.status === 'sent') { %>
+      <form method="post" action="/invoices/<%= invoice.id %>/paid" style="display:inline;" data-confirm="Mark this invoice as paid?" data-confirm-ok-label="Mark as paid" data-confirm-variant="primary">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-primary btn-sm">Mark as paid</button>
+      </form>
+    <% } %>
+    <% if (invoice.status === 'draft' || invoice.status === 'sent') { %>
+      <form method="post" action="/invoices/<%= invoice.id %>/cancel" style="display:inline;" data-confirm="Cancel this invoice?" data-confirm-ok-label="Cancel invoice" data-confirm-variant="secondary">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-secondary btn-sm">Cancel</button>
+      </form>
+    <% } %>
+    <% if (invoice.status === 'draft') { %>
+      <form method="post" action="/invoices/<%= invoice.id %>/delete" style="display:inline;" data-confirm="Delete this draft invoice? This cannot be undone.">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn-link" style="color: var(--color-danger);">Delete</button>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Line items</h2>
+  <% if (!items.length) { %>
+    <p class="text-muted">No line items yet.</p>
+  <% } else { %>
+    <ul class="list">
+      <% items.forEach(i => { %>
+        <li>
+          <span class="list-item">
+            <span>
+              <span class="list-item-title"><%= i.description %></span><br>
+              <span class="list-item-meta"><%= i.category %> &middot; <%= i.quantity %> &times; <%= formatMoney(i.unit_price) %> = <%= formatMoney(i.quantity * i.unit_price) %></span>
+            </span>
+            <% if (invoice.status === 'draft' || invoice.status === 'sent') { %>
+              <form method="post" action="/invoices/<%= invoice.id %>/items/<%= i.id %>/delete" data-confirm="Remove this line item?" data-confirm-ok-label="Remove">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn-link">Remove</button>
+              </form>
+            <% } %>
+          </span>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+
+  <p style="text-align:right; font-weight:700;">Total (inc. GST): <%= formatMoney(total) %></p>
+
+  <% if (invoice.status === 'draft' || invoice.status === 'sent') { %>
+    <div class="section-heading">Add item</div>
+    <form method="post" action="/invoices/<%= invoice.id %>/items" class="form-row form-row-2">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>
+        Category
+        <select name="category">
+          <% CATEGORIES.forEach(c => { %>
+            <option value="<%= c %>"><%= c %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>
+        Description
+        <input type="text" name="description" required placeholder="e.g. Switchboard upgrade - labour">
+      </label>
+      <label>
+        Quantity
+        <input type="number" name="quantity" step="any" value="1" required>
+      </label>
+      <label>
+        Unit price ($, inc. GST)
+        <input type="number" name="unit_price" step="0.01" required>
+      </label>
+      <div class="actions" style="grid-column: 1 / -1;">
+        <button type="submit" class="btn btn-primary btn-sm">Add item</button>
+      </div>
+    </form>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

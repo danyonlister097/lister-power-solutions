@@ -1,0 +1,211 @@
+<%- include('../partials/header', { title: 'Asset Register', wide: true }) %>
+<div class="page-header">
+  <h1>Asset Register</h1>
+  <% if (currentUser.role === 'admin') { %>
+    <button type="button" class="btn btn-primary" id="add-asset-open">+ Add asset</button>
+  <% } %>
+</div>
+
+<form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">
+  <label style="flex:1;min-width:160px;">
+    Category
+    <select name="category">
+      <option value="">All</option>
+      <% CATEGORIES.forEach(c => { %>
+        <option value="<%= c %>" <%= category === c ? 'selected' : '' %>><%= c %></option>
+      <% }) %>
+    </select>
+  </label>
+  <label style="flex:1;min-width:160px;">
+    Status
+    <select name="status">
+      <option value="">All</option>
+      <% STATUSES.forEach(s => { %>
+        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.replace('_', ' ') %></option>
+      <% }) %>
+    </select>
+  </label>
+  <div class="actions">
+    <button type="submit" class="btn btn-secondary">Filter</button>
+  </div>
+</form>
+
+<div class="section-heading">Assets (<%= assets.length %>)</div>
+<% if (!assets.length) { %>
+  <p class="text-muted">No assets recorded yet.</p>
+<% } else { %>
+  <div class="timesheet-scroll">
+    <table class="timesheet-table">
+      <thead>
+        <tr>
+          <th>Asset</th>
+          <th>Category</th>
+          <th>Brand / Model</th>
+          <th>Purchase date</th>
+          <th>Purchase cost</th>
+          <th>Assigned to</th>
+          <th>Location</th>
+          <th>Next service</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% assets.forEach(a => {
+             var today = new Date().toISOString().slice(0, 10);
+             var dateDueSoon = a.next_service_due && a.next_service_due <= today;
+             var kmDueSoon = a.current_odometer_km !== null && a.service_due_at_km !== null && a.current_odometer_km >= a.service_due_at_km;
+             var dueSoon = dateDueSoon || kmDueSoon;
+        %>
+          <tr>
+            <td><a href="/assets/<%= a.id %>"><%= a.name %></a></td>
+            <td><%= a.category %></td>
+            <td><%= [a.brand, a.model].filter(Boolean).join(' ') || '—' %></td>
+            <td><%= a.purchase_date ? formatAuDate(a.purchase_date) : '—' %></td>
+            <td><%= formatMoney(a.purchase_cost) %></td>
+            <td><%= a.assigned_to_name || '—' %></td>
+            <td><%= a.location || '—' %></td>
+            <td class="<%= dueSoon ? 'timesheet-overtime' : '' %>">
+              <%= a.next_service_due ? formatAuDate(a.next_service_due) : '—' %><% if (a.service_due_at_km !== null) { %><br><%= a.service_due_at_km.toLocaleString() %> km<% } %><% if (dueSoon) { %> <span class="badge badge-cancelled">overdue</span><% } %>
+            </td>
+            <td>
+              <span class="badge badge-<%= a.status === 'active' ? 'completed' : a.status === 'in_repair' ? 'in_progress' : a.status === 'lost' ? 'cancelled' : 'unscheduled' %>">
+                <%= a.status.replace('_', ' ') %>
+              </span>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+<% } %>
+
+<% if (currentUser.role === 'admin') { %>
+  <div id="add-asset-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="add-asset-modal-title">
+      <button type="button" class="modal-close" id="add-asset-close" aria-label="Close">&times;</button>
+      <h2 id="add-asset-modal-title">Add asset</h2>
+      <form method="post" action="/assets">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label>
+          Asset name
+          <input type="text" name="name" required maxlength="120" placeholder="e.g. Makita 18V Impact Driver">
+        </label>
+        <div class="form-row form-row-2">
+          <label>
+            Category
+            <select name="category" id="add-asset-category">
+              <% CATEGORIES.forEach(c => { %>
+                <option value="<%= c %>"><%= c %></option>
+              <% }) %>
+              <option value="__new__">+ Add new category…</option>
+            </select>
+          </label>
+          <label>
+            Status
+            <select name="status">
+              <% STATUSES.forEach(s => { %>
+                <option value="<%= s %>"><%= s.replace('_', ' ') %></option>
+              <% }) %>
+            </select>
+          </label>
+        </div>
+        <label id="add-asset-new-category-field" style="display:none;">
+          New category name
+          <input type="text" name="new_category" id="add-asset-new-category" maxlength="60" placeholder="e.g. Generators">
+        </label>
+        <div class="form-row form-row-2">
+          <label>
+            Brand
+            <input type="text" name="brand" maxlength="60">
+          </label>
+          <label>
+            Model
+            <input type="text" name="model" maxlength="60">
+          </label>
+        </div>
+        <div class="form-row form-row-2">
+          <label>
+            Serial number
+            <input type="text" name="serial_number" maxlength="120">
+          </label>
+          <label>
+            Purchase date
+            <input type="date" name="purchase_date">
+          </label>
+        </div>
+        <div class="form-row form-row-2">
+          <label>
+            Purchase cost ($)
+            <input type="number" name="purchase_cost" step="0.01">
+          </label>
+          <label>
+            Assigned to
+            <select name="assigned_to">
+              <option value="">Unassigned</option>
+              <% techs.forEach(t => { %>
+                <option value="<%= t.id %>"><%= t.name %></option>
+              <% }) %>
+            </select>
+          </label>
+        </div>
+        <label>
+          Location <span style="font-weight:400;">(e.g. Van 2, Workshop)</span>
+          <input type="text" name="location" maxlength="80">
+        </label>
+        <div class="form-row form-row-2">
+          <label>
+            Next service/inspection due
+            <input type="date" name="next_service_due">
+          </label>
+          <label>
+            Registration expiry <span style="font-weight:400;">(vehicles)</span>
+            <input type="date" name="registration_expiry">
+          </label>
+        </div>
+        <div class="form-row form-row-2">
+          <label>
+            Current odometer (km) <span style="font-weight:400;">(vehicles)</span>
+            <input type="number" name="current_odometer_km" step="1" min="0">
+          </label>
+          <label>
+            Service due at (km)
+            <input type="number" name="service_due_at_km" step="1" min="0">
+          </label>
+        </div>
+        <label>
+          Notes
+          <textarea name="notes"></textarea>
+        </label>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">Add asset</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var modal = document.getElementById('add-asset-modal');
+      var openBtn = document.getElementById('add-asset-open');
+      var closeBtn = document.getElementById('add-asset-close');
+
+      openBtn.addEventListener('click', function () { modal.hidden = false; });
+      closeBtn.addEventListener('click', function () { modal.hidden = true; });
+      modal.addEventListener('click', function (e) {
+        if (e.target === modal) modal.hidden = true;
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !modal.hidden) modal.hidden = true;
+      });
+
+      var select = document.getElementById('add-asset-category');
+      var field = document.getElementById('add-asset-new-category-field');
+      var input = document.getElementById('add-asset-new-category');
+      select.addEventListener('change', function () {
+        var isNew = select.value === '__new__';
+        field.style.display = isNew ? '' : 'none';
+        input.required = isNew;
+      });
+    })();
+  </script>
+<% } %>
+<%- include('../partials/footer') %>

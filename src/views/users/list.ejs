@@ -1,0 +1,22 @@
+<%- include('../partials/header', { title: 'Employees' }) %>
+<div class="page-header">
+  <h1>Employees</h1>
+  <a class="btn btn-primary" href="/users/new">+ New employee</a>
+</div>
+
+<ul class="list">
+  <% users.forEach(u => { %>
+    <li>
+      <a class="list-item" href="/users/<%= u.id %>/edit">
+        <span>
+          <span class="list-item-title"><%= u.name %></span><br>
+          <span class="list-item-meta"><%= u.email %></span>
+        </span>
+        <span>
+          <span class="badge"><%= u.role %></span>
+        </span>
+      </a>
+    </li>
+  <% }) %>
+</ul>
+<%- include('../partials/footer') %>

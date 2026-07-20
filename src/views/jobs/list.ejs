@@ -1,0 +1,69 @@
+<%- include('../partials/header', { title: 'Jobs', wide: true }) %>
+<div class="page-header">
+  <h1>Jobs</h1>
+  <% if (isAdmin) { %>
+    <div class="actions">
+      <a class="btn btn-secondary" href="/jobs/costing">Job Costing</a>
+      <a class="btn btn-primary" href="/jobs/new">+ New job</a>
+    </div>
+  <% } %>
+</div>
+
+<div class="filters">
+  <a href="?range=upcoming&status=<%= status %>&assignedTo=<%= assignedTo %>" class="<%= range === 'upcoming' ? 'active' : '' %>">Upcoming</a>
+  <a href="?range=today&status=<%= status %>&assignedTo=<%= assignedTo %>" class="<%= range === 'today' ? 'active' : '' %>">Today</a>
+  <a href="?range=week&status=<%= status %>&assignedTo=<%= assignedTo %>" class="<%= range === 'week' ? 'active' : '' %>">This week</a>
+  <a href="?range=all&status=<%= status %>&assignedTo=<%= assignedTo %>" class="<%= range === 'all' ? 'active' : '' %>">All</a>
+</div>
+
+<form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">
+  <input type="hidden" name="range" value="<%= range %>">
+  <label style="flex:1;min-width:160px;">
+    Status
+    <select name="status">
+      <option value="">Any</option>
+      <% STATUSES.forEach(s => { %>
+        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.replace('_', ' ') %></option>
+      <% }) %>
+    </select>
+  </label>
+  <% if (isAdmin) { %>
+    <label style="flex:1;min-width:160px;">
+      Assigned to
+      <select name="assignedTo">
+        <option value="">Anyone</option>
+        <% techs.forEach(t => { %>
+          <option value="<%= t.id %>" <%= String(assignedTo) === String(t.id) ? 'selected' : '' %>><%= t.name %></option>
+        <% }) %>
+      </select>
+    </label>
+  <% } %>
+  <button type="submit" class="btn btn-secondary">Filter</button>
+</form>
+
+<% if (jobs.length === 0) { %>
+  <div class="empty-state">No jobs match these filters.</div>
+<% } else {
+  let lastDay = null;
+  jobs.forEach(j => {
+    const day = j.scheduled_start
+      ? new Date(j.scheduled_start).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+      : 'Not scheduled';
+    if (day !== lastDay) { lastDay = day; %>
+      <div class="section-heading"><%= day %></div>
+    <% }
+%>
+    <a class="list-item" href="/jobs/<%= j.id %>">
+      <span>
+        <span class="list-item-title"><%= j.title %></span><br>
+        <span class="list-item-meta">
+          <%= j.customer_name %>
+          <% if (j.all_day) { %> &middot; All day
+          <% } else if (j.scheduled_start) { %> &middot; <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) %><% } %>
+          <% if (j.assigneeNames) { %> &middot; <%= j.assigneeNames %><% } %>
+        </span>
+      </span>
+      <span class="badge badge-<%= j.status %>"><%= j.status.replace('_', ' ') %></span>
+    </a>
+<% }) } %>
+<%- include('../partials/footer') %>

@@ -1,0 +1,59 @@
+<%- include('../partials/header', { title: title }) %>
+<h1><%= title %></h1>
+
+<form method="post" action="<%= customer.id ? `/customers/${customer.id}` : '/customers' %>" class="card">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+
+  <label>
+    Customer / company name *
+    <input type="text" name="name" value="<%= customer.name || '' %>" required autofocus>
+  </label>
+
+  <div class="form-row form-row-2">
+    <label>
+      Contact name
+      <input type="text" name="contact_name" value="<%= customer.contact_name || '' %>">
+    </label>
+    <label>
+      Phone
+      <input type="text" name="phone" value="<%= customer.phone || '' %>">
+    </label>
+  </div>
+
+  <label>
+    Email
+    <input type="email" name="email" value="<%= customer.email || '' %>">
+  </label>
+
+  <div class="section-heading">Address</div>
+  <label>
+    Street
+    <input type="text" name="address_street" value="<%= customer.address_street || '' %>">
+  </label>
+  <div class="form-row form-row-2">
+    <label>
+      City / Suburb
+      <input type="text" name="address_city" value="<%= customer.address_city || '' %>">
+    </label>
+    <label>
+      State
+      <input type="text" name="address_state" value="<%= customer.address_state || '' %>">
+    </label>
+  </div>
+  <label>
+    Postcode
+    <input type="text" name="address_postcode" value="<%= customer.address_postcode || '' %>">
+  </label>
+
+  <label>
+    Notes
+    <textarea name="notes"><%= customer.notes || '' %></textarea>
+  </label>
+
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Save customer</button>
+    <a class="btn btn-secondary" href="<%= customer.id ? `/customers/${customer.id}` : '/customers' %>">Cancel</a>
+  </div>
+</form>
+<%- include('../partials/footer') %>

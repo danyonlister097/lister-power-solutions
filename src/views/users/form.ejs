@@ -1,0 +1,69 @@
+<%- include('../partials/header', { title: title }) %>
+<h1><%= title %></h1>
+
+<form method="post" action="<%= targetUser.id ? `/users/${targetUser.id}` : '/users' %>" class="card">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+
+  <label>
+    Name *
+    <input type="text" name="name" value="<%= targetUser.name || '' %>" required autofocus>
+  </label>
+
+  <label>
+    Email *
+    <input type="email" name="email" value="<%= targetUser.email || '' %>" required>
+  </label>
+
+  <div class="form-row form-row-2">
+    <label>
+      Role
+      <select name="role">
+        <option value="trade" <%= (targetUser.role || 'trade') === 'trade' ? 'selected' : '' %>>Trade</option>
+        <option value="apprentice" <%= targetUser.role === 'apprentice' ? 'selected' : '' %>>Apprentice</option>
+        <option value="admin" <%= targetUser.role === 'admin' ? 'selected' : '' %>>Admin</option>
+      </select>
+    </label>
+    <label>
+      Rate <span style="font-weight:400;">(admin-only, used for labour cost totals)</span>
+      <select name="hourly_rate">
+        <option value="" <%= targetUser.hourly_rate == null ? 'selected' : '' %>>No rate set</option>
+        <option value="110" <%= String(targetUser.hourly_rate) === '110' ? 'selected' : '' %>>Trade &mdash; $110/hr</option>
+        <option value="80" <%= String(targetUser.hourly_rate) === '80' ? 'selected' : '' %>>4th year &mdash; $80/hr</option>
+        <option value="70" <%= String(targetUser.hourly_rate) === '70' ? 'selected' : '' %>>3rd year &mdash; $70/hr</option>
+        <option value="65" <%= String(targetUser.hourly_rate) === '65' ? 'selected' : '' %>>2nd year &mdash; $65/hr</option>
+        <option value="60" <%= String(targetUser.hourly_rate) === '60' ? 'selected' : '' %>>1st year &mdash; $60/hr</option>
+      </select>
+    </label>
+  </div>
+
+  <% if (targetUser.id) { %>
+    <label>
+      <input type="checkbox" name="active" value="1" style="display:inline-block;width:auto;" <%= targetUser.active ? 'checked' : '' %>>
+      Active
+    </label>
+    <label>
+      New password <span style="font-weight:400;">(leave blank to keep current password)</span>
+      <input type="password" name="password" minlength="8">
+    </label>
+  <% } else { %>
+    <label>
+      Password *
+      <input type="password" name="password" required minlength="8">
+    </label>
+  <% } %>
+
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Save employee</button>
+    <a class="btn btn-secondary" href="/users">Cancel</a>
+  </div>
+</form>
+
+<% if (targetUser.id) { %>
+  <form method="post" action="/users/<%= targetUser.id %>/delete" class="card"
+        data-confirm="Remove this employee? They will no longer be able to log in or be assigned jobs.">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <button type="submit" class="btn btn-danger btn-sm">Remove employee</button>
+  </form>
+<% } %>
+<%- include('../partials/footer') %>
