@@ -1,15 +1,21 @@
 const path = require('path');
 const express = require('express');
 const session = require('express-session');
-const SqliteSessionStore = require('./lib/sqliteSessionStore');
+const PgSessionStore = require('connect-pg-simple')(session);
 const config = require('./config');
 const logger = require('./lib/logger');
+const { pool } = require('./db');
 const { loadUser, requireAuth, attachCsrf } = require('./middleware/auth');
 const { homeRoute } = require('./lib/homeRoute');
 const { formatAuDate } = require('./lib/dates');
 const { formatMoney } = require('./lib/money');
 
 const app = express();
+
+// Required for secure cookies to work correctly behind Vercel's proxy - it
+// terminates TLS in front of the function, so Express only sees the
+// X-Forwarded-Proto header, not a directly secure connection.
+app.set('trust proxy', 1);
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -19,12 +25,13 @@ app.use(express.urlencoded({ extended: false }));
 
 app.use(
   session({
-    store: new SqliteSessionStore(),
+    store: new PgSessionStore({ pool, tableName: 'session', createTableIfMissing: true }),
     secret: config.app.sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
       maxAge: 30 * 24 * 60 * 60 * 1000,
     },
   })

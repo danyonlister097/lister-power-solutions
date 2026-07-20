@@ -1,9 +1,10 @@
 const crypto = require('crypto');
 const db = require('../db');
+const { asyncHandler } = require('../lib/asyncHandler');
 
-function loadUser(req, res, next) {
+const loadUser = asyncHandler(async (req, res, next) => {
   if (req.session.userId) {
-    const user = db
+    const user = await db
       .prepare('SELECT id, name, email, role, active FROM users WHERE id = ?')
       .get(req.session.userId);
     if (user && user.active) {
@@ -14,7 +15,7 @@ function loadUser(req, res, next) {
   }
   res.locals.currentUser = req.user || null;
   next();
-}
+});
 
 function requireAuth(req, res, next) {
   if (!req.user) {

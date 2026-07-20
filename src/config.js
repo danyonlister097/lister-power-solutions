@@ -15,7 +15,10 @@ module.exports = {
     sessionSecret: required('SESSION_SECRET', process.env.SESSION_SECRET),
   },
   db: {
-    file: process.env.DB_FILE || 'data/app.db',
+    connectionString: required('DATABASE_URL', process.env.DATABASE_URL),
+  },
+  blob: {
+    token: required('BLOB_READ_WRITE_TOKEN', process.env.BLOB_READ_WRITE_TOKEN),
   },
   admin: {
     name: process.env.ADMIN_NAME || 'Admin',

@@ -2,8 +2,10 @@ const db = require('../src/db');
 const config = require('../src/config');
 const passwords = require('../src/lib/passwords');
 
-function main() {
-  const existingAdmin = db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
+async function main() {
+  await db.ready;
+
+  const existingAdmin = await db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
   if (existingAdmin) {
     console.log('An admin user already exists - nothing to do.');
     return;
@@ -15,14 +17,16 @@ function main() {
     return;
   }
 
-  db.prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)').run(
-    config.admin.name,
-    config.admin.email.trim().toLowerCase(),
-    passwords.hash(config.admin.password),
-    'admin'
-  );
+  await db
+    .prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)')
+    .run(config.admin.name, config.admin.email.trim().toLowerCase(), passwords.hash(config.admin.password), 'admin');
 
   console.log(`Admin user created: ${config.admin.email}`);
 }
 
-main();
+main()
+  .catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  })
+  .finally(() => db.pool.end());

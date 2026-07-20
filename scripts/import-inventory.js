@@ -12,7 +12,9 @@ const SOURCE_FILE =
     'inventory_import.json'
   );
 
-function main() {
+async function main() {
+  await db.ready;
+
   const items = JSON.parse(fs.readFileSync(SOURCE_FILE, 'utf8'));
 
   const findByName = db.prepare('SELECT id FROM inventory_items WHERE name = ?');
@@ -29,12 +31,12 @@ function main() {
   let updated = 0;
 
   for (const item of items) {
-    const existing = findByName.get(item.name);
+    const existing = await findByName.get(item.name);
     if (existing) {
-      update.run(item.category || null, item.unit_cost_ex_gst, item.unit_cost_inc_gst, existing.id);
+      await update.run(item.category || null, item.unit_cost_ex_gst, item.unit_cost_inc_gst, existing.id);
       updated += 1;
     } else {
-      insert.run(item.name, item.category || null, 'each', item.unit_cost_ex_gst, item.unit_cost_inc_gst);
+      await insert.run(item.name, item.category || null, 'each', item.unit_cost_ex_gst, item.unit_cost_inc_gst);
       created += 1;
     }
   }
@@ -42,4 +44,9 @@ function main() {
   console.log(`Inventory import complete: ${created} created, ${updated} updated (of ${items.length} total).`);
 }
 
-main();
+main()
+  .catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  })
+  .finally(() => db.pool.end());

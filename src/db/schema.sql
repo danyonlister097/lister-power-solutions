@@ -1,5 +1,13 @@
+-- Postgres (Neon) schema. Datetime columns stay TEXT in the same
+-- 'YYYY-MM-DD HH24:MI:SS' (UTC) shape SQLite's datetime('now') produced, so
+-- every existing JS/EJS call site that parses or string-compares these
+-- values keeps working unchanged. now_utc_text() centralises that format.
+CREATE OR REPLACE FUNCTION now_utc_text() RETURNS TEXT AS $$
+  SELECT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS');
+$$ LANGUAGE SQL STABLE;
+
 CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
@@ -7,12 +15,12 @@ CREATE TABLE IF NOT EXISTS users (
   active INTEGER NOT NULL DEFAULT 1,
   sort_order INTEGER NOT NULL DEFAULT 0,
   hourly_rate REAL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE TABLE IF NOT EXISTS customers (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   contact_name TEXT,
   phone TEXT,
@@ -26,12 +34,16 @@ CREATE TABLE IF NOT EXISTS customers (
   active INTEGER NOT NULL DEFAULT 1,
   myob_customer_uid TEXT,
   myob_synced_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
+-- quote_id is added via ALTER below, after the quotes table exists - jobs
+-- and quotes reference each other (jobs.quote_id <-> quotes.job_id), so one
+-- side has to be created first and patched in, same as the old SQLite
+-- migration in db/index.js did.
 CREATE TABLE IF NOT EXISTS jobs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   customer_id INTEGER NOT NULL REFERENCES customers(id),
   title TEXT NOT NULL,
   description TEXT,
@@ -50,8 +62,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   created_by INTEGER NOT NULL REFERENCES users(id),
   completed_at TEXT,
   myob_invoice_uid TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_customer_id ON jobs(customer_id);
@@ -67,41 +79,40 @@ CREATE TABLE IF NOT EXISTS job_assignees (
 
 CREATE INDEX IF NOT EXISTS idx_job_assignees_user_id ON job_assignees(user_id);
 
+-- filename now holds the Vercel Blob URL (was a local disk filename under
+-- SQLite/multer.diskStorage).
 CREATE TABLE IF NOT EXISTS job_attachments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   job_id INTEGER NOT NULL REFERENCES jobs(id),
   filename TEXT NOT NULL,
   original_name TEXT NOT NULL,
   mime_type TEXT NOT NULL,
   size_bytes INTEGER NOT NULL,
   uploaded_by INTEGER NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_job_attachments_job_id ON job_attachments(job_id);
 
-CREATE TABLE IF NOT EXISTS sessions (
-  sid TEXT PRIMARY KEY,
-  sess TEXT NOT NULL,
-  expires INTEGER NOT NULL
-);
+-- No "sessions" table here - connect-pg-simple owns and creates its own
+-- session table (see src/app.js).
 
 CREATE TABLE IF NOT EXISTS clock_events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id),
   type TEXT NOT NULL CHECK (type IN ('in', 'out')),
   occurred_at TEXT NOT NULL,
   latitude REAL,
   longitude REAL,
   accuracy REAL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_clock_events_user_id ON clock_events(user_id);
 CREATE INDEX IF NOT EXISTS idx_clock_events_occurred_at ON clock_events(occurred_at);
 
 CREATE TABLE IF NOT EXISTS leave_requests (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id),
   start_date TEXT NOT NULL,
   end_date TEXT NOT NULL,
@@ -110,45 +121,44 @@ CREATE TABLE IF NOT EXISTS leave_requests (
   decided_by INTEGER REFERENCES users(id),
   decided_at TEXT,
   admin_comment TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_leave_requests_user_id ON leave_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_leave_requests_status ON leave_requests(status);
 
 CREATE TABLE IF NOT EXISTS tasks (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   title TEXT NOT NULL,
   assigned_to INTEGER REFERENCES users(id),
   created_by INTEGER NOT NULL REFERENCES users(id),
   done INTEGER NOT NULL DEFAULT 0,
   completed_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_tasks_done ON tasks(done);
 
 CREATE TABLE IF NOT EXISTS chat_channels (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   created_by INTEGER NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE TABLE IF NOT EXISTS chat_messages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   channel_id INTEGER NOT NULL REFERENCES chat_channels(id),
   user_id INTEGER NOT NULL REFERENCES users(id),
   body TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at);
--- idx_chat_messages_channel_id is created in db/index.js, after the
--- channel_id migration runs (this table predates that column).
+CREATE INDEX IF NOT EXISTS idx_chat_messages_channel_id ON chat_messages(channel_id);
 
 CREATE TABLE IF NOT EXISTS chat_reads (
   user_id INTEGER NOT NULL REFERENCES users(id),
@@ -168,48 +178,50 @@ CREATE TABLE IF NOT EXISTS chat_channel_prefs (
 );
 
 CREATE TABLE IF NOT EXISTS photo_folders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   customer_id INTEGER REFERENCES customers(id),
   created_by INTEGER NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_photo_folders_customer_id ON photo_folders(customer_id);
 
+-- filename now holds the Vercel Blob URL.
 CREATE TABLE IF NOT EXISTS photo_folder_images (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   folder_id INTEGER NOT NULL REFERENCES photo_folders(id),
   filename TEXT NOT NULL,
   original_name TEXT NOT NULL,
   mime_type TEXT NOT NULL,
   size_bytes INTEGER NOT NULL,
   uploaded_by INTEGER NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_photo_folder_images_folder_id ON photo_folder_images(folder_id);
 
--- Blank form/report/certificate templates, managed by admins. This file is
--- never overwritten - "Create new" (below) always makes a fresh disk copy.
+-- Blank form/report/certificate templates, managed by admins. filename holds
+-- the Vercel Blob URL; this blob is never overwritten - "Create new" always
+-- makes a fresh, independent blob copy.
 CREATE TABLE IF NOT EXISTS form_templates (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   filename TEXT NOT NULL,
   original_name TEXT NOT NULL,
   mime_type TEXT NOT NULL,
   size_bytes INTEGER NOT NULL,
   uploaded_by INTEGER NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 -- A duplicate created from a form_template. Its filename points at its own
--- independent copy on disk, so filling it in / replacing it with a completed
+-- independent Blob copy, so filling it in / replacing it with a completed
 -- scan never touches the template. job_id is nullable: a form created via
 -- the "+" on the general Forms tab starts as an unassigned draft and is
 -- only linked to a job once the user saves it and picks one.
 CREATE TABLE IF NOT EXISTS job_forms (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   job_id INTEGER REFERENCES jobs(id),
   template_id INTEGER REFERENCES form_templates(id),
   name TEXT NOT NULL,
@@ -218,17 +230,41 @@ CREATE TABLE IF NOT EXISTS job_forms (
   size_bytes INTEGER NOT NULL,
   completed INTEGER NOT NULL DEFAULT 0,
   created_by INTEGER NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_job_forms_job_id ON job_forms(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_forms_template_id ON job_forms(template_id);
 
+-- --- Job costing ---
+-- (created before Inventory below, since job_stock_allocations references
+-- job_cost_items - Postgres validates FK targets exist at CREATE TABLE
+-- time, unlike SQLite)
+
+CREATE TABLE IF NOT EXISTS job_costs (
+  job_id INTEGER PRIMARY KEY REFERENCES jobs(id),
+  quoted_amount REAL,
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+CREATE TABLE IF NOT EXISTS job_cost_items (
+  id SERIAL PRIMARY KEY,
+  job_id INTEGER NOT NULL REFERENCES jobs(id),
+  category TEXT NOT NULL CHECK (category IN ('labour', 'material', 'subcontractor', 'travel', 'other')),
+  description TEXT NOT NULL,
+  quantity REAL NOT NULL DEFAULT 1,
+  unit_cost REAL NOT NULL DEFAULT 0,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_cost_items_job_id ON job_cost_items(job_id);
+
 -- --- Inventory ---
 
 CREATE TABLE IF NOT EXISTS inventory_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   category TEXT,
   unit TEXT NOT NULL DEFAULT 'each',
@@ -236,8 +272,8 @@ CREATE TABLE IF NOT EXISTS inventory_items (
   reorder_threshold REAL,
   unit_cost REAL, -- ex-GST: the real cost for job costing/profit (GST paid on purchases is normally claimed back)
   unit_cost_inc_gst REAL, -- inc-GST: informational, e.g. for cash-flow/budgeting
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_inventory_items_name ON inventory_items(name);
@@ -246,43 +282,22 @@ CREATE INDEX IF NOT EXISTS idx_inventory_items_name ON inventory_items(name);
 -- and (when the job has costing enabled) mirrors into job_cost_items so
 -- stock used on a job shows up as a material cost automatically.
 CREATE TABLE IF NOT EXISTS job_stock_allocations (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   job_id INTEGER NOT NULL REFERENCES jobs(id),
   item_id INTEGER NOT NULL REFERENCES inventory_items(id),
   quantity REAL NOT NULL,
   cost_item_id INTEGER REFERENCES job_cost_items(id),
   allocated_by INTEGER NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_job_stock_allocations_job_id ON job_stock_allocations(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_stock_allocations_item_id ON job_stock_allocations(item_id);
 
--- --- Job costing ---
-
-CREATE TABLE IF NOT EXISTS job_costs (
-  job_id INTEGER PRIMARY KEY REFERENCES jobs(id),
-  quoted_amount REAL,
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS job_cost_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  job_id INTEGER NOT NULL REFERENCES jobs(id),
-  category TEXT NOT NULL CHECK (category IN ('labour', 'material', 'subcontractor', 'travel', 'other')),
-  description TEXT NOT NULL,
-  quantity REAL NOT NULL DEFAULT 1,
-  unit_cost REAL NOT NULL DEFAULT 0,
-  created_by INTEGER NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_job_cost_items_job_id ON job_cost_items(job_id);
-
 -- --- Asset management ---
 
 CREATE TABLE IF NOT EXISTS customer_assets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   customer_id INTEGER NOT NULL REFERENCES customers(id),
   type TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -292,8 +307,8 @@ CREATE TABLE IF NOT EXISTS customer_assets (
   install_date TEXT,
   notes TEXT,
   created_by INTEGER NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_customer_assets_customer_id ON customer_assets(customer_id);
@@ -317,13 +332,13 @@ CREATE INDEX IF NOT EXISTS idx_job_assets_asset_id ON job_assets(asset_id);
 -- with a starter set the first time this table is created (see db/index.js);
 -- admins can add more from the Asset Register page.
 CREATE TABLE IF NOT EXISTS business_asset_categories (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE TABLE IF NOT EXISTS business_assets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   category TEXT NOT NULL,
   brand TEXT,
@@ -340,8 +355,8 @@ CREATE TABLE IF NOT EXISTS business_assets (
   service_due_at_km REAL,
   notes TEXT,
   created_by INTEGER NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_business_assets_category ON business_assets(category);
@@ -354,7 +369,7 @@ CREATE INDEX IF NOT EXISTS idx_business_assets_assigned_to ON business_assets(as
 -- was actually quoted.
 
 CREATE TABLE IF NOT EXISTS quotes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   quote_number TEXT NOT NULL UNIQUE,
   customer_id INTEGER NOT NULL REFERENCES customers(id),
   job_id INTEGER REFERENCES jobs(id),
@@ -364,21 +379,26 @@ CREATE TABLE IF NOT EXISTS quotes (
   created_by INTEGER NOT NULL REFERENCES users(id),
   sent_at TEXT,
   decided_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_quotes_customer_id ON quotes(customer_id);
 CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
 
+-- jobs.quote_id: added here (rather than in the jobs CREATE TABLE above)
+-- because it references quotes(id), and quotes.job_id references jobs(id) -
+-- one side of this circular FK has to be patched in after both tables exist.
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS quote_id INTEGER REFERENCES quotes(id);
+
 CREATE TABLE IF NOT EXISTS quote_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   quote_id INTEGER NOT NULL REFERENCES quotes(id),
   category TEXT NOT NULL CHECK (category IN ('labour', 'material', 'subcontractor', 'travel', 'other')),
   description TEXT NOT NULL,
   quantity REAL NOT NULL DEFAULT 1,
   unit_price REAL NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_quote_items_quote_id ON quote_items(quote_id);
@@ -390,7 +410,7 @@ CREATE INDEX IF NOT EXISTS idx_quote_items_quote_id ON quote_items(quote_id);
 -- retyping; the admin adjusts to the actual billed price before sending.
 
 CREATE TABLE IF NOT EXISTS invoices (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   job_id INTEGER NOT NULL REFERENCES jobs(id),
   invoice_number TEXT NOT NULL UNIQUE,
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid', 'overdue', 'cancelled')),
@@ -399,21 +419,21 @@ CREATE TABLE IF NOT EXISTS invoices (
   notes TEXT,
   created_by INTEGER NOT NULL REFERENCES users(id),
   paid_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_invoices_job_id ON invoices(job_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
 
 CREATE TABLE IF NOT EXISTS invoice_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   invoice_id INTEGER NOT NULL REFERENCES invoices(id),
   category TEXT NOT NULL CHECK (category IN ('labour', 'material', 'subcontractor', 'travel', 'other')),
   description TEXT NOT NULL,
   quantity REAL NOT NULL DEFAULT 1,
   unit_price REAL NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
 CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id);

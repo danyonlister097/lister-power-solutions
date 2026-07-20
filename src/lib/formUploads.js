@@ -1,7 +1,5 @@
-const path = require('path');
-const crypto = require('crypto');
 const multer = require('multer');
-const { UPLOAD_DIR } = require('./uploads');
+const { putFile, copyFile, fetchFile, deleteFile } = require('./uploads');
 
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
@@ -13,16 +11,8 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/png',
 ]);
 
-const storage = multer.diskStorage({
-  destination: UPLOAD_DIR,
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).slice(0, 10);
-    cb(null, `${crypto.randomUUID()}${ext}`);
-  },
-});
-
 const uploadForm = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024, files: 1 },
   fileFilter: (req, file, cb) => {
     if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
@@ -32,4 +22,4 @@ const uploadForm = multer({
   },
 });
 
-module.exports = { uploadForm, UPLOAD_DIR };
+module.exports = { uploadForm, putFile, copyFile, fetchFile, deleteFile };
