@@ -32,7 +32,7 @@ async function markRead(userId, channelId) {
   await db
     .prepare(
       `INSERT INTO chat_reads (user_id, channel_id, last_read_message_id) VALUES (?, ?, ?)
-       ON CONFLICT(user_id, channel_id) DO UPDATE SET last_read_message_id = MAX(last_read_message_id, excluded.last_read_message_id)`
+       ON CONFLICT(user_id, channel_id) DO UPDATE SET last_read_message_id = GREATEST(chat_reads.last_read_message_id, excluded.last_read_message_id)`
     )
     .run(userId, channelId, latest.id);
 }
