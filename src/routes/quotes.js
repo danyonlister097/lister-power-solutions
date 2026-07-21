@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { requireRole, verifyCsrf } = require('../middleware/auth');
+const { verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
 
@@ -20,7 +20,8 @@ async function nextQuoteNumber() {
   return `QT-${String(row.n + 1).padStart(4, '0')}`;
 }
 
-router.use(requireRole('admin'));
+// Gated at the mount point in app.js by the "quotes" permission instead of
+// a hardcoded role.
 
 router.get(
   '/',

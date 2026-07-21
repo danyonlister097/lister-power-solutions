@@ -26,36 +26,35 @@
   var path = typeof currentPath !== 'undefined' ? currentPath : '';
   function starts(prefix) { return path.indexOf(prefix) === 0; }
 
+  var can = currentUser ? currentUser.permissions : [];
+  function allowed(key) { return can.indexOf(key) !== -1; }
+
   var sideItems = [];
   if (currentUser) {
-    sideItems.push({ href: '/timeclock', label: 'Time Clock', icon: 'clock', active: starts('/timeclock') });
-    sideItems.push({ href: '/leave', label: 'Request Leave', icon: 'plane', active: starts('/leave') });
-    sideItems.push({ href: '/tasks', label: 'Quick Task', icon: 'checklist', active: starts('/tasks') });
-    sideItems.push({ href: '/chat', label: 'Chat', icon: 'chat', active: starts('/chat') });
-    sideItems.push({ href: '/forms', label: 'Forms', icon: 'forms', active: starts('/forms') });
-    sideItems.push({ href: '/inventory', label: 'Inventory', icon: 'box', active: starts('/inventory') });
-    sideItems.push({ href: '/assets', label: 'Asset Register', icon: 'toolbox', active: starts('/assets') });
-    sideItems.push({ href: '/tools', label: 'Tools', icon: 'calculator', active: starts('/tools') });
+    if (allowed('timeclock')) sideItems.push({ href: '/timeclock', label: 'Time Clock', icon: 'clock', active: starts('/timeclock') });
+    if (allowed('leave')) sideItems.push({ href: '/leave', label: 'Request Leave', icon: 'plane', active: starts('/leave') });
+    if (allowed('tasks')) sideItems.push({ href: '/tasks', label: 'Quick Task', icon: 'checklist', active: starts('/tasks') });
+    if (allowed('chat')) sideItems.push({ href: '/chat', label: 'Chat', icon: 'chat', active: starts('/chat') });
+    if (allowed('forms')) sideItems.push({ href: '/forms', label: 'Forms', icon: 'forms', active: starts('/forms') });
+    if (allowed('inventory')) sideItems.push({ href: '/inventory', label: 'Inventory', icon: 'box', active: starts('/inventory') });
+    if (allowed('assets')) sideItems.push({ href: '/assets', label: 'Asset Register', icon: 'toolbox', active: starts('/assets') });
+    if (allowed('tools')) sideItems.push({ href: '/tools', label: 'Tools', icon: 'calculator', active: starts('/tools') });
   }
 %>
 <% if (currentUser) { %>
   <header class="topbar">
-    <a class="brand" href="<%= currentUser.role === 'admin' ? '/dashboard' : '/jobs' %>">
+    <a class="brand" href="<%= homeUrl %>">
       <img src="/img/logo-icon.png" alt="" class="brand-logo">
       Lister Power Solutions
     </a>
     <nav class="nav">
-      <% if (currentUser.role === 'admin') { %>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/jobs/schedule">Schedule</a>
-        <a href="/jobs">Jobs</a>
-        <a href="/customers">Customers</a>
-        <a href="/quotes">Quotes</a>
-        <a href="/invoices">Invoices</a>
-        <a href="/users">Employees</a>
-      <% } else { %>
-        <a href="/jobs">Jobs</a>
-      <% } %>
+      <% if (allowed('dashboard')) { %><a href="/dashboard">Dashboard</a><% } %>
+      <% if (allowed('jobs')) { %><a href="/jobs/schedule">Schedule</a><% } %>
+      <% if (allowed('jobs')) { %><a href="/jobs">Jobs</a><% } %>
+      <% if (allowed('customers')) { %><a href="/customers">Customers</a><% } %>
+      <% if (allowed('quotes')) { %><a href="/quotes">Quotes</a><% } %>
+      <% if (allowed('invoices')) { %><a href="/invoices">Invoices</a><% } %>
+      <% if (allowed('employees')) { %><a href="/users">Employees</a><% } %>
     </nav>
     <form class="logout-form" method="post" action="/logout">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">

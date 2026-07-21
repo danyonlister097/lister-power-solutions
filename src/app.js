@@ -5,7 +5,7 @@ const PgSessionStore = require('connect-pg-simple')(session);
 const config = require('./config');
 const logger = require('./lib/logger');
 const { pool } = require('./db');
-const { loadUser, requireAuth, attachCsrf } = require('./middleware/auth');
+const { loadUser, requirePermission, attachCsrf } = require('./middleware/auth');
 const { homeRoute } = require('./lib/homeRoute');
 const { formatAuDate } = require('./lib/dates');
 const { formatMoney } = require('./lib/money');
@@ -63,6 +63,7 @@ app.use((req, res, next) => {
   res.locals.currentPath = req.path;
   res.locals.formatAuDate = formatAuDate;
   res.locals.formatMoney = formatMoney;
+  res.locals.homeUrl = homeRoute(req.user);
   next();
 });
 
@@ -70,21 +71,26 @@ app.use('/', require('./routes/auth'));
 
 app.get('/', (req, res) => res.redirect(homeRoute(req.user)));
 
-app.use('/dashboard', requireAuth, require('./routes/dashboard'));
-app.use('/customers', requireAuth, require('./routes/customers'));
-app.use('/jobs', requireAuth, require('./routes/jobs'));
-app.use('/users', requireAuth, require('./routes/users'));
-app.use('/timeclock', requireAuth, require('./routes/timeclock'));
-app.use('/leave', requireAuth, require('./routes/leave'));
-app.use('/tasks', requireAuth, require('./routes/tasks'));
-app.use('/chat/folders', requireAuth, require('./routes/photoFolders'));
-app.use('/chat', requireAuth, require('./routes/chat'));
-app.use('/forms', requireAuth, require('./routes/forms'));
-app.use('/inventory', requireAuth, require('./routes/inventory'));
-app.use('/assets', requireAuth, require('./routes/businessAssets'));
-app.use('/tools', requireAuth, require('./routes/tools'));
-app.use('/quotes', requireAuth, require('./routes/quotes'));
-app.use('/invoices', requireAuth, require('./routes/invoices'));
+// Each mount is gated by the matching employee-permission checkbox rather
+// than a hardcoded role - admins always pass (see loadUser); everyone else
+// needs the key in req.user.permissions. An unauthenticated request has no
+// req.user, so requirePermission's own !req.user check sends it to /login
+// before the permission check ever runs.
+app.use('/dashboard', requirePermission('dashboard'), require('./routes/dashboard'));
+app.use('/customers', requirePermission('customers'), require('./routes/customers'));
+app.use('/jobs', requirePermission('jobs'), require('./routes/jobs'));
+app.use('/users', requirePermission('employees'), require('./routes/users'));
+app.use('/timeclock', requirePermission('timeclock'), require('./routes/timeclock'));
+app.use('/leave', requirePermission('leave'), require('./routes/leave'));
+app.use('/tasks', requirePermission('tasks'), require('./routes/tasks'));
+app.use('/chat/folders', requirePermission('chat'), require('./routes/photoFolders'));
+app.use('/chat', requirePermission('chat'), require('./routes/chat'));
+app.use('/forms', requirePermission('forms'), require('./routes/forms'));
+app.use('/inventory', requirePermission('inventory'), require('./routes/inventory'));
+app.use('/assets', requirePermission('assets'), require('./routes/businessAssets'));
+app.use('/tools', requirePermission('tools'), require('./routes/tools'));
+app.use('/quotes', requirePermission('quotes'), require('./routes/quotes'));
+app.use('/invoices', requirePermission('invoices'), require('./routes/invoices'));
 
 app.use((req, res) => {
   res.status(404).render('error', { message: 'Page not found.' });

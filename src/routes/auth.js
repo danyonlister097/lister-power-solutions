@@ -3,6 +3,7 @@ const db = require('../db');
 const passwords = require('../lib/passwords');
 const logger = require('../lib/logger');
 const { homeRoute } = require('../lib/homeRoute');
+const { loadPermissions } = require('../middleware/auth');
 const { asyncHandler } = require('../lib/asyncHandler');
 
 const router = express.Router();
@@ -21,6 +22,11 @@ router.post(
     if (!user || !user.active || !passwords.verify(password || '', user.password_hash)) {
       return res.status(401).render('login', { error: 'Invalid email or password.' });
     }
+
+    // Fetched before regenerate() so homeRoute(user) below always has it -
+    // regenerate's callback isn't awaited by express-session, so anything
+    // async has to happen before it, not inside it.
+    user.permissions = await loadPermissions(user);
 
     req.session.regenerate((err) => {
       if (err) {

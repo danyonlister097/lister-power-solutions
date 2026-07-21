@@ -1,12 +1,13 @@
 const express = require('express');
 const db = require('../db');
-const { requireRole, verifyCsrf } = require('../middleware/auth');
+const { verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
 
 const router = express.Router();
 
-router.use(requireRole('admin'));
+// Gated at the mount point in app.js by the "customers" permission instead
+// of a hardcoded role.
 
 async function getCustomerOr404(req, res) {
   const customer = await db.prepare('SELECT * FROM customers WHERE id = ?').get(req.params.id);

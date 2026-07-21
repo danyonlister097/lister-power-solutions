@@ -484,6 +484,33 @@ form label.toggle-label {
   gap: 0 1rem;
 }
 
+.permissions-field { margin-bottom: 1.1rem; }
+
+.permissions-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.4rem;
+}
+
+.permissions-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+}
+
+.permissions-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+}
+.permissions-item input { width: auto; }
+
 .autocomplete { position: relative; }
 
 .autocomplete-results {
@@ -658,6 +685,7 @@ form label.toggle-label {
 @media (min-width: 640px) {
   .form-row-2 { grid-template-columns: 1fr 1fr; }
   .detail-grid { grid-template-columns: 140px 1fr; }
+  .permissions-grid { grid-template-columns: 1fr 1fr; }
 }
 
 /* Weekly schedule grid */

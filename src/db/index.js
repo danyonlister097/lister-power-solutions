@@ -159,6 +159,23 @@ async function ensureSeedData() {
       await pool.query('INSERT INTO chat_channels (name, created_by) VALUES ($1, $2)', ['General', owner.id]);
     }
   }
+
+  // Per-employee page permissions are new - any trade/apprentice that
+  // predates this feature has zero rows in user_permissions yet, which
+  // requirePermission() would otherwise read as "no access to anything".
+  // Backfill them to their role's default set (the same pages they could
+  // already reach) so turning this on doesn't silently lock anyone out.
+  const { DEFAULT_KEYS_BY_ROLE } = require('../lib/permissions');
+  const unconfigured = await pool.query(
+    `SELECT id, role FROM users
+     WHERE role != 'admin' AND id NOT IN (SELECT DISTINCT user_id FROM user_permissions)`
+  );
+  for (const u of unconfigured.rows) {
+    const defaults = DEFAULT_KEYS_BY_ROLE[u.role] || [];
+    for (const key of defaults) {
+      await pool.query('INSERT INTO user_permissions (user_id, permission_key) VALUES ($1, $2) ON CONFLICT DO NOTHING', [u.id, key]);
+    }
+  }
 }
 
 // A rejected init (e.g. the connection race above, hit during the very

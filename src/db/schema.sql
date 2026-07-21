@@ -19,6 +19,16 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
+-- Which of the app's page-level sections (nav links) a non-admin employee
+-- can reach. Admins always have full access regardless of these rows - see
+-- src/lib/permissions.js - so this table only ever holds trade/apprentice
+-- grants.
+CREATE TABLE IF NOT EXISTS user_permissions (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  permission_key TEXT NOT NULL,
+  PRIMARY KEY (user_id, permission_key)
+);
+
 CREATE TABLE IF NOT EXISTS customers (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,

@@ -1,6 +1,5 @@
 const express = require('express');
 const db = require('../db');
-const { requireRole } = require('../middleware/auth');
 const { asyncHandler } = require('../lib/asyncHandler');
 
 const router = express.Router();
@@ -23,7 +22,8 @@ function mondayOf(d) {
 
 router.get(
   '/',
-  requireRole('admin'),
+  // Gated at the mount point in app.js by the "dashboard" permission
+  // instead of a hardcoded role.
   asyncHandler(async (req, res) => {
     const today = new Date();
     const todayIso = toIsoDate(today);
