@@ -91,6 +91,27 @@
   window.showConfirm = showConfirm;
 })();
 
+// Site-wide behaviour: disables every submit button in a form the instant it
+// actually starts submitting, so a slow connection (a click that feels like
+// nothing happened) can't be turned into a second click and a second POST -
+// this is what was creating duplicate leave requests / assets. Skips a
+// data-confirm form's first, intercepted submit; only the confirmed
+// resubmission is the real one.
+(function () {
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    if (form.hasAttribute('data-confirm') && form.dataset.confirmed !== 'true') return;
+
+    var buttons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+    buttons.forEach(function (btn) {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      if (btn.tagName === 'BUTTON') btn.textContent = 'Saving...';
+    });
+  });
+})();
+
 // Site-wide behaviour: any <form data-preserve-scroll> remembers the page's
 // scroll position right before it actually submits, and the resulting page
 // reload restores it - so actions like "Save quote" on a long job page don't
