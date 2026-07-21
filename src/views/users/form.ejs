@@ -3,7 +3,14 @@
 
 <form method="post" action="<%= targetUser.id ? `/users/${targetUser.id}` : '/users' %>" class="card">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-  <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+  <% if (error) { %>
+    <div class="flash flash-error">
+      <%= error %>
+      <% if (typeof existingUser !== 'undefined' && existingUser) { %>
+        <a href="/users/<%= existingUser.id %>/edit">Edit <%= existingUser.name %> instead</a>
+      <% } %>
+    </div>
+  <% } %>
 
   <label>
     Name *

@@ -53,12 +53,13 @@ router.post(
     }
 
     const email = b.email.trim().toLowerCase();
-    const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    const existing = await db.prepare('SELECT id, name FROM users WHERE email = ?').get(email);
     if (existing) {
       return res.status(400).render('users/form', {
         title: 'New Employee',
         targetUser: b,
         error: 'An employee with that email already exists.',
+        existingUser: existing,
       });
     }
 
