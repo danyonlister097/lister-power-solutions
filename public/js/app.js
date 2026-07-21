@@ -44,9 +44,11 @@
   var cancelBtn = document.getElementById('confirm-modal-cancel');
   var pendingAction = null;
 
-  function showConfirm(title, message, onConfirm) {
+  function showConfirm(title, message, onConfirm, options) {
     titleEl.textContent = title;
     messageEl.textContent = message;
+    okBtn.textContent = (options && options.okLabel) || 'Delete';
+    okBtn.className = 'btn btn-' + ((options && options.variant) || 'danger');
     pendingAction = onConfirm;
     modal.hidden = false;
   }

@@ -44,12 +44,12 @@
     </label>
     <label>
       New password <span style="font-weight:400;">(leave blank to keep current password)</span>
-      <input type="password" name="password" minlength="8">
+      <input type="password" name="password" id="user-password-field" minlength="8" autocomplete="new-password">
     </label>
   <% } else { %>
     <label>
       Password *
-      <input type="password" name="password" required minlength="8">
+      <input type="password" name="password" required minlength="8" autocomplete="new-password">
     </label>
   <% } %>
 
@@ -58,6 +58,33 @@
     <a class="btn btn-secondary" href="/users">Cancel</a>
   </div>
 </form>
+
+<% if (targetUser.id) { %>
+  <script>
+    // Password managers/autofill can populate this field without the admin
+    // meaning to change anything - a silent password change on save would
+    // lock the account owner out with no obvious cause, so confirm first.
+    (function () {
+      var form = document.getElementById('user-password-field').closest('form');
+      var confirmed = false;
+      form.addEventListener('submit', function (e) {
+        var field = document.getElementById('user-password-field');
+        if (!field.value || confirmed) return;
+        e.preventDefault();
+        window.showConfirm(
+          'Change password?',
+          'This will change the password for "<%= targetUser.name %>". They\'ll need the new password to log in next time. Continue?',
+          function () {
+            confirmed = true;
+            if (form.requestSubmit) form.requestSubmit();
+            else form.submit();
+          },
+          { okLabel: 'Change password', variant: 'primary' }
+        );
+      });
+    })();
+  </script>
+<% } %>
 
 <% if (targetUser.id) { %>
   <form method="post" action="/users/<%= targetUser.id %>/delete" class="card"
