@@ -13,7 +13,7 @@ const SOURCE_FILE =
   );
 
 async function main() {
-  await db.ready;
+  await db.ready();
 
   const items = JSON.parse(fs.readFileSync(SOURCE_FILE, 'utf8'));
 

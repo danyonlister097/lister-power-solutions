@@ -3,7 +3,7 @@ const config = require('../src/config');
 const passwords = require('../src/lib/passwords');
 
 async function main() {
-  await db.ready;
+  await db.ready();
 
   const existingAdmin = await db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
   if (existingAdmin) {

@@ -36,6 +36,36 @@ process.on('unhandledRejection', (err) => {
   });
 });
 
+// The race above is rare but not rare enough to ignore in practice - Neon's
+// pooler will drop a connection mid-establishment under cold starts / load
+// often enough that every query needs to survive it, not just the process.
+// Only connection-establishment failures are retried (never a query that
+// reached the server, e.g. a constraint violation or bad SQL), so a retry
+// can't double-run a write that already landed.
+function isRetryableConnectionError(err) {
+  const code = err && err.code;
+  const message = (err && err.message) || '';
+  return (
+    code === 'ECONNREFUSED' ||
+    code === '08006' ||
+    code === '08001' ||
+    code === '08004' ||
+    message.includes('Client network socket disconnected') ||
+    message.includes('Connection terminated unexpectedly')
+  );
+}
+
+async function queryWithRetry(text, values) {
+  try {
+    return await pool.query(text, values);
+  } catch (err) {
+    if (!isRetryableConnectionError(err)) throw err;
+    logger.error('Retrying query after connection-establishment error', { error: err.message });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    return pool.query(text, values);
+  }
+}
+
 // Translates the small set of SQLite-isms this codebase's SQL strings use
 // into Postgres equivalents, so the 200+ existing call sites didn't need
 // their SQL text rewritten by hand:
@@ -80,17 +110,17 @@ function prepare(sql) {
   return {
     async get(...args) {
       const { text, values } = bindQuery(sql, args);
-      const result = await pool.query(text, values);
+      const result = await queryWithRetry(text, values);
       return result.rows[0];
     },
     async all(...args) {
       const { text, values } = bindQuery(sql, args);
-      const result = await pool.query(text, values);
+      const result = await queryWithRetry(text, values);
       return result.rows;
     },
     async run(...args) {
       const { text, values } = bindQuery(sql, args);
-      const result = await pool.query(text, values);
+      const result = await queryWithRetry(text, values);
       const out = { changes: result.rowCount };
       if (result.rows[0] && 'id' in result.rows[0]) out.lastInsertRowid = result.rows[0].id;
       return out;
@@ -99,11 +129,11 @@ function prepare(sql) {
 }
 
 async function ensureSeedData() {
-  const categories = await pool.query('SELECT id FROM business_asset_categories LIMIT 1');
+  const categories = await queryWithRetry('SELECT id FROM business_asset_categories LIMIT 1');
   if (categories.rowCount === 0) {
     const starters = ['Power Tools', 'Ladders', 'HVAC Equipment', 'Testing Equipment', 'Vehicles', 'Safety Equipment', 'Other'];
     for (const name of starters) {
-      await pool.query('INSERT INTO business_asset_categories (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [name]);
+      await queryWithRetry('INSERT INTO business_asset_categories (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [name]);
     }
   }
 
@@ -111,24 +141,34 @@ async function ensureSeedData() {
   // install needs at least a "General" channel to exist before anyone can
   // post. Owned by the first admin; skipped (and retried next boot) if no
   // admin has been seeded yet.
-  const anyChannel = await pool.query('SELECT id FROM chat_channels LIMIT 1');
+  const anyChannel = await queryWithRetry('SELECT id FROM chat_channels LIMIT 1');
   if (anyChannel.rowCount === 0) {
     const owner =
-      (await pool.query("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")).rows[0] ||
-      (await pool.query('SELECT id FROM users ORDER BY id LIMIT 1')).rows[0];
+      (await queryWithRetry("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")).rows[0] ||
+      (await queryWithRetry('SELECT id FROM users ORDER BY id LIMIT 1')).rows[0];
     if (owner) {
-      await pool.query('INSERT INTO chat_channels (name, created_by) VALUES ($1, $2)', ['General', owner.id]);
+      await queryWithRetry('INSERT INTO chat_channels (name, created_by) VALUES ($1, $2)', ['General', owner.id]);
     }
   }
 }
 
-let ready;
+// A rejected init (e.g. the connection race above, hit during the very
+// first query a cold container makes) used to poison this promise forever -
+// every request on that container would re-await the same dead promise for
+// its whole lifetime. Clearing it on failure means the next request tries
+// again from scratch instead of being stuck.
+let readyPromise;
 function initSchema() {
-  if (!ready) {
+  if (!readyPromise) {
     const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-    ready = pool.query(schema).then(ensureSeedData);
+    readyPromise = queryWithRetry(schema)
+      .then(ensureSeedData)
+      .catch((err) => {
+        readyPromise = null;
+        throw err;
+      });
   }
-  return ready;
+  return readyPromise;
 }
 
-module.exports = { prepare, pool, ready: initSchema() };
+module.exports = { prepare, pool, ready: initSchema };

@@ -3,7 +3,7 @@ const config = require('./config');
 const logger = require('./lib/logger');
 const db = require('./db');
 
-db.ready
+db.ready()
   .then(() => {
     app.listen(config.app.port, () => {
       logger.info(`Server listening on http://localhost:${config.app.port}`);
