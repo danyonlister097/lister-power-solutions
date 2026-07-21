@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 const { db: dbConfig } = require('../config');
+const logger = require('../lib/logger');
 
 // Vercel serverless functions are short-lived and can run many concurrent
 // invocations, so each pool instance is kept small - use Neon's pooled
@@ -10,6 +11,29 @@ const { db: dbConfig } = require('../config');
 const pool = new Pool({
   connectionString: dbConfig.connectionString,
   max: 5,
+});
+
+// Required by pg: an idle client that loses its connection (network blip,
+// Neon pooler recycling it, etc.) emits 'error' on the pool. With no
+// listener, Node treats it as an uncaught exception and kills the whole
+// process - so one transient disconnect would take the entire server down.
+pool.on('error', (err) => {
+  logger.error('Postgres pool error', { error: err.message, stack: err.stack });
+});
+
+// pg-pool has a known race on connection-time failures (e.g. a TLS
+// handshake dropped mid-connect while growing the pool under concurrent
+// load, which cold starts + Neon's pooler make more likely): the rejection
+// can surface a tick before pg's own handler attaches to it, so Node sees
+// it as unhandled and kills the process before pool.on('error') above ever
+// gets a chance to run. This is the last line of defence against that -
+// log it and keep the process (and every other in-flight request) alive,
+// since a transient connection drop should not take the whole function down.
+process.on('unhandledRejection', (err) => {
+  logger.error('Unhandled rejection (kept process alive)', {
+    error: err && err.message,
+    stack: err && err.stack,
+  });
 });
 
 // Translates the small set of SQLite-isms this codebase's SQL strings use
