@@ -17,6 +17,24 @@ const app = express();
 // X-Forwarded-Proto header, not a directly secure connection.
 app.set('trust proxy', 1);
 
+// res.redirect(url) defaults to 302, which is spec-ambiguous about whether
+// the follow-up request should keep the original method - real-world HTTP
+// clients disagree, and testing this app hit one that replayed a POST's
+// body against the redirect target instead of switching to GET: a
+// successful "Save employee" edit could come right back around as a second
+// POST to the create route with the same data, which is what was landing
+// admins back on "New Employee" (sometimes with a stale duplicate-email
+// error) instead of the employee list, and is also the likely source of
+// the duplicated leave/asset rows. 303 See Other has no such ambiguity -
+// every client is required to follow it with GET - so every one of this
+// app's ~120 post-action res.redirect(url) call sites gets 303 here
+// instead of needing the status passed by hand at each one.
+app.use((req, res, next) => {
+  const rawRedirect = res.redirect.bind(res);
+  res.redirect = (...args) => (args.length === 1 ? rawRedirect(303, args[0]) : rawRedirect(...args));
+  next();
+});
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
