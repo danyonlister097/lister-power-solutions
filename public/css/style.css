@@ -539,6 +539,19 @@ form label.toggle-label {
 
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+.icon-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0.3rem;
+  border-radius: var(--radius);
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.icon-btn-danger:hover { background: #fbeaea; color: var(--color-danger); }
+
 .flash {
   padding: 0.7rem 1rem;
   border-radius: var(--radius);

@@ -125,6 +125,29 @@ router.post(
   })
 );
 
+router.post(
+  '/bulk-delete',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const ids = []
+      .concat(req.body.ids || [])
+      .map((id) => Number.parseInt(id, 10))
+      .filter(Number.isInteger);
+
+    if (!ids.length) {
+      setFlash(req, 'error', 'No assets were selected.');
+      return res.redirect('/assets');
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+    const result = await db.prepare(`DELETE FROM business_assets WHERE id IN (${placeholders})`).run(...ids);
+
+    setFlash(req, 'success', `${result.changes} asset${result.changes === 1 ? '' : 's'} removed from the asset register.`);
+    res.redirect('/assets');
+  })
+);
+
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {

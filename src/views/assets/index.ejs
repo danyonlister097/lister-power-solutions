@@ -34,49 +34,115 @@
 <% if (!assets.length) { %>
   <p class="text-muted">No assets recorded yet.</p>
 <% } else { %>
-  <div class="timesheet-scroll">
-    <table class="timesheet-table">
-      <thead>
-        <tr>
-          <th>Asset</th>
-          <th>Category</th>
-          <th>Brand / Model</th>
-          <th>Purchase date</th>
-          <th>Purchase cost</th>
-          <th>Assigned to</th>
-          <th>Location</th>
-          <th>Next service</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% assets.forEach(a => {
-             var today = new Date().toISOString().slice(0, 10);
-             var dateDueSoon = a.next_service_due && a.next_service_due <= today;
-             var kmDueSoon = a.current_odometer_km !== null && a.service_due_at_km !== null && a.current_odometer_km >= a.service_due_at_km;
-             var dueSoon = dateDueSoon || kmDueSoon;
-        %>
+  <% var isAdmin = currentUser.role === 'admin'; %>
+  <form id="assets-bulk-form" method="post" action="/assets/bulk-delete"
+        data-confirm="Delete the selected assets? This cannot be undone."
+        data-confirm-title="Delete selected assets?">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <% if (isAdmin) { %>
+      <div class="actions" style="margin-bottom:0.75rem;">
+        <button type="submit" class="btn btn-danger btn-sm" id="assets-bulk-delete-btn" disabled>Delete selected</button>
+      </div>
+    <% } %>
+    <div class="timesheet-scroll">
+      <table class="timesheet-table">
+        <thead>
           <tr>
-            <td><a href="/assets/<%= a.id %>"><%= a.name %></a></td>
-            <td><%= a.category %></td>
-            <td><%= [a.brand, a.model].filter(Boolean).join(' ') || '—' %></td>
-            <td><%= a.purchase_date ? formatAuDate(a.purchase_date) : '—' %></td>
-            <td><%= formatMoney(a.purchase_cost) %></td>
-            <td><%= a.assigned_to_name || '—' %></td>
-            <td><%= a.location || '—' %></td>
-            <td class="<%= dueSoon ? 'timesheet-overtime' : '' %>">
-              <%= a.next_service_due ? formatAuDate(a.next_service_due) : '—' %><% if (a.service_due_at_km !== null) { %><br><%= a.service_due_at_km.toLocaleString() %> km<% } %><% if (dueSoon) { %> <span class="badge badge-cancelled">overdue</span><% } %>
-            </td>
-            <td>
-              <span class="badge badge-<%= a.status === 'active' ? 'completed' : a.status === 'in_repair' ? 'in_progress' : a.status === 'lost' ? 'cancelled' : 'unscheduled' %>">
-                <%= a.status.replace('_', ' ') %>
-              </span>
-            </td>
+            <% if (isAdmin) { %><th><input type="checkbox" id="assets-select-all" aria-label="Select all assets"></th><% } %>
+            <th>Asset</th>
+            <th>Category</th>
+            <th>Brand / Model</th>
+            <th>Purchase date</th>
+            <th>Purchase cost</th>
+            <th>Assigned to</th>
+            <th>Location</th>
+            <th>Next service</th>
+            <th>Status</th>
+            <% if (isAdmin) { %><th></th><% } %>
           </tr>
-        <% }) %>
-      </tbody>
-    </table>
-  </div>
+        </thead>
+        <tbody>
+          <% assets.forEach(a => {
+               var today = new Date().toISOString().slice(0, 10);
+               var dateDueSoon = a.next_service_due && a.next_service_due <= today;
+               var kmDueSoon = a.current_odometer_km !== null && a.service_due_at_km !== null && a.current_odometer_km >= a.service_due_at_km;
+               var dueSoon = dateDueSoon || kmDueSoon;
+          %>
+            <tr>
+              <% if (isAdmin) { %>
+                <td><input type="checkbox" name="ids" value="<%= a.id %>" class="assets-row-check" aria-label="Select <%= a.name %>"></td>
+              <% } %>
+              <td><a href="/assets/<%= a.id %>"><%= a.name %></a></td>
+              <td><%= a.category %></td>
+              <td><%= [a.brand, a.model].filter(Boolean).join(' ') || '—' %></td>
+              <td><%= a.purchase_date ? formatAuDate(a.purchase_date) : '—' %></td>
+              <td><%= formatMoney(a.purchase_cost) %></td>
+              <td><%= a.assigned_to_name || '—' %></td>
+              <td><%= a.location || '—' %></td>
+              <td class="<%= dueSoon ? 'timesheet-overtime' : '' %>">
+                <%= a.next_service_due ? formatAuDate(a.next_service_due) : '—' %><% if (a.service_due_at_km !== null) { %><br><%= a.service_due_at_km.toLocaleString() %> km<% } %><% if (dueSoon) { %> <span class="badge badge-cancelled">overdue</span><% } %>
+              </td>
+              <td>
+                <span class="badge badge-<%= a.status === 'active' ? 'completed' : a.status === 'in_repair' ? 'in_progress' : a.status === 'lost' ? 'cancelled' : 'unscheduled' %>">
+                  <%= a.status.replace('_', ' ') %>
+                </span>
+              </td>
+              <% if (isAdmin) { %>
+                <td>
+                  <button type="button" class="icon-btn-danger asset-row-delete"
+                          data-id="<%= a.id %>" data-name="<%= a.name %>" aria-label="Delete <%= a.name %>" title="Delete asset">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                      <path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/>
+                    </svg>
+                  </button>
+                </td>
+              <% } %>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </form>
+  <form id="asset-single-delete-form" method="post" action="" hidden>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  </form>
+  <% if (isAdmin) { %>
+    <script>
+      (function () {
+        var selectAll = document.getElementById('assets-select-all');
+        var rowChecks = Array.prototype.slice.call(document.querySelectorAll('.assets-row-check'));
+        var bulkBtn = document.getElementById('assets-bulk-delete-btn');
+
+        function syncBulkBtn() {
+          bulkBtn.disabled = !rowChecks.some(function (c) { return c.checked; });
+        }
+        selectAll.addEventListener('change', function () {
+          rowChecks.forEach(function (c) { c.checked = selectAll.checked; });
+          syncBulkBtn();
+        });
+        rowChecks.forEach(function (c) {
+          c.addEventListener('change', function () {
+            if (!c.checked) selectAll.checked = false;
+            syncBulkBtn();
+          });
+        });
+
+        var singleForm = document.getElementById('asset-single-delete-form');
+        document.querySelectorAll('.asset-row-delete').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            window.showConfirm(
+              'Delete asset?',
+              'Delete "' + btn.getAttribute('data-name') + '" from the asset register? This cannot be undone.',
+              function () {
+                singleForm.setAttribute('action', '/assets/' + btn.getAttribute('data-id') + '/delete');
+                singleForm.requestSubmit();
+              }
+            );
+          });
+        });
+      })();
+    </script>
+  <% } %>
 <% } %>
 
 <% if (currentUser.role === 'admin') { %>
