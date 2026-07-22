@@ -9,6 +9,8 @@ const { loadUser, requirePermission, attachCsrf } = require('./middleware/auth')
 const { homeRoute } = require('./lib/homeRoute');
 const { formatAuDate } = require('./lib/dates');
 const { formatMoney } = require('./lib/money');
+const { asyncHandler } = require('./lib/asyncHandler');
+const { generateWeeklyTimesheets } = require('./lib/timesheetGen');
 
 const app = express();
 
@@ -66,6 +68,22 @@ app.use((req, res, next) => {
   res.locals.homeUrl = homeRoute(req.user);
   next();
 });
+
+// Vercel Cron hits this on a schedule (see vercel.json) - it's a machine
+// call, not a browser session, so it's checked against CRON_SECRET instead
+// of going through login/permissions. Vercel sends the secret as a bearer
+// token automatically once CRON_SECRET is set in the project's env vars.
+app.get(
+  '/api/cron/generate-timesheets',
+  asyncHandler(async (req, res) => {
+    if (config.app.cronSecret && req.headers.authorization !== `Bearer ${config.app.cronSecret}`) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const result = await generateWeeklyTimesheets();
+    logger.info('Weekly timesheets generated', result);
+    res.json({ ok: true, ...result });
+  })
+);
 
 app.use('/', require('./routes/auth'));
 

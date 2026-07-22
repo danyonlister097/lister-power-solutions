@@ -121,6 +121,30 @@ CREATE TABLE IF NOT EXISTS clock_events (
 CREATE INDEX IF NOT EXISTS idx_clock_events_user_id ON clock_events(user_id);
 CREATE INDEX IF NOT EXISTS idx_clock_events_occurred_at ON clock_events(occurred_at);
 
+-- One row per employee per Monday-Sunday week. The Sunday-midnight cron
+-- (see api/index.js's /api/cron/generate-timesheets) inserts these as
+-- 'pending' from that week's clock_events; approving (whether from the
+-- auto-generated row or a week nothing was generated for) recomputes the
+-- totals live and upserts status='approved', so approval is never blocked
+-- by a missed/late cron run.
+CREATE TABLE IF NOT EXISTS timesheets (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  week_start TEXT NOT NULL,
+  week_end TEXT NOT NULL,
+  total_minutes REAL NOT NULL DEFAULT 0,
+  regular_minutes REAL NOT NULL DEFAULT 0,
+  overtime_minutes REAL NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved')),
+  approved_by INTEGER REFERENCES users(id),
+  approved_at TEXT,
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text(),
+  UNIQUE (user_id, week_start)
+);
+
+CREATE INDEX IF NOT EXISTS idx_timesheets_status ON timesheets(status);
+
 CREATE TABLE IF NOT EXISTS leave_requests (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id),

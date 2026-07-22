@@ -37,6 +37,8 @@
         <th class="timesheet-sticky-col">Employee</th>
         <% days.forEach(function (day) { %><th><%= day.label %></th><% }) %>
         <th>Total</th>
+        <th>Status</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -61,6 +63,24 @@
             </td>
           <% }) %>
           <td class="timesheet-total-col"><%= formatHours(r.totalMinutes) %></td>
+          <td>
+            <% if (r.timesheet && r.timesheet.status === 'approved') { %>
+              <span class="badge badge-completed">Approved</span>
+            <% } else { %>
+              <span class="badge badge-in_progress">Pending</span>
+            <% } %>
+          </td>
+          <td>
+            <% if (!r.timesheet || r.timesheet.status !== 'approved') { %>
+              <form method="post" action="/timeclock/timesheets/<%= r.id %>/approve"
+                    data-confirm="Approve <%= r.name %>'s timesheet for this week (<%= formatHours(r.totalMinutes, true) %>)?"
+                    data-confirm-ok-label="Approve" data-confirm-variant="primary">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="week_start" value="<%= startIso %>">
+                <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+              </form>
+            <% } %>
+          </td>
         </tr>
       <% }) %>
     </tbody>

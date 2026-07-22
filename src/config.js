@@ -13,6 +13,7 @@ module.exports = {
   app: {
     port: Number(process.env.PORT || 3000),
     sessionSecret: required('SESSION_SECRET', process.env.SESSION_SECRET),
+    cronSecret: process.env.CRON_SECRET || '',
   },
   db: {
     connectionString: required('DATABASE_URL', process.env.DATABASE_URL),

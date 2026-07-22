@@ -31,6 +31,60 @@
 </div>
 
 <div class="card">
+  <h2>Pending Approvals</h2>
+  <% var hasPending = pendingLeave.length || pendingTimesheets.length || lowStockItems.length; %>
+  <% if (!hasPending) { %>
+    <p class="text-muted">Nothing needs your attention right now.</p>
+  <% } else { %>
+    <% if (pendingLeave.length) { %>
+      <div class="section-heading">Leave requests</div>
+      <ul class="list">
+        <% pendingLeave.forEach(l => { %>
+          <li>
+            <span class="list-item">
+              <span>
+                <a href="/leave" class="list-item-title"><%= l.user_name %></a><br>
+                <span class="list-item-meta"><%= formatAuDate(l.start_date) %> &ndash; <%= formatAuDate(l.end_date) %></span>
+              </span>
+              <span class="badge badge-in_progress">Pending</span>
+            </span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+    <% if (pendingTimesheets.length) { %>
+      <div class="section-heading">Timesheets</div>
+      <ul class="list">
+        <% pendingTimesheets.forEach(t => { %>
+          <li>
+            <span class="list-item">
+              <span>
+                <a href="/timeclock/timesheets?start=<%= t.week_start %>" class="list-item-title"><%= t.user_name %></a><br>
+                <span class="list-item-meta"><%= formatAuDate(t.week_start) %> &ndash; <%= formatAuDate(t.week_end) %></span>
+              </span>
+              <span><%= formatHours(t.total_minutes, true) %></span>
+            </span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+    <% if (lowStockItems.length) { %>
+      <div class="section-heading">Low stock</div>
+      <ul class="list">
+        <% lowStockItems.forEach(item => { %>
+          <li>
+            <span class="list-item">
+              <a href="/inventory/<%= item.id %>" class="list-item-title"><%= item.name %></a>
+              <span class="badge badge-cancelled"><%= item.quantity_on_hand %> <%= item.unit %></span>
+            </span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  <% } %>
+</div>
+
+<div class="card">
   <h2>Job pipeline</h2>
   <div class="job-board">
     <div class="job-board-col">
@@ -132,42 +186,22 @@
   </div>
 </div>
 
-<div class="form-row form-row-2">
-  <div class="card">
-    <h2>Technician utilisation (this week)</h2>
-    <% if (!utilisation.length) { %>
-      <p class="text-muted">No active technicians.</p>
-    <% } else { %>
-      <ul class="list">
-        <% utilisation.forEach(u => { %>
-          <li>
-            <span class="list-item">
-              <span class="list-item-title"><%= u.name %></span>
-              <span><%= u.pct %>%</span>
-            </span>
-          </li>
-        <% }) %>
-      </ul>
-    <% } %>
-  </div>
-
-  <div class="card">
-    <h2>Low stock items</h2>
-    <% if (!lowStockItems.length) { %>
-      <p class="text-muted">Nothing below its reorder threshold.</p>
-    <% } else { %>
-      <ul class="list">
-        <% lowStockItems.forEach(item => { %>
-          <li>
-            <span class="list-item">
-              <a href="/inventory/<%= item.id %>" class="list-item-title"><%= item.name %></a>
-              <span class="badge badge-cancelled"><%= item.quantity_on_hand %> <%= item.unit %></span>
-            </span>
-          </li>
-        <% }) %>
-      </ul>
-    <% } %>
-  </div>
+<div class="card">
+  <h2>Technician utilisation (this week)</h2>
+  <% if (!utilisation.length) { %>
+    <p class="text-muted">No active technicians.</p>
+  <% } else { %>
+    <ul class="list">
+      <% utilisation.forEach(u => { %>
+        <li>
+          <span class="list-item">
+            <span class="list-item-title"><%= u.name %></span>
+            <span><%= u.pct %>%</span>
+          </span>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
 </div>
 
 <div class="card">

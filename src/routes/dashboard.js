@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { asyncHandler } = require('../lib/asyncHandler');
+const { formatHours } = require('../lib/timesheetCalc');
 
 const router = express.Router();
 
@@ -83,6 +84,28 @@ router.get(
          FROM inventory_items
          WHERE reorder_threshold IS NOT NULL AND quantity_on_hand <= reorder_threshold
          ORDER BY name`
+      )
+      .all();
+
+    // Everything an admin needs to review/act on, in one place - leave and
+    // timesheets are genuine approvals; low stock isn't, but it's the same
+    // "needs your attention" shape, so it lives here instead of duplicating
+    // a separate widget further down the page.
+    const pendingLeave = await db
+      .prepare(
+        `SELECT leave_requests.*, users.name AS user_name
+         FROM leave_requests JOIN users ON users.id = leave_requests.user_id
+         WHERE leave_requests.status = 'pending'
+         ORDER BY leave_requests.start_date ASC`
+      )
+      .all();
+
+    const pendingTimesheets = await db
+      .prepare(
+        `SELECT timesheets.*, users.name AS user_name
+         FROM timesheets JOIN users ON users.id = timesheets.user_id
+         WHERE timesheets.status = 'pending' AND timesheets.total_minutes > 0
+         ORDER BY timesheets.week_start ASC`
       )
       .all();
 
@@ -183,9 +206,12 @@ router.get(
       outstandingQuotes,
       outstandingQuotesTotal,
       lowStockItems,
+      pendingLeave,
+      pendingTimesheets,
       utilisation,
       jobBoard,
       upcomingMaintenance,
+      formatHours,
     });
   })
 );

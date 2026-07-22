@@ -3,10 +3,11 @@ const db = require('../db');
 const { requireRole, verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
+const { REGULAR_MINUTES_PER_DAY, toIsoDate, addDays, mondayOf, formatHours, dayStats } = require('../lib/timesheetCalc');
+const { computeWeekTotals } = require('../lib/timesheetGen');
 
 const router = express.Router();
 
-const REGULAR_MINUTES_PER_DAY = 8 * 60;
 const TIMESHEET_DAYS = 7;
 
 function toLocalIso(d) {
@@ -17,61 +18,6 @@ function toLocalIso(d) {
   const mi = String(d.getMinutes()).padStart(2, '0');
   const ss = String(d.getSeconds()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`;
-}
-
-function toIsoDate(d) {
-  return toLocalIso(d).slice(0, 10);
-}
-
-function addDays(iso, n) {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + n);
-  return toIsoDate(d);
-}
-
-function mondayOf(iso) {
-  const d = new Date(`${iso}T00:00:00`);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  return toIsoDate(d);
-}
-
-function formatHours(minutes, alwaysShow) {
-  if (!minutes && !alwaysShow) return '--';
-  const h = Math.floor(minutes / 60);
-  const m = Math.round(minutes % 60);
-  return `${h}:${String(m).padStart(2, '0')}h`;
-}
-
-// Given a user's clock_events for a single day (ascending), pair up in/out
-// events to compute total worked minutes - handles multiple sessions per day.
-function dayStats(events) {
-  let firstIn = null;
-  let lastOut = null;
-  let openIn = null;
-  let totalMinutes = 0;
-  let lastEvent = null;
-
-  events.forEach((e) => {
-    if (e.type === 'in') {
-      if (!firstIn) firstIn = e.occurred_at;
-      openIn = e.occurred_at;
-    } else if (e.type === 'out' && openIn) {
-      lastOut = e.occurred_at;
-      totalMinutes += (new Date(e.occurred_at) - new Date(openIn)) / 60000;
-      openIn = null;
-    }
-    lastEvent = e;
-  });
-
-  return {
-    firstIn,
-    lastOut,
-    totalMinutes,
-    stillIn: Boolean(openIn),
-    lastEvent,
-  };
 }
 
 function getLastEvent(userId) {
@@ -90,7 +36,7 @@ function parseCoord(raw, min, max) {
 }
 
 router.get('/', (req, res) => {
-  res.redirect(req.user.role === 'admin' ? '/timeclock/team' : '/timeclock/me');
+  res.redirect(req.user.role === 'admin' ? '/timeclock/timesheets' : '/timeclock/me');
 });
 
 router.get(
@@ -216,6 +162,11 @@ router.get(
     const events = await db
       .prepare('SELECT * FROM clock_events WHERE (occurred_at)::date BETWEEN (?)::date AND (?)::date ORDER BY user_id, occurred_at ASC')
       .all(startIso, endIso);
+    const timesheetRows = await db.prepare('SELECT * FROM timesheets WHERE week_start = ?').all(startIso);
+    const timesheetByUser = {};
+    timesheetRows.forEach((t) => {
+      timesheetByUser[t.user_id] = t;
+    });
 
     const eventsByUserDay = {};
     events.forEach((e) => {
@@ -238,7 +189,7 @@ router.get(
         totalOvertimeMinutes += Math.max(0, stats.totalMinutes - REGULAR_MINUTES_PER_DAY);
         return { minutes: stats.totalMinutes, stillIn: stats.stillIn };
       });
-      return { id: u.id, name: u.name, cells, totalMinutes: rowTotalMinutes };
+      return { id: u.id, name: u.name, cells, totalMinutes: rowTotalMinutes, timesheet: timesheetByUser[u.id] || null };
     });
 
     res.render('timeclock/timesheets', {
@@ -253,6 +204,36 @@ router.get(
       totalOvertimeMinutes,
       formatHours,
     });
+  })
+);
+
+router.post(
+  '/timesheets/:userId/approve',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const weekStart = /^\d{4}-\d{2}-\d{2}$/.test(req.body.week_start || '') ? req.body.week_start : mondayOf(toIsoDate(new Date()));
+    const weekEnd = addDays(weekStart, TIMESHEET_DAYS - 1);
+    const user = await db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.userId);
+    if (!user) return res.status(404).render('error', { message: 'Employee not found.' });
+
+    // Recomputed live rather than trusting whatever the cron generated -
+    // covers both a week nothing was auto-generated for, and a late
+    // correction to a clock event after generation but before approval.
+    const totals = await computeWeekTotals(user.id, weekStart, weekEnd);
+    await db
+      .prepare(
+        `INSERT INTO timesheets (user_id, week_start, week_end, total_minutes, regular_minutes, overtime_minutes, status, approved_by, approved_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'approved', ?, datetime('now'))
+         ON CONFLICT (user_id, week_start) DO UPDATE SET
+           total_minutes = excluded.total_minutes, regular_minutes = excluded.regular_minutes,
+           overtime_minutes = excluded.overtime_minutes, status = 'approved',
+           approved_by = excluded.approved_by, approved_at = excluded.approved_at, updated_at = datetime('now')`
+      )
+      .run(user.id, weekStart, weekEnd, totals.totalMinutes, totals.regularMinutes, totals.overtimeMinutes, req.user.id);
+
+    setFlash(req, 'success', 'Timesheet approved.');
+    res.redirect(`/timeclock/timesheets?start=${weekStart}`);
   })
 );
 
