@@ -131,7 +131,7 @@ router.post(
   verifyCsrf,
   asyncHandler(async (req, res) => {
     const ids = []
-      .concat(req.body.ids || [])
+      .concat(req.body.asset_ids || [])
       .map((id) => Number.parseInt(id, 10))
       .filter(Number.isInteger);
 
