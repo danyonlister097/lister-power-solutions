@@ -22,14 +22,11 @@ const PERMISSIONS = [
 
 const PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);
 
-// What a brand-new trade/apprentice employee starts with - matches what
-// every non-admin could already reach before per-employee permissions
-// existed, so turning this feature on doesn't quietly take anything away
-// from existing staff.
+// What a brand-new trade/apprentice employee starts with.
 const DEFAULT_KEYS_BY_ROLE = {
   admin: PERMISSION_KEYS,
-  trade: ['jobs', 'timeclock', 'leave', 'tasks', 'chat', 'forms', 'inventory', 'assets', 'tools'],
-  apprentice: ['jobs', 'timeclock', 'leave', 'tasks', 'chat', 'forms', 'inventory', 'assets', 'tools'],
+  trade: ['schedule', 'jobs', 'timeclock', 'leave', 'tasks', 'chat', 'forms', 'inventory', 'assets', 'tools'],
+  apprentice: ['schedule', 'jobs', 'timeclock', 'leave', 'tasks', 'chat', 'forms', 'inventory', 'assets', 'tools'],
 };
 
 module.exports = { PERMISSIONS, PERMISSION_KEYS, DEFAULT_KEYS_BY_ROLE };
