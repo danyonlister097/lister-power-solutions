@@ -20,7 +20,7 @@
 </div>
 
 <div class="sched-scroll">
-  <div class="sched-grid" id="sched-grid" data-csrf="<%= csrfToken %>">
+  <div class="sched-grid" id="sched-grid" data-csrf="<%= csrfToken %>" data-is-admin="<%= isAdmin ? '1' : '0' %>">
     <div class="sched-cell sched-corner">Trades</div>
     <% days.forEach(d => { %>
       <a class="sched-cell sched-day-header" href="/jobs/new?date=<%= d.iso %>" title="Add job on <%= d.label %>">
@@ -33,7 +33,7 @@
     <% rows.forEach(row => { %>
       <div
         class="sched-cell sched-row-header <%= row.id === null ? 'sched-row-header-unassigned' : '' %>"
-        <% if (row.id !== null) { %>draggable="true" data-user-id="<%= row.id %>"<% } %>
+        <% if (row.id !== null) { %>data-user-id="<%= row.id %>"<% if (isAdmin) { %> draggable="true"<% } %><% } %>
       >
         <% if (row.id === null) { %>
           <%= row.name %>
@@ -73,7 +73,7 @@
             <div
               class="shift-block shift-<%= j.status %>"
               <% if (j.color) { %>style="background-color: <%= j.color %>;"<% } %>
-              draggable="true"
+              <% if (isAdmin) { %>draggable="true"<% } %>
               tabindex="0"
               role="button"
               data-job-id="<%= j.id %>"
@@ -88,7 +88,7 @@
               data-notes="<%= j.notes || '' %>"
               data-all-day="<%= j.all_day ? '1' : '' %>"
             >
-              <button type="button" class="shift-menu-btn" data-job-id="<%= j.id %>" aria-label="Job options" title="Job options">&#8942;</button>
+              <% if (isAdmin) { %><button type="button" class="shift-menu-btn" data-job-id="<%= j.id %>" aria-label="Job options" title="Job options">&#8942;</button><% } %>
               <span class="shift-time">
                 <% if (j.all_day) { %>All day<% } else { %>
                   <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %><% if (j.scheduled_end) { %> - <%= new Date(j.scheduled_end).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %><% } %>

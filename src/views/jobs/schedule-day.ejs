@@ -19,7 +19,7 @@
   <a class="btn btn-secondary btn-sm" href="?view=day&start=<%= nextStartIso %>">Next &rarr;</a>
 </div>
 
-<div class="day-sched" id="sched-grid" data-csrf="<%= csrfToken %>">
+<div class="day-sched" id="sched-grid" data-csrf="<%= csrfToken %>" data-is-admin="<%= isAdmin ? '1' : '0' %>">
   <div class="day-sched-headers">
     <div class="day-sched-header-spacer">Trades</div>
     <% const avatarColors = ['#12b8a0', '#e2622b', '#7c5cff', '#1d5fae', '#c2185b', '#0f9d58']; %>
@@ -27,7 +27,7 @@
       <div
         class="sched-row-header day-row-header <%= row.id === null ? 'sched-row-header-unassigned' : '' %>"
         style="height: <%= row.id === null ? 88 : Math.max(row.trackHeight, 96) %>px;"
-        <% if (row.id !== null) { %>draggable="true" data-user-id="<%= row.id %>"<% } %>
+        <% if (row.id !== null) { %>data-user-id="<%= row.id %>"<% if (isAdmin) { %> draggable="true"<% } %><% } %>
       >
         <% if (row.id === null) { %>
           <%= row.name %>
@@ -91,7 +91,7 @@
               data-notes="<%= j.notes || '' %>"
               data-all-day="<%= j.all_day ? '1' : '' %>"
             >
-              <button type="button" class="shift-menu-btn" data-job-id="<%= j.id %>" aria-label="Job options" title="Job options">&#8942;</button>
+              <% if (isAdmin) { %><button type="button" class="shift-menu-btn" data-job-id="<%= j.id %>" aria-label="Job options" title="Job options">&#8942;</button><% } %>
               <span class="shift-time">
                 <% if (j.all_day) { %>All day<% } else { %>
                   <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %><% if (j.scheduled_end) { %> - <%= new Date(j.scheduled_end).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %><% } %>

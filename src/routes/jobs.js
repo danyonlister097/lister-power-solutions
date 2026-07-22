@@ -76,6 +76,15 @@ async function getJobOr404(req, res) {
   return job;
 }
 
+async function checkCompletionRequirements(jobId) {
+  const photoCount = Number((await db.prepare('SELECT COUNT(*) AS n FROM job_attachments WHERE job_id = ?').get(jobId)).n);
+  const stockCount = Number((await db.prepare('SELECT COUNT(*) AS n FROM job_stock_allocations WHERE job_id = ?').get(jobId)).n);
+  const missing = [];
+  if (photoCount === 0) missing.push('at least one photo must be added');
+  if (stockCount === 0) missing.push('stock used must be populated');
+  return missing.length ? `Cannot mark job as completed: ${missing.join(' and ')}.` : null;
+}
+
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -268,6 +277,7 @@ async function renderGridView(req, res, numDays) {
     prevStartIso: toIsoDate(prevStart),
     nextStartIso: toIsoDate(nextStart),
     monthIso: `${rangeStart.getFullYear()}-${String(rangeStart.getMonth() + 1).padStart(2, '0')}`,
+    isAdmin: req.user.role === 'admin',
     summary: {
       shifts: totalShifts,
       hours: totalHours,
@@ -356,6 +366,7 @@ async function renderMonthView(req, res) {
     prevMonthIso: `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`,
     nextMonthIso: `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`,
     todayIso: toIsoDate(now),
+    isAdmin: req.user.role === 'admin',
   });
 }
 
@@ -492,6 +503,7 @@ async function renderDayView(req, res) {
     monthIso: `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}`,
     hourMarks,
     rows,
+    isAdmin: req.user.role === 'admin',
     summary: {
       shifts: totalShifts,
       hours: totalHours,
@@ -514,7 +526,7 @@ router.get(
 
 router.post(
   '/schedule/reorder',
-  requirePermission('schedule'),
+  requireRole('admin'),
   verifyCsrf,
   asyncHandler(async (req, res) => {
     const idA = Number(req.body.a);
@@ -904,6 +916,15 @@ router.post(
 
     const schedule = buildSchedule(b);
 
+    const newStatus = b.status || job.status;
+    if (newStatus === 'completed' && job.status !== 'completed') {
+      const err = await checkCompletionRequirements(job.id);
+      if (err) {
+        setFlash(req, 'error', err);
+        return res.redirect(`/jobs/${job.id}/edit`);
+      }
+    }
+
     await db
       .prepare(
         `UPDATE jobs SET
@@ -921,7 +942,7 @@ router.post(
         customer_id: b.customer_id,
         title: b.title.trim(),
         description: b.description || null,
-        status: b.status || job.status,
+        status: newStatus,
         scheduled_start: schedule.scheduled_start,
         scheduled_end: schedule.scheduled_end,
         all_day: schedule.all_day,
@@ -950,6 +971,14 @@ router.post(
     const status = req.body.status;
     if (!STATUSES.includes(status)) {
       return res.status(400).render('error', { message: 'Invalid status.' });
+    }
+
+    if (status === 'completed') {
+      const err = await checkCompletionRequirements(job.id);
+      if (err) {
+        setFlash(req, 'error', err);
+        return res.redirect(`/jobs/${job.id}`);
+      }
     }
 
     await db
@@ -1018,7 +1047,8 @@ router.post(
     await setAssignees(result.lastInsertRowid, []);
 
     setFlash(req, 'success', 'Job duplicated into Unassigned shifts.');
-    res.redirect(homeRoute(req.user));
+    const returnTo = typeof req.body.returnTo === 'string' && req.body.returnTo.startsWith('/') ? req.body.returnTo : null;
+    res.redirect(returnTo || homeRoute(req.user));
   })
 );
 
@@ -1038,7 +1068,8 @@ router.post(
     await db.prepare('DELETE FROM jobs WHERE id = ?').run(job.id);
 
     setFlash(req, 'success', `Job "${job.title}" deleted.`);
-    res.redirect(homeRoute(req.user));
+    const returnTo = typeof req.body.returnTo === 'string' && req.body.returnTo.startsWith('/') ? req.body.returnTo : null;
+    res.redirect(returnTo || homeRoute(req.user));
   })
 );
 

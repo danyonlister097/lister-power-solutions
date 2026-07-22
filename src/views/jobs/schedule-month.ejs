@@ -19,7 +19,7 @@
   <a class="btn btn-secondary btn-sm" href="?view=month&month=<%= nextMonthIso %>">Next &rarr;</a>
 </div>
 
-<div class="month-grid" id="sched-grid" data-csrf="<%= csrfToken %>">
+<div class="month-grid" id="sched-grid" data-csrf="<%= csrfToken %>" data-is-admin="<%= isAdmin ? '1' : '0' %>">
   <div class="month-cell month-header-cell">Mon</div>
   <div class="month-cell month-header-cell">Tue</div>
   <div class="month-cell month-header-cell">Wed</div>
@@ -38,7 +38,7 @@
         <div
           class="month-job-chip shift-block shift-<%= j.status %>"
           <% if (j.color) { %>style="background-color: <%= j.color %>;"<% } %>
-          draggable="true"
+          <% if (isAdmin) { %>draggable="true"<% } %>
           tabindex="0"
           role="button"
           data-job-id="<%= j.id %>"
@@ -93,4 +93,27 @@
 </div>
 
 <script src="/js/schedule.js"></script>
+<script src="/js/holidays.js"></script>
+<script>
+(function () {
+  var firstCell = document.querySelector('.month-day-cell[data-day]');
+  var year = firstCell ? parseInt(firstCell.getAttribute('data-day').slice(0, 4), 10) : new Date().getFullYear();
+  var holidays = Object.assign({}, getQldHolidays(year - 1), getQldHolidays(year), getQldHolidays(year + 1));
+  document.querySelectorAll('.month-day-cell[data-day]').forEach(function (cell) {
+    var iso = cell.getAttribute('data-day');
+    var name = holidays[iso];
+    if (!name) return;
+    var chip = document.createElement('div');
+    chip.title = name;
+    chip.textContent = name;
+    chip.style.cssText = 'font-size:0.6rem;background:#f59e0b;color:#fff;border-radius:3px;padding:1px 4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    var numberLink = cell.querySelector('.month-day-number');
+    if (numberLink && numberLink.nextSibling) {
+      cell.insertBefore(chip, numberLink.nextSibling);
+    } else {
+      cell.appendChild(chip);
+    }
+  });
+})();
+</script>
 <%- include('../partials/footer') %>

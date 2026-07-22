@@ -2,6 +2,7 @@
   var grid = document.getElementById('sched-grid');
   if (!grid) return;
   var csrf = grid.getAttribute('data-csrf');
+  var isAdmin = grid.getAttribute('data-is-admin') === '1';
 
   // The schedule pages (day/week/month) are all served from /jobs/schedule with
   // different query params, so the current path+search is exactly the URL we want
@@ -9,6 +10,124 @@
   function currentScheduleUrl() {
     return window.location.pathname + window.location.search;
   }
+
+  // --- Job detail modal ---
+
+  function setupModal() {
+    var modal = document.getElementById('job-modal');
+    if (!modal) return;
+    var modalClose = document.getElementById('job-modal-close');
+
+    function formatTime(iso) {
+      if (!iso) return '';
+      return new Date(iso).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '';
+      return new Date(iso).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+    }
+
+    function setOptionalField(labelId, valueId, value) {
+      var label = document.getElementById(labelId);
+      var el = document.getElementById(valueId);
+      if (value) {
+        label.style.display = '';
+        el.style.display = '';
+        el.textContent = value;
+      } else {
+        label.style.display = 'none';
+        el.style.display = 'none';
+      }
+    }
+
+    function openModal(block) {
+      var d = block.dataset;
+      document.getElementById('job-modal-title').textContent = d.title;
+      var statusEl = document.getElementById('job-modal-status');
+      statusEl.textContent = d.status.replace('_', ' ');
+      statusEl.className = 'badge badge-' + d.status;
+      document.getElementById('job-modal-customer').textContent = d.customer;
+      document.getElementById('job-modal-assignee').textContent = d.assignee;
+
+      var timeText = formatDate(d.start);
+      if (d.allDay) {
+        timeText += ', All day';
+      } else {
+        timeText += ', ' + formatTime(d.start);
+        if (d.end) timeText += ' - ' + formatTime(d.end);
+      }
+      document.getElementById('job-modal-time').textContent = timeText;
+
+      var addressEl = document.getElementById('job-modal-address');
+      addressEl.innerHTML = '';
+      if (d.address) {
+        var mapLink = document.createElement('a');
+        mapLink.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(d.address);
+        mapLink.target = '_blank';
+        mapLink.rel = 'noopener';
+        mapLink.textContent = d.address;
+        addressEl.appendChild(mapLink);
+      } else {
+        addressEl.textContent = 'No address on file';
+      }
+
+      setOptionalField('job-modal-description-label', 'job-modal-description', d.description);
+      setOptionalField('job-modal-notes-label', 'job-modal-notes', d.notes);
+
+      document.getElementById('job-modal-open').setAttribute('href', '/jobs/' + d.jobId);
+      document.getElementById('job-modal-edit').setAttribute('href', '/jobs/' + d.jobId + '/edit?returnTo=' + encodeURIComponent(currentScheduleUrl()));
+
+      modal.hidden = false;
+    }
+
+    function closeModal() {
+      modal.hidden = true;
+    }
+
+    grid.addEventListener('click', function (e) {
+      if (isAdmin) {
+        var menuBtn = e.target.closest('.shift-menu-btn');
+        if (menuBtn) {
+          e.stopPropagation();
+          openContextMenu(menuBtn);
+          return;
+        }
+      }
+      var block = e.target.closest('.shift-block');
+      if (block) {
+        openModal(block);
+        return;
+      }
+      var monthCell = e.target.closest('.month-day-cell');
+      if (monthCell && monthCell.getAttribute('data-href')) {
+        window.location.href = monthCell.getAttribute('data-href');
+      }
+    });
+
+    grid.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      var block = e.target.closest('.shift-block');
+      if (!block) return;
+      e.preventDefault();
+      openModal(block);
+    });
+
+    modalClose.addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !modal.hidden) closeModal();
+    });
+  }
+
+  setupModal();
+
+  // Non-admins: modal and month-cell navigation only — no drag, no context menu.
+  if (!isAdmin) return;
+
+  // --- Drag: week/day view — move job chip to a different day cell ---
 
   grid.addEventListener('dragstart', function (e) {
     var block = e.target.closest('.shift-block');
@@ -58,7 +177,7 @@
       });
   });
 
-  // --- Month view: drag a job chip onto a different day cell ---
+  // --- Drag: month view — move job chip to a different day cell ---
 
   grid.addEventListener('dragover', function (e) {
     var cell = e.target.closest('.month-day-cell');
@@ -97,7 +216,7 @@
       });
   });
 
-  // --- Staff row reorder (drag one tech's row header onto another) ---
+  // --- Drag: staff row reorder ---
 
   grid.addEventListener('dragstart', function (e) {
     var header = e.target.closest('.sched-row-header[draggable="true"]');
@@ -143,112 +262,6 @@
       .catch(function () {
         alert('Could not reorder staff. Please try again.');
       });
-  });
-
-  // --- Job detail modal ---
-
-  var modal = document.getElementById('job-modal');
-  var modalClose = document.getElementById('job-modal-close');
-
-  function formatTime(iso) {
-    if (!iso) return '';
-    return new Date(iso).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
-  }
-
-  function formatDate(iso) {
-    if (!iso) return '';
-    return new Date(iso).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
-  }
-
-  function setOptionalField(labelId, valueId, value) {
-    var label = document.getElementById(labelId);
-    var el = document.getElementById(valueId);
-    if (value) {
-      label.style.display = '';
-      el.style.display = '';
-      el.textContent = value;
-    } else {
-      label.style.display = 'none';
-      el.style.display = 'none';
-    }
-  }
-
-  function openModal(block) {
-    var d = block.dataset;
-    document.getElementById('job-modal-title').textContent = d.title;
-    var statusEl = document.getElementById('job-modal-status');
-    statusEl.textContent = d.status.replace('_', ' ');
-    statusEl.className = 'badge badge-' + d.status;
-    document.getElementById('job-modal-customer').textContent = d.customer;
-    document.getElementById('job-modal-assignee').textContent = d.assignee;
-
-    var timeText = formatDate(d.start);
-    if (d.allDay) {
-      timeText += ', All day';
-    } else {
-      timeText += ', ' + formatTime(d.start);
-      if (d.end) timeText += ' - ' + formatTime(d.end);
-    }
-    document.getElementById('job-modal-time').textContent = timeText;
-
-    var addressEl = document.getElementById('job-modal-address');
-    addressEl.innerHTML = '';
-    if (d.address) {
-      var mapLink = document.createElement('a');
-      mapLink.href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(d.address);
-      mapLink.target = '_blank';
-      mapLink.rel = 'noopener';
-      mapLink.textContent = d.address;
-      addressEl.appendChild(mapLink);
-    } else {
-      addressEl.textContent = 'No address on file';
-    }
-
-    setOptionalField('job-modal-description-label', 'job-modal-description', d.description);
-    setOptionalField('job-modal-notes-label', 'job-modal-notes', d.notes);
-
-    document.getElementById('job-modal-open').setAttribute('href', '/jobs/' + d.jobId);
-    document.getElementById('job-modal-edit').setAttribute('href', '/jobs/' + d.jobId + '/edit?returnTo=' + encodeURIComponent(currentScheduleUrl()));
-
-    modal.hidden = false;
-  }
-
-  function closeModal() {
-    modal.hidden = true;
-  }
-
-  grid.addEventListener('click', function (e) {
-    var menuBtn = e.target.closest('.shift-menu-btn');
-    if (menuBtn) {
-      e.stopPropagation();
-      openContextMenu(menuBtn);
-      return;
-    }
-    var block = e.target.closest('.shift-block');
-    if (block) {
-      openModal(block);
-      return;
-    }
-    var monthCell = e.target.closest('.month-day-cell');
-    if (monthCell && monthCell.getAttribute('data-href')) {
-      window.location.href = monthCell.getAttribute('data-href');
-    }
-  });
-
-  grid.addEventListener('keydown', function (e) {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    var block = e.target.closest('.shift-block');
-    if (!block) return;
-    e.preventDefault();
-    openModal(block);
-  });
-
-  modalClose.addEventListener('click', closeModal);
-  modal.addEventListener('click', function (e) {
-    if (e.target === modal) closeModal();
-  });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !modal.hidden) closeModal();
   });
 
   // --- Job options menu (3-dot menu on each shift block) ---
@@ -297,7 +310,8 @@
       var form = document.createElement('form');
       form.method = 'post';
       form.action = '/jobs/' + jobId + '/duplicate';
-      form.innerHTML = '<input type="hidden" name="_csrf" value="' + csrf + '">';
+      form.innerHTML = '<input type="hidden" name="_csrf" value="' + csrf + '">' +
+        '<input type="hidden" name="returnTo" value="' + currentScheduleUrl() + '">';
       document.body.appendChild(form);
       form.submit();
       return;
@@ -324,14 +338,12 @@
         var delForm = document.createElement('form');
         delForm.method = 'post';
         delForm.action = '/jobs/' + jobId + '/delete';
-        delForm.innerHTML = '<input type="hidden" name="_csrf" value="' + csrf + '">';
+        delForm.innerHTML = '<input type="hidden" name="_csrf" value="' + csrf + '">' +
+          '<input type="hidden" name="returnTo" value="' + currentScheduleUrl() + '">';
         document.body.appendChild(delForm);
         delForm.submit();
       });
     }
   });
 
-  // Delete confirmation uses the site-wide window.showConfirm (see app.js),
-  // which owns the single shared #confirm-modal included in every page's
-  // footer - no page-local modal or listeners needed here any more.
 })();
