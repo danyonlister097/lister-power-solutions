@@ -478,7 +478,8 @@ form label.toggle-label {
 }
 
 .form-row,
-.form-row-2 {
+.form-row-2,
+.form-row-3 {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0 1rem;
@@ -599,6 +600,13 @@ form label.toggle-label {
 .list-item-title { font-weight: 600; }
 .list-item-meta { color: var(--color-muted); font-size: 0.85rem; }
 
+/* Cap lists to ~4 rows then scroll — used on dashboard cards */
+.list-scroll { max-height: 220px; overflow-y: auto; }
+
+/* Make an entire list row act as a link */
+a.list-item { text-decoration: none; color: inherit; display: flex; }
+a.list-item:hover { border-color: var(--color-primary); }
+
 .badge {
   display: inline-block;
   padding: 0.2rem 0.55rem;
@@ -671,6 +679,7 @@ form label.toggle-label {
 
 @media (min-width: 640px) {
   .form-row-2 { grid-template-columns: 1fr 1fr; }
+  .form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
   .detail-grid { grid-template-columns: 140px 1fr; }
   .permissions-grid { grid-template-columns: 1fr 1fr; }
 }
@@ -1703,7 +1712,7 @@ form label.toggle-label {
   border: 1px solid var(--color-border);
   border-radius: 6px;
   min-height: 60px;
-  max-height: 340px;
+  max-height: 220px;
   overflow-y: auto;
 }
 

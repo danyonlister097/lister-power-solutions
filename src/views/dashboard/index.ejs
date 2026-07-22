@@ -38,45 +38,45 @@
   <% } else { %>
     <% if (pendingLeave.length) { %>
       <div class="section-heading">Leave requests</div>
-      <ul class="list">
+      <ul class="list list-scroll">
         <% pendingLeave.forEach(l => { %>
           <li>
-            <span class="list-item">
+            <a href="/leave" class="list-item">
               <span>
-                <a href="/leave" class="list-item-title"><%= l.user_name %></a><br>
+                <span class="list-item-title"><%= l.user_name %></span><br>
                 <span class="list-item-meta"><%= formatAuDate(l.start_date) %> &ndash; <%= formatAuDate(l.end_date) %></span>
               </span>
               <span class="badge badge-in_progress">Pending</span>
-            </span>
+            </a>
           </li>
         <% }) %>
       </ul>
     <% } %>
     <% if (pendingTimesheets.length) { %>
       <div class="section-heading">Timesheets</div>
-      <ul class="list">
+      <ul class="list list-scroll">
         <% pendingTimesheets.forEach(t => { %>
           <li>
-            <span class="list-item">
+            <a href="/timeclock/timesheets?start=<%= t.week_start %>" class="list-item">
               <span>
-                <a href="/timeclock/timesheets?start=<%= t.week_start %>" class="list-item-title"><%= t.user_name %></a><br>
+                <span class="list-item-title"><%= t.user_name %></span><br>
                 <span class="list-item-meta"><%= formatAuDate(t.week_start) %> &ndash; <%= formatAuDate(t.week_end) %></span>
               </span>
               <span><%= formatHours(t.total_minutes, true) %></span>
-            </span>
+            </a>
           </li>
         <% }) %>
       </ul>
     <% } %>
     <% if (lowStockItems.length) { %>
       <div class="section-heading">Low stock</div>
-      <ul class="list">
+      <ul class="list list-scroll">
         <% lowStockItems.forEach(item => { %>
           <li>
-            <span class="list-item">
-              <a href="/inventory/<%= item.id %>" class="list-item-title"><%= item.name %></a>
+            <a href="/inventory/<%= item.id %>" class="list-item">
+              <span class="list-item-title"><%= item.name %></span>
               <span class="badge badge-cancelled"><%= item.quantity_on_hand %> <%= item.unit %></span>
-            </span>
+            </a>
           </li>
         <% }) %>
       </ul>
