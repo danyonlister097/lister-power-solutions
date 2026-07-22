@@ -19,6 +19,31 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 
+-- Contact/emergency fields migration for existing databases
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'phone_personal') THEN
+    ALTER TABLE users
+      ADD COLUMN phone_personal TEXT,
+      ADD COLUMN phone_work TEXT,
+      ADD COLUMN emergency_contact_name TEXT,
+      ADD COLUMN emergency_contact_phone TEXT,
+      ADD COLUMN emergency_contact_relation TEXT;
+  END IF;
+END $$;
+
+-- Address fields migration for existing databases
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'address_street') THEN
+    ALTER TABLE users
+      ADD COLUMN address_street TEXT,
+      ADD COLUMN address_city TEXT,
+      ADD COLUMN address_state TEXT,
+      ADD COLUMN address_postcode TEXT;
+  END IF;
+END $$;
+
 -- Which of the app's page-level sections (nav links) a non-admin employee
 -- can reach. Admins always have full access regardless of these rows - see
 -- src/lib/permissions.js - so this table only ever holds trade/apprentice
@@ -395,6 +420,27 @@ CREATE TABLE IF NOT EXISTS business_assets (
 
 CREATE INDEX IF NOT EXISTS idx_business_assets_category ON business_assets(category);
 CREATE INDEX IF NOT EXISTS idx_business_assets_assigned_to ON business_assets(assigned_to);
+
+-- Asset numbering migration: add column if it doesn't exist yet, then backfill
+-- existing rows so every asset always has a number.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'business_assets' AND column_name = 'asset_number'
+  ) THEN
+    ALTER TABLE business_assets ADD COLUMN asset_number INTEGER;
+  END IF;
+END $$;
+
+UPDATE business_assets
+SET asset_number = sub.rn
+FROM (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY created_at, id) AS rn
+  FROM business_assets
+  WHERE asset_number IS NULL
+) sub
+WHERE business_assets.id = sub.id;
 
 -- --- Quoting ---
 -- A quote is customer-facing pricing sent before a job exists. Accepting one

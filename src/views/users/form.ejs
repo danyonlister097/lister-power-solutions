@@ -60,6 +60,56 @@
     </label>
   <% } %>
 
+  <div class="section-heading" style="margin-top:1.5rem;">Contact details</div>
+
+  <div class="form-row form-row-2">
+    <label>
+      Personal phone
+      <input type="tel" name="phone_personal" value="<%= targetUser.phone_personal || '' %>">
+    </label>
+    <label>
+      Work phone
+      <input type="tel" name="phone_work" value="<%= targetUser.phone_work || '' %>">
+    </label>
+  </div>
+
+  <div class="form-row form-row-3">
+    <label>
+      Emergency contact name
+      <input type="text" name="emergency_contact_name" value="<%= targetUser.emergency_contact_name || '' %>">
+    </label>
+    <label>
+      Emergency contact phone
+      <input type="tel" name="emergency_contact_phone" value="<%= targetUser.emergency_contact_phone || '' %>">
+    </label>
+    <label>
+      Relationship
+      <input type="text" name="emergency_contact_relation" value="<%= targetUser.emergency_contact_relation || '' %>" placeholder="e.g. Spouse, Parent">
+    </label>
+  </div>
+
+  <div class="section-heading" style="margin-top:1.5rem;">Home address</div>
+
+  <label>
+    Street
+    <input type="text" name="address_street" value="<%= targetUser.address_street || '' %>" placeholder="e.g. 12 Example St">
+  </label>
+
+  <div class="form-row form-row-3">
+    <label>
+      City / Suburb
+      <input type="text" name="address_city" value="<%= targetUser.address_city || '' %>">
+    </label>
+    <label>
+      State
+      <input type="text" name="address_state" value="<%= targetUser.address_state || '' %>" placeholder="e.g. QLD">
+    </label>
+    <label>
+      Postcode
+      <input type="text" name="address_postcode" value="<%= targetUser.address_postcode || '' %>" inputmode="numeric" maxlength="4">
+    </label>
+  </div>
+
   <div class="permissions-field">
     <div class="permissions-label">
       Page &amp; tool access
