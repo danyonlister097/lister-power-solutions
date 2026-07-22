@@ -105,6 +105,89 @@
   renderSection('Declined leave', declined, 'declined', 'No declined leave.');
 %>
 
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+    <h2 style="margin:0;">Team leave calendar</h2>
+    <div style="display:flex;gap:0.5rem;align-items:center;">
+      <button type="button" class="btn btn-secondary btn-sm" id="leave-cal-prev">&larr;</button>
+      <span id="leave-cal-label" style="font-weight:600;min-width:140px;text-align:center;"></span>
+      <button type="button" class="btn btn-secondary btn-sm" id="leave-cal-next">&rarr;</button>
+    </div>
+  </div>
+  <div id="leave-calendar"></div>
+</div>
+
+<script src="/js/holidays.js"></script>
+<script>
+(function () {
+  var COLORS = ['#12b8a0','#e2622b','#7c5cff','#1d5fae','#c2185b','#0f9d58'];
+  var approved = <%- JSON.stringify(approved.map(function(r){ return { name: r.user_name, userId: r.user_id, start: r.start_date, end: r.end_date }; })) %>;
+
+  var today = new Date();
+  var viewYear = today.getFullYear();
+  var viewMonth = today.getMonth();
+
+  function colorFor(userId) { return COLORS[userId % COLORS.length]; }
+
+  function isoDate(y, m, d) {
+    return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  }
+
+  function render() {
+    var label = new Date(viewYear, viewMonth, 1).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+    document.getElementById('leave-cal-label').textContent = label;
+
+    var holidays = Object.assign({}, getQldHolidays(viewYear - 1), getQldHolidays(viewYear), getQldHolidays(viewYear + 1));
+
+    var firstDay = new Date(viewYear, viewMonth, 1).getDay();
+    var daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    var startOffset = (firstDay + 6) % 7; // Mon=0
+
+    var html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;">';
+    ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(function(d) {
+      html += '<div style="text-align:center;font-size:0.75rem;font-weight:600;color:var(--color-muted);padding:0.3rem 0;">' + d + '</div>';
+    });
+
+    for (var i = 0; i < startOffset; i++) html += '<div></div>';
+
+    var todayIso = isoDate(today.getFullYear(), today.getMonth(), today.getDate());
+
+    for (var day = 1; day <= daysInMonth; day++) {
+      var iso = isoDate(viewYear, viewMonth, day);
+      var isToday = iso === todayIso;
+      var holiday = holidays[iso] || null;
+      var onLeave = approved.filter(function(r) { return iso >= r.start && iso <= r.end; });
+
+      html += '<div style="min-height:64px;border:1px solid var(--color-border);border-radius:4px;padding:3px;' +
+        (isToday ? 'background:rgba(18,184,160,0.08);border-color:var(--color-primary);' : 'background:var(--color-surface);') + '">';
+      html += '<div style="font-size:0.75rem;font-weight:' + (isToday ? '700' : '400') + ';color:' + (isToday ? 'var(--color-primary)' : 'var(--color-text)') + ';margin-bottom:2px;">' + day + '</div>';
+      if (holiday) {
+        html += '<div title="' + holiday + '" style="font-size:0.6rem;background:#f59e0b;color:#fff;border-radius:3px;padding:1px 4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + holiday + '</div>';
+      }
+      onLeave.forEach(function(r) {
+        var initials = r.name.trim().split(/\s+/).map(function(p){ return p[0]; }).join('').slice(0,2).toUpperCase();
+        html += '<div title="' + r.name + '" style="font-size:0.65rem;background:' + colorFor(r.userId) + ';color:#fff;border-radius:3px;padding:1px 4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + initials + '</div>';
+      });
+      html += '</div>';
+    }
+
+    html += '</div>';
+    document.getElementById('leave-calendar').innerHTML = html;
+  }
+
+  document.getElementById('leave-cal-prev').addEventListener('click', function() {
+    viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+    render();
+  });
+  document.getElementById('leave-cal-next').addEventListener('click', function() {
+    viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    render();
+  });
+
+  render();
+})();
+</script>
+
 <% if (isAdmin) { %>
   <div id="leave-row-menu" class="context-menu" hidden>
     <a href="#" class="context-menu-item" data-action="edit">Edit</a>
