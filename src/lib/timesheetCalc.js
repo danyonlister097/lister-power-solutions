@@ -4,6 +4,24 @@
 // clock_events.occurred_at is stored (naive local time, no UTC offset).
 const REGULAR_MINUTES_PER_DAY = 8 * 60;
 
+const BUSINESS_TZ = 'Australia/Brisbane';
+
+// Current date as YYYY-MM-DD in Brisbane time (UTC+10, no DST).
+// Use this instead of toIsoDate(new Date()) on Vercel, which runs in UTC.
+function brisbaneTodayIso() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: BUSINESS_TZ });
+}
+
+// Current datetime as YYYY-MM-DDTHH:MM:SS in Brisbane local time.
+// Use this when recording timestamps (clock in/out) so stored values
+// reflect the employee's local time, not the server's UTC clock.
+function brisbaneDatetimeIso() {
+  const now = new Date();
+  const date = now.toLocaleDateString('en-CA', { timeZone: BUSINESS_TZ });
+  const time = now.toLocaleTimeString('en-GB', { timeZone: BUSINESS_TZ, hour12: false });
+  return `${date}T${time}`;
+}
+
 function toIsoDate(d) {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -62,4 +80,4 @@ function dayStats(events) {
   };
 }
 
-module.exports = { REGULAR_MINUTES_PER_DAY, toIsoDate, addDays, mondayOf, formatHours, dayStats };
+module.exports = { REGULAR_MINUTES_PER_DAY, toIsoDate, addDays, mondayOf, formatHours, dayStats, brisbaneTodayIso, brisbaneDatetimeIso };

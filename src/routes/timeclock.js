@@ -3,22 +3,13 @@ const db = require('../db');
 const { requireRole, verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
-const { REGULAR_MINUTES_PER_DAY, toIsoDate, addDays, mondayOf, formatHours, dayStats } = require('../lib/timesheetCalc');
+const { REGULAR_MINUTES_PER_DAY, toIsoDate, addDays, mondayOf, formatHours, dayStats, brisbaneTodayIso, brisbaneDatetimeIso } = require('../lib/timesheetCalc');
 const { computeWeekTotals } = require('../lib/timesheetGen');
 
 const router = express.Router();
 
 const TIMESHEET_DAYS = 7;
 
-function toLocalIso(d) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mi = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`;
-}
 
 function getLastEvent(userId) {
   return db.prepare('SELECT * FROM clock_events WHERE user_id = ? ORDER BY occurred_at DESC, id DESC LIMIT 1').get(userId);
@@ -73,7 +64,7 @@ router.post(
 
     await db
       .prepare('INSERT INTO clock_events (user_id, type, occurred_at, latitude, longitude, accuracy) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(req.user.id, nextType, toLocalIso(new Date()), latitude, longitude, accuracy);
+      .run(req.user.id, nextType, brisbaneDatetimeIso(), latitude, longitude, accuracy);
 
     setFlash(req, 'success', nextType === 'in' ? 'Clocked in.' : 'Clocked out.');
     res.redirect('/timeclock/me');
@@ -84,7 +75,7 @@ router.get(
   '/team',
   requireRole('admin'),
   asyncHandler(async (req, res) => {
-    const dayIso = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '') ? req.query.date : toIsoDate(new Date());
+    const dayIso = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '') ? req.query.date : brisbaneTodayIso();
 
     const users = await db.prepare('SELECT id, name, sort_order FROM users WHERE active = 1 ORDER BY sort_order, name').all();
     const events = await db
@@ -136,7 +127,7 @@ router.get(
       dayLabel: dayAnchor.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
       prevDayIso: addDays(dayIso, -1),
       nextDayIso: addDays(dayIso, 1),
-      todayIso: toIsoDate(new Date()),
+      todayIso: brisbaneTodayIso(),
       rows,
       mapMarkers,
       formatHours,
@@ -148,7 +139,7 @@ router.get(
   '/timesheets',
   requireRole('admin'),
   asyncHandler(async (req, res) => {
-    const startIso = /^\d{4}-\d{2}-\d{2}$/.test(req.query.start || '') ? req.query.start : mondayOf(toIsoDate(new Date()));
+    const startIso = /^\d{4}-\d{2}-\d{2}$/.test(req.query.start || '') ? req.query.start : mondayOf(brisbaneTodayIso());
     const endIso = addDays(startIso, TIMESHEET_DAYS - 1);
 
     const days = [];

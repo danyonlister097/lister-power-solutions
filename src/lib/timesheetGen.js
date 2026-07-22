@@ -1,11 +1,5 @@
 const db = require('../db');
-const { addDays, mondayOf, dayStats, REGULAR_MINUTES_PER_DAY } = require('./timesheetCalc');
-
-const BUSINESS_TZ = 'Australia/Brisbane';
-
-function brisbaneTodayIso() {
-  return new Date().toLocaleDateString('en-CA', { timeZone: BUSINESS_TZ });
-}
+const { addDays, mondayOf, dayStats, REGULAR_MINUTES_PER_DAY, brisbaneTodayIso } = require('./timesheetCalc');
 
 // Total/regular/overtime minutes for one user across a Monday-Sunday week -
 // each day's excess over 8h counts as overtime, summed across the week.
@@ -65,4 +59,4 @@ async function generateWeeklyTimesheets() {
   return { weekStart, weekEnd, employeeCount: users.length, created };
 }
 
-module.exports = { BUSINESS_TZ, brisbaneTodayIso, computeWeekTotals, generateWeeklyTimesheets };
+module.exports = { computeWeekTotals, generateWeeklyTimesheets };

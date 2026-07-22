@@ -1,38 +1,18 @@
 const express = require('express');
 const db = require('../db');
 const { asyncHandler } = require('../lib/asyncHandler');
-const { formatHours } = require('../lib/timesheetCalc');
+const { formatHours, addDays, mondayOf, brisbaneTodayIso } = require('../lib/timesheetCalc');
 
 const router = express.Router();
-
-function toIsoDate(d) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function mondayOf(d) {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setDate(date.getDate() + diff);
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
 
 router.get(
   '/',
   // Gated at the mount point in app.js by the "dashboard" permission
   // instead of a hardcoded role.
   asyncHandler(async (req, res) => {
-    const today = new Date();
-    const todayIso = toIsoDate(today);
-    const weekStart = mondayOf(today);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    const weekStartIso = toIsoDate(weekStart);
-    const weekEndIso = toIsoDate(weekEnd);
+    const todayIso = brisbaneTodayIso();
+    const weekStartIso = mondayOf(todayIso);
+    const weekEndIso = addDays(weekStartIso, 6);
     const monthStartIso = `${todayIso.slice(0, 7)}-01`;
 
     const jobsThisWeek = (
@@ -160,7 +140,7 @@ router.get(
     // next_service_due/registration_expiry falls within 30 days (or has
     // already passed), or the odometer comes within 1000km of the km-based
     // service mark - no separate reminder system needed.
-    const maintenanceCutoff = toIsoDate(new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000));
+    const maintenanceCutoff = addDays(todayIso, 30);
     const KM_BUFFER = 1000;
     const upcomingMaintenanceRows = await db
       .prepare(
