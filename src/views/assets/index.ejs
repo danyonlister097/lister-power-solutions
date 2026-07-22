@@ -43,6 +43,7 @@
       <thead>
         <tr>
           <% if (isAdmin) { %><th><input type="checkbox" id="assets-select-all" aria-label="Select all assets"></th><% } %>
+          <th>#</th>
           <th>Asset</th>
           <th>Category</th>
           <th>Brand / Model</th>
@@ -66,6 +67,7 @@
             <% if (isAdmin) { %>
               <td><input type="checkbox" class="asset-select" value="<%= a.id %>" aria-label="Select <%= a.name %>"></td>
             <% } %>
+            <td class="text-muted" style="font-size:0.85rem;white-space:nowrap;">#<%= String(a.asset_number || '').padStart(3, '0') %></td>
             <td><a href="/assets/<%= a.id %>"><%= a.name %></a></td>
             <td><%= a.category %></td>
             <td><%= [a.brand, a.model].filter(Boolean).join(' ') || '—' %></td>
@@ -94,9 +96,13 @@
 
   <div id="assets-row-menu" class="context-menu" hidden>
     <a href="#" class="context-menu-item" data-action="edit">Edit</a>
+    <button type="button" class="context-menu-item" data-action="duplicate">Duplicate</button>
     <button type="button" class="context-menu-item context-menu-danger" data-action="delete">Delete</button>
   </div>
   <form id="assets-row-delete-form" method="post" style="display:none;">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  </form>
+  <form id="assets-row-duplicate-form" method="post" style="display:none;">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   </form>
   <form id="assets-bulk-delete-form" method="post" action="/assets/bulk-delete" style="display:none;">
@@ -154,6 +160,7 @@
       (function () {
         var menu = document.getElementById('assets-row-menu');
         var deleteForm = document.getElementById('assets-row-delete-form');
+        var duplicateForm = document.getElementById('assets-row-duplicate-form');
         var activeBtn = null;
 
         function closeMenu() {
@@ -202,6 +209,12 @@
 
           if (action === 'edit') {
             window.location.href = '/assets/' + assetId;
+            return;
+          }
+
+          if (action === 'duplicate') {
+            duplicateForm.action = '/assets/' + assetId + '/duplicate';
+            duplicateForm.submit();
             return;
           }
 

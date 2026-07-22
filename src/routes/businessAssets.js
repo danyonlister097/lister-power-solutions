@@ -39,6 +39,11 @@ function parseCost(raw) {
 
 const parseKm = parseCost;
 
+async function nextAssetNumber() {
+  const row = await db.prepare('SELECT COALESCE(MAX(asset_number), 0) + 1 AS n FROM business_assets').get();
+  return row.n;
+}
+
 // Only ever redirect back to a same-site URL we generated ourselves - never
 // follow an arbitrary returnTo value (open-redirect guard).
 function safeReturnTo(raw) {
@@ -66,7 +71,7 @@ router.get(
       sql += ' AND status = ?';
       params.push(status);
     }
-    sql += ' ORDER BY category, name';
+    sql += ' ORDER BY asset_number ASC NULLS LAST, id ASC';
 
     const assets = await db.prepare(sql).all(...params);
     const techs = await db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY sort_order, name').all();
@@ -94,14 +99,17 @@ router.post(
       return res.redirect('/assets');
     }
 
+    const assetNumber = await nextAssetNumber();
+
     await db
       .prepare(
         `INSERT INTO business_assets
-          (name, category, brand, model, serial_number, purchase_date, purchase_cost, assigned_to, location, status,
+          (asset_number, name, category, brand, model, serial_number, purchase_date, purchase_cost, assigned_to, location, status,
            next_service_due, registration_expiry, current_odometer_km, service_due_at_km, notes, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
+        assetNumber,
         name,
         await resolveCategory(req.body),
         (req.body.brand || '').trim() || null,
@@ -220,6 +228,49 @@ router.post(
 
     setFlash(req, 'success', 'Asset updated.');
     res.redirect(returnTo);
+  })
+);
+
+router.post(
+  '/:id/duplicate',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const asset = await db.prepare('SELECT * FROM business_assets WHERE id = ?').get(req.params.id);
+    if (!asset) return res.status(404).render('error', { message: 'Asset not found.' });
+
+    const assetNumber = await nextAssetNumber();
+
+    await db
+      .prepare(
+        `INSERT INTO business_assets
+          (asset_number, name, category, brand, model, serial_number, purchase_date, purchase_cost,
+           assigned_to, location, status, next_service_due, registration_expiry,
+           current_odometer_km, service_due_at_km, notes, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        assetNumber,
+        `${asset.name} (copy)`,
+        asset.category,
+        asset.brand,
+        asset.model,
+        null,
+        asset.purchase_date,
+        asset.purchase_cost,
+        asset.assigned_to,
+        asset.location,
+        asset.status,
+        asset.next_service_due,
+        asset.registration_expiry,
+        asset.current_odometer_km,
+        asset.service_due_at_km,
+        asset.notes,
+        req.user.id
+      );
+
+    setFlash(req, 'success', `"${asset.name}" duplicated as asset #${assetNumber}.`);
+    res.redirect('/assets');
   })
 );
 
