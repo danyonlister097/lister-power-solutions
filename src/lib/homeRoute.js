@@ -3,6 +3,7 @@
 // everyone to a hardcoded '/jobs' would 403 anyone who wasn't granted it.
 const ROUTE_BY_PERMISSION = {
   dashboard: '/dashboard',
+  schedule: '/jobs/schedule',
   jobs: '/jobs',
   customers: '/customers',
   quotes: '/quotes',

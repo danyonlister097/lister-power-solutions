@@ -4,7 +4,8 @@
 // form's checkboxes.
 const PERMISSIONS = [
   { key: 'dashboard', label: 'Dashboard' },
-  { key: 'jobs', label: 'Schedule & Jobs' },
+  { key: 'schedule', label: 'Team Schedule' },
+  { key: 'jobs', label: 'Jobs' },
   { key: 'customers', label: 'Customers' },
   { key: 'quotes', label: 'Quotes' },
   { key: 'invoices', label: 'Invoices' },

@@ -1,7 +1,7 @@
 const { Readable } = require('stream');
 const express = require('express');
 const db = require('../db');
-const { requireRole, verifyCsrf } = require('../middleware/auth');
+const { requireRole, requirePermission, verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { upload, putFile, fetchFile, deleteFile } = require('../lib/uploads');
 const { homeRoute } = require('../lib/homeRoute');
@@ -503,7 +503,7 @@ async function renderDayView(req, res) {
 
 router.get(
   '/schedule',
-  requireRole('admin'),
+  requirePermission('schedule'),
   asyncHandler(async (req, res) => {
     const view = ['day', 'week', 'month'].includes(req.query.view) ? req.query.view : 'week';
     if (view === 'month') return renderMonthView(req, res);
@@ -514,7 +514,7 @@ router.get(
 
 router.post(
   '/schedule/reorder',
-  requireRole('admin'),
+  requirePermission('schedule'),
   verifyCsrf,
   asyncHandler(async (req, res) => {
     const idA = Number(req.body.a);

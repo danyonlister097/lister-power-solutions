@@ -49,7 +49,7 @@
     </a>
     <nav class="nav">
       <% if (allowed('dashboard')) { %><a href="/dashboard">Dashboard</a><% } %>
-      <% if (allowed('jobs')) { %><a href="/jobs/schedule">Schedule</a><% } %>
+      <% if (allowed('schedule')) { %><a href="/jobs/schedule">Schedule</a><% } %>
       <% if (allowed('jobs')) { %><a href="/jobs">Jobs</a><% } %>
       <% if (allowed('customers')) { %><a href="/customers">Customers</a><% } %>
       <% if (allowed('quotes')) { %><a href="/quotes">Quotes</a><% } %>
