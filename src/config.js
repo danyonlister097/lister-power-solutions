@@ -27,14 +27,9 @@ module.exports = {
     password: process.env.ADMIN_PASSWORD || '',
   },
   email: {
-    // Resend (resend.com) API key. Left blank, sendEmail() logs instead of
-    // sending - the app keeps working in dev/before this is configured.
-    apiKey: process.env.RESEND_API_KEY || '',
+    smtpUser: process.env.SMTP_USER || '',
+    smtpPass: process.env.SMTP_PASS || '',
     from: process.env.EMAIL_FROM || 'Lister Power Solutions <admin@listerpowersolutions.com.au>',
-    // Used to build absolute links in email bodies (password reset, etc.) -
-    // req.protocol/host aren't available outside a request, and Vercel's
-    // production URL isn't known at require-time either. Set this to the
-    // real domain once the app is deployed.
     appUrl: process.env.APP_URL || 'http://localhost:3000',
   },
   myob: {

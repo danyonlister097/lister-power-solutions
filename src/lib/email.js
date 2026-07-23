@@ -1,30 +1,42 @@
-const axios = require('axios');
+const nodemailer = require('nodemailer');
 const config = require('../config');
 const logger = require('../lib/logger');
 
-// Thin wrapper around Resend's REST API (no SDK - it's one HTTP call, and
-// axios is already a dependency). Never throws: a broken email send should
-// never take down a login or lockout request, so failures are logged and
-// swallowed. Without RESEND_API_KEY set, the email is logged instead of
-// sent, so the app keeps working before that's configured.
+// Lazily created so startup doesn't fail if SMTP creds aren't set yet.
+let _transporter = null;
+function getTransporter() {
+  if (!_transporter) {
+    _transporter = nodemailer.createTransport({
+      host: 'smtp.office365.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: config.email.smtpUser,
+        pass: config.email.smtpPass,
+      },
+    });
+  }
+  return _transporter;
+}
+
+// Never throws: a broken email send should never take down a login or lockout
+// request, so failures are logged and swallowed. Without SMTP credentials set,
+// the email is logged to console instead, so the app keeps working in dev.
 async function sendEmail({ to, subject, html }) {
-  if (!config.email.apiKey) {
-    logger.warn('Email not sent (RESEND_API_KEY not configured) - logging instead', { to, subject });
+  if (!config.email.smtpUser || !config.email.smtpPass) {
+    logger.warn('Email not sent (SMTP_USER / SMTP_PASS not configured) - logging instead', { to, subject });
     return;
   }
 
   try {
-    await axios.post(
-      'https://api.resend.com/emails',
-      { from: config.email.from, to, subject, html },
-      { headers: { Authorization: `Bearer ${config.email.apiKey}` } }
-    );
-  } catch (err) {
-    logger.error('Failed to send email', {
+    await getTransporter().sendMail({
+      from: config.email.from,
       to,
       subject,
-      error: err.response ? JSON.stringify(err.response.data) : err.message,
+      html,
     });
+  } catch (err) {
+    logger.error('Failed to send email', { to, subject, error: err.message });
   }
 }
 
