@@ -13,6 +13,7 @@
           <span class="list-item-meta"><%= u.email %></span>
         </span>
         <span>
+          <% if (u.locked_at) { %><span class="badge badge-cancelled">locked</span><% } %>
           <span class="badge"><%= u.role %></span>
         </span>
       </a>

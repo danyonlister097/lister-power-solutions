@@ -12,6 +12,16 @@
     </div>
   <% } %>
 
+  <% if (targetUser.locked_at) { %>
+    <div class="flash flash-error" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+      <span>This account is locked after too many failed login attempts.</span>
+      <form method="post" action="/users/<%= targetUser.id %>/unlock" style="margin:0;">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-secondary btn-sm">Unlock account</button>
+      </form>
+    </div>
+  <% } %>
+
   <label>
     Name *
     <input type="text" name="name" value="<%= targetUser.name || '' %>" required autofocus>

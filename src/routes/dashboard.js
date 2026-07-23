@@ -176,6 +176,27 @@ router.get(
       .filter(Boolean)
       .sort((a, b) => (a.overdue !== b.overdue ? (a.overdue ? -1 : 1) : a.sortKey < b.sortKey ? -1 : 1));
 
+    const activeTasks = await db
+      .prepare(
+        `SELECT t.id, t.title, au.name AS assignee_name, cu.name AS creator_name
+         FROM tasks t
+         JOIN users cu ON cu.id = t.created_by
+         LEFT JOIN users au ON au.id = t.assigned_to
+         WHERE t.done = 0
+         ORDER BY t.created_at ASC`
+      )
+      .all();
+
+    const openFeedback = await db
+      .prepare(
+        `SELECT f.id, f.type, f.title, f.status, u.name AS submitter_name
+         FROM feedback_items f
+         JOIN users u ON u.id = f.submitted_by
+         WHERE f.status IN ('open', 'in_progress')
+         ORDER BY f.created_at DESC`
+      )
+      .all();
+
     res.render('dashboard/index', {
       title: 'Dashboard',
       jobsThisWeek,
@@ -191,6 +212,8 @@ router.get(
       utilisation,
       jobBoard,
       upcomingMaintenance,
+      activeTasks,
+      openFeedback,
       formatHours,
     });
   })

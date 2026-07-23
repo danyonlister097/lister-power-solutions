@@ -16,7 +16,7 @@ const ROLES = ['admin', 'trade', 'apprentice'];
 // has, just extended to whoever gets this checkbox.
 
 async function getUserOr404(req, res) {
-  const user = await db.prepare('SELECT id, name, email, role, active, hourly_rate, phone_personal, phone_work, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, address_street, address_city, address_state, address_postcode FROM users WHERE id = ?').get(req.params.id);
+  const user = await db.prepare('SELECT id, name, email, role, active, hourly_rate, phone_personal, phone_work, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, address_street, address_city, address_state, address_postcode, locked_at FROM users WHERE id = ?').get(req.params.id);
   if (!user) {
     res.status(404).render('error', { message: 'Employee not found.' });
     return null;
@@ -49,7 +49,7 @@ async function savePermissions(userId, keys) {
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const users = await db.prepare('SELECT id, name, email, role, active FROM users WHERE active = 1 ORDER BY role, name').all();
+    const users = await db.prepare('SELECT id, name, email, role, active, locked_at FROM users WHERE active = 1 ORDER BY role, name').all();
     res.render('users/list', { title: 'Employees', users });
   })
 );
@@ -200,6 +200,22 @@ router.post(
 
     setFlash(req, 'success', 'Employee updated.');
     res.redirect('/users');
+  })
+);
+
+router.post(
+  '/:id/unlock',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const targetUser = await getUserOr404(req, res);
+    if (!targetUser) return;
+
+    await db
+      .prepare('UPDATE users SET locked_at = NULL, failed_login_attempts = 0, reset_token = NULL, reset_token_expires = NULL WHERE id = ?')
+      .run(targetUser.id);
+
+    setFlash(req, 'success', `${targetUser.name}'s account has been unlocked.`);
+    res.redirect(`/users/${targetUser.id}/edit`);
   })
 );
 

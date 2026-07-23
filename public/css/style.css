@@ -107,11 +107,27 @@ a { color: var(--color-primary); }
 .nav a { text-decoration: none; color: var(--color-text); font-weight: 600; font-size: 1.05rem; }
 .nav a:hover { color: var(--color-primary); }
 
+.topbar-help {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--color-bg-alt);
+  color: var(--color-text-muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-decoration: none;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.topbar-help:hover, .topbar-help-active { background: var(--color-primary); color: #fff; }
+
 .logout-form {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-left: auto;
 }
 
 /* --- Left icon sidebar (secondary features: time clock, leave, tasks, chat) --- */

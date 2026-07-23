@@ -18,6 +18,7 @@ const PERMISSIONS = [
   { key: 'inventory', label: 'Inventory' },
   { key: 'assets', label: 'Asset Register' },
   { key: 'tools', label: 'Tools' },
+  { key: 'feedback', label: 'Bug Reports & Ideas' },
 ];
 
 const PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);
@@ -25,8 +26,8 @@ const PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);
 // What a brand-new trade/apprentice employee starts with.
 const DEFAULT_KEYS_BY_ROLE = {
   admin: PERMISSION_KEYS,
-  trade: ['schedule', 'jobs', 'timeclock', 'leave', 'tasks', 'chat', 'forms', 'inventory', 'assets', 'tools'],
-  apprentice: ['schedule', 'jobs', 'timeclock', 'leave', 'tasks', 'chat', 'forms', 'inventory', 'assets', 'tools'],
+  trade: ['schedule', 'jobs', 'timeclock', 'leave', 'tasks', 'chat', 'forms', 'inventory', 'assets', 'tools', 'feedback'],
+  apprentice: ['schedule', 'jobs', 'timeclock', 'leave', 'tasks', 'chat', 'forms', 'inventory', 'assets', 'tools', 'feedback'],
 };
 
 module.exports = { PERMISSIONS, PERMISSION_KEYS, DEFAULT_KEYS_BY_ROLE };

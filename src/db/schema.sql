@@ -44,6 +44,18 @@ BEGIN
   END IF;
 END $$;
 
+-- Login security migration: failed-attempt lockout + password reset tokens.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'failed_login_attempts') THEN
+    ALTER TABLE users
+      ADD COLUMN failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN locked_at TEXT,
+      ADD COLUMN reset_token TEXT,
+      ADD COLUMN reset_token_expires TEXT;
+  END IF;
+END $$;
+
 -- Which of the app's page-level sections (nav links) a non-admin employee
 -- can reach. Admins always have full access regardless of these rows - see
 -- src/lib/permissions.js - so this table only ever holds trade/apprentice
@@ -517,3 +529,18 @@ CREATE TABLE IF NOT EXISTS invoice_items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id);
+
+-- --- Bug reports / ideas ---
+
+CREATE TABLE IF NOT EXISTS feedback_items (
+  id SERIAL PRIMARY KEY,
+  type TEXT NOT NULL CHECK (type IN ('bug', 'idea')),
+  title TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'resolved', 'declined')),
+  submitted_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_items_status ON feedback_items(status);

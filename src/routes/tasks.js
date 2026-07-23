@@ -9,25 +9,50 @@ const router = express.Router();
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const users = await db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY sort_order, name').all();
-    const open = await db
-      .prepare(
-        `SELECT tasks.*, u.name AS assignee_name, c.name AS creator_name
-         FROM tasks LEFT JOIN users u ON u.id = tasks.assigned_to
-         JOIN users c ON c.id = tasks.created_by
-         WHERE tasks.done = 0 ORDER BY tasks.created_at ASC`
-      )
-      .all();
-    const done = await db
-      .prepare(
-        `SELECT tasks.*, u.name AS assignee_name, c.name AS creator_name
-         FROM tasks LEFT JOIN users u ON u.id = tasks.assigned_to
-         JOIN users c ON c.id = tasks.created_by
-         WHERE tasks.done = 1 ORDER BY tasks.completed_at DESC LIMIT 20`
-      )
-      .all();
+    const isAdmin = req.user.role === 'admin';
+    const users = isAdmin
+      ? await db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY sort_order, name').all()
+      : [];
 
-    res.render('tasks/index', { title: 'Quick Task', users, open, done });
+    const open = isAdmin
+      ? await db
+          .prepare(
+            `SELECT tasks.*, u.name AS assignee_name, c.name AS creator_name
+             FROM tasks LEFT JOIN users u ON u.id = tasks.assigned_to
+             JOIN users c ON c.id = tasks.created_by
+             WHERE tasks.done = 0 ORDER BY tasks.created_at ASC`
+          )
+          .all()
+      : await db
+          .prepare(
+            `SELECT tasks.*, u.name AS assignee_name, c.name AS creator_name
+             FROM tasks LEFT JOIN users u ON u.id = tasks.assigned_to
+             JOIN users c ON c.id = tasks.created_by
+             WHERE tasks.done = 0 AND (tasks.assigned_to = ? OR (tasks.assigned_to IS NULL AND tasks.created_by = ?))
+             ORDER BY tasks.created_at ASC`
+          )
+          .all(req.user.id, req.user.id);
+
+    const done = isAdmin
+      ? await db
+          .prepare(
+            `SELECT tasks.*, u.name AS assignee_name, c.name AS creator_name
+             FROM tasks LEFT JOIN users u ON u.id = tasks.assigned_to
+             JOIN users c ON c.id = tasks.created_by
+             WHERE tasks.done = 1 ORDER BY tasks.completed_at DESC LIMIT 20`
+          )
+          .all()
+      : await db
+          .prepare(
+            `SELECT tasks.*, u.name AS assignee_name, c.name AS creator_name
+             FROM tasks LEFT JOIN users u ON u.id = tasks.assigned_to
+             JOIN users c ON c.id = tasks.created_by
+             WHERE tasks.done = 1 AND (tasks.assigned_to = ? OR (tasks.assigned_to IS NULL AND tasks.created_by = ?))
+             ORDER BY tasks.completed_at DESC LIMIT 20`
+          )
+          .all(req.user.id, req.user.id);
+
+    res.render('tasks/index', { title: 'Quick Task', users, open, done, isAdmin });
   })
 );
 

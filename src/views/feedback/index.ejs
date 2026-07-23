@@ -1,0 +1,277 @@
+<%- include('../partials/header', { title: 'Bug Reports & Ideas' }) %>
+<div class="page-header">
+  <h1>Bug Reports &amp; Ideas</h1>
+  <button type="button" class="btn btn-primary" id="feedback-open">+ Report / Add idea</button>
+</div>
+
+<%
+  var openItems = items.filter(function(i) { return i.status === 'open' || i.status === 'in_progress'; });
+  var doneItems = items.filter(function(i) { return i.status === 'resolved' || i.status === 'declined'; });
+  function canEdit(item) {
+    return currentUser.role === 'admin' || item.submitted_by === currentUser.id;
+  }
+%>
+
+<div class="section-heading">Open (<%= openItems.length %>)</div>
+<% if (!openItems.length) { %>
+  <p class="text-muted">Nothing outstanding.</p>
+<% } else { %>
+  <ul class="list">
+    <% openItems.forEach(function(item) { %>
+      <li class="row-menu-hover-target">
+        <span class="list-item" style="align-items:flex-start;gap:0.75rem;">
+          <span style="flex:1;min-width:0;">
+            <span class="list-item-title"><%= item.title %></span><br>
+            <% if (item.description) { %>
+              <span class="list-item-meta" style="white-space:pre-wrap;"><%= item.description %></span><br>
+            <% } %>
+            <span class="list-item-meta">By <%= item.submitter_name %> &middot; <%= formatAuDate(item.created_at) %></span>
+          </span>
+          <span style="display:flex;flex-direction:column;align-items:flex-end;gap:0.4rem;flex-shrink:0;">
+            <span class="badge <%= item.type === 'bug' ? 'badge-cancelled' : 'badge-pending' %>"><%= item.type === 'bug' ? 'Bug' : 'Idea' %></span>
+            <span class="badge <%= item.status === 'in_progress' ? 'badge-active' : '' %>"><%= item.status === 'in_progress' ? 'In progress' : 'Open' %></span>
+            <% if (currentUser.role === 'admin') { %>
+              <div style="display:flex;gap:0.4rem;flex-wrap:wrap;justify-content:flex-end;">
+                <% if (item.status === 'open') { %>
+                  <form method="post" action="/feedback/<%= item.id %>/status" style="margin:0;">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="status" value="in_progress">
+                    <button type="submit" class="btn btn-secondary btn-sm">In progress</button>
+                  </form>
+                <% } %>
+                <form method="post" action="/feedback/<%= item.id %>/status" style="margin:0;">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <input type="hidden" name="status" value="resolved">
+                  <button type="submit" class="btn btn-primary btn-sm">Resolve</button>
+                </form>
+                <form method="post" action="/feedback/<%= item.id %>/status" style="margin:0;">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <input type="hidden" name="status" value="declined">
+                  <button type="submit" class="btn btn-secondary btn-sm">Decline</button>
+                </form>
+              </div>
+            <% } %>
+          </span>
+          <% if (canEdit(item)) { %>
+            <button type="button" class="row-menu-btn feedback-menu-btn"
+              data-id="<%= item.id %>"
+              data-title="<%- item.title.replace(/"/g, '&quot;') %>"
+              data-description="<%- (item.description || '').replace(/"/g, '&quot;') %>"
+              data-type="<%= item.type %>"
+              aria-label="Options">&#8942;</button>
+          <% } %>
+        </span>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+
+<% if (doneItems.length) { %>
+  <div class="section-heading" style="margin-top:1.5rem;">Resolved / Declined (<%= doneItems.length %>)</div>
+  <ul class="list">
+    <% doneItems.forEach(function(item) { %>
+      <li class="row-menu-hover-target">
+        <span class="list-item" style="align-items:flex-start;gap:0.75rem;opacity:0.65;">
+          <span style="flex:1;min-width:0;">
+            <span class="list-item-title"><%= item.title %></span><br>
+            <span class="list-item-meta">By <%= item.submitter_name %> &middot; <%= formatAuDate(item.created_at) %></span>
+          </span>
+          <span style="display:flex;flex-direction:column;align-items:flex-end;gap:0.4rem;flex-shrink:0;">
+            <span class="badge <%= item.type === 'bug' ? 'badge-cancelled' : 'badge-pending' %>"><%= item.type === 'bug' ? 'Bug' : 'Idea' %></span>
+            <span class="badge"><%= item.status === 'resolved' ? 'Resolved' : 'Declined' %></span>
+            <% if (currentUser.role === 'admin') { %>
+              <form method="post" action="/feedback/<%= item.id %>/status" style="margin:0;">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="status" value="open">
+                <button type="submit" class="btn btn-secondary btn-sm">Reopen</button>
+              </form>
+            <% } %>
+          </span>
+          <% if (canEdit(item)) { %>
+            <button type="button" class="row-menu-btn feedback-menu-btn"
+              data-id="<%= item.id %>"
+              data-title="<%- item.title.replace(/"/g, '&quot;') %>"
+              data-description="<%- (item.description || '').replace(/"/g, '&quot;') %>"
+              data-type="<%= item.type %>"
+              aria-label="Options">&#8942;</button>
+          <% } %>
+        </span>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+
+<!-- Three-dot context menu -->
+<div id="feedback-context-menu" class="context-menu" hidden>
+  <button type="button" class="context-menu-item" data-action="edit">Edit</button>
+  <button type="button" class="context-menu-item context-menu-danger" data-action="delete">Delete</button>
+</div>
+
+<!-- Submit modal -->
+<div id="feedback-modal" class="modal-overlay" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">Report a bug or add an idea</h2>
+      <button type="button" class="modal-close" id="feedback-close">&times;</button>
+    </div>
+    <form method="post" action="/feedback">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="form-row form-row-2" style="margin-bottom:0.75rem;">
+        <label style="flex-direction:row;align-items:center;gap:0.5rem;cursor:pointer;">
+          <input type="radio" name="type" value="bug" required style="display:inline-block;width:auto;">
+          Bug report
+        </label>
+        <label style="flex-direction:row;align-items:center;gap:0.5rem;cursor:pointer;">
+          <input type="radio" name="type" value="idea" style="display:inline-block;width:auto;">
+          Feature idea
+        </label>
+      </div>
+      <label>
+        Title *
+        <input type="text" name="title" required autofocus placeholder="Short summary">
+      </label>
+      <label>
+        Details <span style="font-weight:400;">(optional)</span>
+        <textarea name="description" rows="4" placeholder="Steps to reproduce / more context"></textarea>
+      </label>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Submit</button>
+        <button type="button" class="btn btn-secondary" id="feedback-cancel">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit modal -->
+<div id="feedback-edit-modal" class="modal-overlay" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">Edit item</h2>
+      <button type="button" class="modal-close" id="feedback-edit-close">&times;</button>
+    </div>
+    <form method="post" id="feedback-edit-form" action="">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="form-row form-row-2" style="margin-bottom:0.75rem;">
+        <label style="flex-direction:row;align-items:center;gap:0.5rem;cursor:pointer;">
+          <input type="radio" name="type" value="bug" id="edit-type-bug" style="display:inline-block;width:auto;">
+          Bug report
+        </label>
+        <label style="flex-direction:row;align-items:center;gap:0.5rem;cursor:pointer;">
+          <input type="radio" name="type" value="idea" id="edit-type-idea" style="display:inline-block;width:auto;">
+          Feature idea
+        </label>
+      </div>
+      <label>
+        Title *
+        <input type="text" name="title" id="edit-title" required>
+      </label>
+      <label>
+        Details <span style="font-weight:400;">(optional)</span>
+        <textarea name="description" id="edit-description" rows="4"></textarea>
+      </label>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Save</button>
+        <button type="button" class="btn btn-secondary" id="feedback-edit-cancel">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Hidden delete form -->
+<form method="post" id="feedback-delete-form" action="" style="display:none;">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+</form>
+
+<script>
+  (function () {
+    // --- Submit modal ---
+    var modal = document.getElementById('feedback-modal');
+    var openBtn = document.getElementById('feedback-open');
+    document.getElementById('feedback-close').addEventListener('click', function () { modal.hidden = true; });
+    document.getElementById('feedback-cancel').addEventListener('click', function () { modal.hidden = true; });
+    modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
+    openBtn.addEventListener('click', function () {
+      modal.hidden = false;
+      modal.querySelector('input[name="title"]').focus();
+    });
+
+    // --- Edit modal ---
+    var editModal = document.getElementById('feedback-edit-modal');
+    var editForm = document.getElementById('feedback-edit-form');
+    document.getElementById('feedback-edit-close').addEventListener('click', function () { editModal.hidden = true; });
+    document.getElementById('feedback-edit-cancel').addEventListener('click', function () { editModal.hidden = true; });
+    editModal.addEventListener('click', function (e) { if (e.target === editModal) editModal.hidden = true; });
+
+    function openEditModal(id, title, description, type) {
+      editForm.action = '/feedback/' + id + '/edit';
+      document.getElementById('edit-title').value = title;
+      document.getElementById('edit-description').value = description;
+      document.getElementById(type === 'bug' ? 'edit-type-bug' : 'edit-type-idea').checked = true;
+      editModal.hidden = false;
+      document.getElementById('edit-title').focus();
+    }
+
+    // --- Three-dot context menu ---
+    var contextMenu = document.getElementById('feedback-context-menu');
+    var deleteForm = document.getElementById('feedback-delete-form');
+    var activeBtn = null;
+
+    function openContextMenu(btn) {
+      activeBtn = btn;
+      var rect = btn.getBoundingClientRect();
+      contextMenu.style.top = (window.scrollY + rect.bottom + 4) + 'px';
+      contextMenu.style.left = (window.scrollX + rect.left) + 'px';
+      contextMenu.hidden = false;
+      btn.classList.add('row-menu-btn-active');
+    }
+
+    function closeContextMenu() {
+      contextMenu.hidden = true;
+      if (activeBtn) { activeBtn.classList.remove('row-menu-btn-active'); activeBtn = null; }
+    }
+
+    document.addEventListener('click', function (e) {
+      if (contextMenu.hidden) return;
+      if (e.target.closest('#feedback-context-menu') || e.target.closest('.feedback-menu-btn')) return;
+      closeContextMenu();
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { closeContextMenu(); editModal.hidden = true; modal.hidden = true; }
+    });
+
+    document.querySelectorAll('.feedback-menu-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (!contextMenu.hidden && activeBtn === btn) { closeContextMenu(); return; }
+        openContextMenu(btn);
+      });
+    });
+
+    contextMenu.addEventListener('click', function (e) {
+      var item = e.target.closest('.context-menu-item');
+      if (!item) return;
+      var action = item.getAttribute('data-action');
+      var btn = activeBtn;
+      closeContextMenu();
+      if (!btn) return;
+
+      var id = btn.getAttribute('data-id');
+      if (action === 'edit') {
+        openEditModal(id, btn.getAttribute('data-title'), btn.getAttribute('data-description'), btn.getAttribute('data-type'));
+      } else if (action === 'delete') {
+        if (window.showConfirm) {
+          window.showConfirm('Delete this item?', 'This cannot be undone.', function () {
+            deleteForm.action = '/feedback/' + id + '/delete';
+            deleteForm.submit();
+          }, { okLabel: 'Delete', variant: 'danger' });
+        } else {
+          deleteForm.action = '/feedback/' + id + '/delete';
+          deleteForm.submit();
+        }
+      }
+    });
+  })();
+</script>
+
+<%- include('../partials/footer') %>

@@ -10,15 +10,17 @@
       What needs doing?
       <input type="text" name="title" placeholder="e.g. Pick up switchboard parts" required autofocus>
     </label>
-    <label>
-      Assign to (optional)
-      <select name="assigned_to">
-        <option value="">Anyone</option>
-        <% users.forEach(u => { %>
-          <option value="<%= u.id %>"><%= u.name %></option>
-        <% }) %>
-      </select>
-    </label>
+    <% if (isAdmin) { %>
+      <label>
+        Assign to (optional)
+        <select name="assigned_to">
+          <option value="">Anyone</option>
+          <% users.forEach(u => { %>
+            <option value="<%= u.id %>"><%= u.name %></option>
+          <% }) %>
+        </select>
+      </label>
+    <% } %>
     <div class="actions">
       <button type="submit" class="btn btn-primary">Add task</button>
     </div>

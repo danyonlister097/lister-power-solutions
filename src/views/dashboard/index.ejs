@@ -186,6 +186,52 @@
   </div>
 </div>
 
+<div class="form-row form-row-2">
+  <div class="card">
+    <h2>Quick Tasks (<%= activeTasks.length %>)</h2>
+    <% if (!activeTasks.length) { %>
+      <p class="text-muted">No open tasks.</p>
+    <% } else { %>
+      <ul class="list list-scroll">
+        <% activeTasks.forEach(function(t) { %>
+          <li>
+            <a href="/tasks" class="list-item">
+              <span>
+                <span class="list-item-title"><%= t.title %></span><br>
+                <span class="list-item-meta"><%= t.assignee_name || 'Anyone' %> &middot; added by <%= t.creator_name %></span>
+              </span>
+            </a>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>Bug Reports &amp; Ideas (<%= openFeedback.length %>)</h2>
+    <% if (!openFeedback.length) { %>
+      <p class="text-muted">No open items.</p>
+    <% } else { %>
+      <ul class="list list-scroll">
+        <% openFeedback.forEach(function(f) { %>
+          <li>
+            <a href="/feedback" class="list-item">
+              <span>
+                <span class="list-item-title"><%= f.title %></span><br>
+                <span class="list-item-meta">By <%= f.submitter_name %></span>
+              </span>
+              <span style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;">
+                <span class="badge <%= f.type === 'bug' ? 'badge-cancelled' : 'badge-pending' %>"><%= f.type === 'bug' ? 'Bug' : 'Idea' %></span>
+                <span class="badge <%= f.status === 'in_progress' ? 'badge-active' : '' %>"><%= f.status === 'in_progress' ? 'In progress' : 'Open' %></span>
+              </span>
+            </a>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+</div>
+
 <div class="card">
   <h2>Technician utilisation (this week)</h2>
   <% if (!utilisation.length) { %>

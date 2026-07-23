@@ -21,6 +21,7 @@
     box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
     toolbox: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="20" height="11" rx="2"/><path d="M8 9V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v3"/><path d="M2 13h20"/><path d="M10 13v2M14 13v2"/></svg>',
     calculator: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8"/><path d="M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01M16 19h.01"/></svg>',
+    feedback: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>',
   };
 
   var path = typeof currentPath !== 'undefined' ? currentPath : '';
@@ -56,6 +57,9 @@
       <% if (allowed('invoices')) { %><a href="/invoices">Invoices</a><% } %>
       <% if (allowed('employees')) { %><a href="/users">Employees</a><% } %>
     </nav>
+    <% if (allowed('feedback')) { %>
+      <a href="/feedback" class="topbar-help<%= starts('/feedback') ? ' topbar-help-active' : '' %>" title="Bug Reports &amp; Ideas">?</a>
+    <% } %>
     <form class="logout-form" method="post" action="/logout">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <span class="whoami"><%= currentUser.name %> (<%= currentUser.role %>)</span>
