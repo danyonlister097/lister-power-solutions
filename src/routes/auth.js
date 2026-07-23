@@ -82,9 +82,11 @@ router.post(
     user.permissions = await loadPermissions(user);
 
     if (user.role === 'admin') {
-      sendAdminLoginNotification(user, { time: brisbaneNowLabel(), ip: req.ip }).catch((err) =>
-        logger.error('Admin login notification failed', { error: err.message })
-      );
+      try {
+        await sendAdminLoginNotification(user, { time: brisbaneNowLabel(), ip: req.ip });
+      } catch (err) {
+        logger.error('Admin login notification failed', { error: err.message });
+      }
     }
 
     req.session.regenerate((err) => {
