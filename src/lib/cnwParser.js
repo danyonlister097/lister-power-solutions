@@ -1,5 +1,3 @@
-const pdfParse = require('pdf-parse');
-
 // Matches CNW invoice line items. Example:
 // 1 CLI9020TCM20GY MD CORRUGATED CONDUIT PVC GREY 20MM 20M 1.00 1.00 0.00 EA 22.7800 2.28 22.78
 // Groups: lineNo, productCode, description, ordered, supplied, backOrdered, unit, discPrice, gst, lineTotal
@@ -8,6 +6,7 @@ const LINE_RE = /^(\d+)\s+([A-Z][A-Z0-9]+)\s+(.+?)\s+(\d+\.\d{2})\s+(\d+\.\d{2})
 const INVOICE_NUMBER_RE = /Invoice:\s*(\d+)/;
 
 async function parseCnwInvoice(pdfBuffer) {
+  const pdfParse = require('pdf-parse');
   const data = await pdfParse(pdfBuffer);
   const text = data.text;
 
