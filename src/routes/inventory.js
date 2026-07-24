@@ -250,7 +250,7 @@ router.post(
 
     await db
       .prepare(
-        `UPDATE inventory_items SET name = ?, category = ?, unit = ?, reorder_threshold = ?, unit_cost = ?, unit_cost_inc_gst = ?, updated_at = datetime('now')
+        `UPDATE inventory_items SET name = ?, category = ?, unit = ?, reorder_threshold = ?, unit_cost = ?, unit_cost_inc_gst = ?, supplier_code = ?, updated_at = datetime('now')
          WHERE id = ?`
       )
       .run(
@@ -260,6 +260,7 @@ router.post(
         req.body.reorder_threshold ? Number.parseFloat(req.body.reorder_threshold) : null,
         req.body.unit_cost ? Number.parseFloat(req.body.unit_cost) : null,
         req.body.unit_cost_inc_gst ? Number.parseFloat(req.body.unit_cost_inc_gst) : null,
+        (req.body.supplier_code || '').trim() || null,
         item.id
       );
 

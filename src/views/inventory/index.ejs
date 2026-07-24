@@ -52,6 +52,7 @@
         <tr>
           <% if (currentUser.role === 'admin') { %><th><input type="checkbox" id="select-all-items" aria-label="Select all items"></th><% } %>
           <th>Item</th>
+          <th>Item #</th>
           <th>Category</th>
           <th>On hand</th>
           <th>Cost (ex GST)</th>
@@ -63,9 +64,10 @@
         <% items.forEach(item => {
              var low = item.reorder_threshold !== null && item.quantity_on_hand <= item.reorder_threshold;
         %>
-          <tr data-name="<%= item.name.toLowerCase() %>" data-category="<%= (item.category || '').toLowerCase() %>" data-qty="<%= item.quantity_on_hand %>" data-cost="<%= item.unit_cost !== null ? item.unit_cost : '' %>">
+          <tr data-name="<%= item.name.toLowerCase() %>" data-category="<%= (item.category || '').toLowerCase() %>" data-qty="<%= item.quantity_on_hand %>" data-cost="<%= item.unit_cost !== null ? item.unit_cost : '' %>" data-supplier="<%= (item.supplier_code || '').toLowerCase() %>">
             <% if (currentUser.role === 'admin') { %><td><input type="checkbox" class="item-select" value="<%= item.id %>" aria-label="Select <%= item.name %>"></td><% } %>
             <td><a href="/inventory/<%= item.id %>"><%= item.name %></a></td>
+            <td class="text-muted" style="font-size:0.85em;font-family:monospace;"><%= item.supplier_code || '—' %></td>
             <td><%= item.category || '—' %></td>
             <td class="<%= low ? 'timesheet-overtime' : '' %>">
               <%= item.quantity_on_hand %> <%= item.unit %><% if (low) { %> <span class="badge badge-cancelled">low stock</span><% } %>
@@ -184,7 +186,7 @@
         var q = searchInput.value.trim().toLowerCase();
         var cat = categorySelect.value;
         var filtered = rows.filter(function (row) {
-          var matchesSearch = !q || row.getAttribute('data-name').indexOf(q) !== -1 || row.getAttribute('data-category').indexOf(q) !== -1;
+          var matchesSearch = !q || row.getAttribute('data-name').indexOf(q) !== -1 || row.getAttribute('data-category').indexOf(q) !== -1 || row.getAttribute('data-supplier').indexOf(q) !== -1;
           var matchesCategory = !cat || row.getAttribute('data-category') === cat;
           return matchesSearch && matchesCategory;
         });
