@@ -9,6 +9,7 @@
     { "source": "/(.*)", "destination": "/api/index" }
   ],
   "crons": [
-    { "path": "/api/cron/generate-timesheets", "schedule": "0 14 * * 0" }
+    { "path": "/api/cron/generate-timesheets", "schedule": "0 14 * * 0" },
+    { "path": "/api/cron/process-invoices", "schedule": "*/15 * * * *" }
   ]
 }

@@ -27,8 +27,7 @@ module.exports = {
     password: process.env.ADMIN_PASSWORD || '',
   },
   email: {
-    smtpUser: process.env.SMTP_USER || '',
-    smtpPass: process.env.SMTP_PASS || '',
+    resendApiKey: process.env.RESEND_API_KEY || '',
     from: process.env.EMAIL_FROM || 'Lister Power Solutions <admin@listerpowersolutions.com.au>',
     appUrl: process.env.APP_URL || 'http://localhost:3000',
   },
@@ -42,6 +41,12 @@ module.exports = {
     companyFileUsername: process.env.MYOB_COMPANY_FILE_USERNAME || '',
     companyFilePassword: process.env.MYOB_COMPANY_FILE_PASSWORD || '',
     baseUrl: process.env.MYOB_API_BASE_URL || 'https://api.myob.com/accountright',
+  },
+  graph: {
+    tenantId: process.env.GRAPH_TENANT_ID || '',
+    clientId: process.env.GRAPH_CLIENT_ID || '',
+    clientSecret: process.env.GRAPH_CLIENT_SECRET || '',
+    mailbox: process.env.GRAPH_MAILBOX || '',
   },
   logLevel: process.env.LOG_LEVEL || 'info',
 };

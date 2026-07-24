@@ -11,6 +11,8 @@ const { formatAuDate } = require('./lib/dates');
 const { formatMoney } = require('./lib/money');
 const { asyncHandler } = require('./lib/asyncHandler');
 const { generateWeeklyTimesheets } = require('./lib/timesheetGen');
+const { getUnreadSupplierEmails, getEmailAttachments, markAsRead } = require('./lib/graph');
+const { parseCnwInvoice } = require('./lib/cnwParser');
 
 const app = express();
 
@@ -82,6 +84,101 @@ app.get(
     const result = await generateWeeklyTimesheets();
     logger.info('Weekly timesheets generated', result);
     res.json({ ok: true, ...result });
+  })
+);
+
+app.get(
+  '/api/cron/process-invoices',
+  asyncHandler(async (req, res) => {
+    if (config.app.cronSecret && req.headers.authorization !== `Bearer ${config.app.cronSecret}`) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!config.graph.tenantId || !config.graph.clientId || !config.graph.clientSecret || !config.graph.mailbox) {
+      return res.json({ ok: true, skipped: 'Graph API not configured' });
+    }
+
+    const results = { processed: 0, skipped: 0, errors: [] };
+
+    let emails;
+    try {
+      emails = await getUnreadSupplierEmails();
+    } catch (err) {
+      logger.error('Invoice cron: failed to fetch emails', { error: err.message });
+      return res.status(500).json({ ok: false, error: err.message });
+    }
+
+    for (const email of emails) {
+      try {
+        const attachments = await getEmailAttachments(email.id);
+        const pdfAttachment = attachments.find(
+          (a) => a.contentType === 'application/pdf' || (a.name || '').toLowerCase().endsWith('.pdf')
+        );
+
+        if (!pdfAttachment || !pdfAttachment.contentBytes) {
+          await markAsRead(email.id);
+          results.skipped++;
+          continue;
+        }
+
+        const pdfBuffer = Buffer.from(pdfAttachment.contentBytes, 'base64');
+        const { invoiceNumber, lineItems } = await parseCnwInvoice(pdfBuffer);
+
+        if (!invoiceNumber) {
+          logger.warn('Invoice cron: could not extract invoice number', { subject: email.subject });
+          await markAsRead(email.id);
+          results.skipped++;
+          continue;
+        }
+
+        // Skip if already imported
+        const existing = await db
+          .prepare(`SELECT id FROM invoice_imports WHERE invoice_number = ? AND supplier = 'CNW'`)
+          .get(invoiceNumber);
+        if (existing) {
+          await markAsRead(email.id);
+          results.skipped++;
+          continue;
+        }
+
+        let matched = 0;
+        let unmatched = 0;
+
+        for (const line of lineItems) {
+          if (line.supplied <= 0) continue;
+
+          const item = await db
+            .prepare(`SELECT id FROM inventory_items WHERE supplier_code = ?`)
+            .get(line.productCode);
+
+          if (item) {
+            await db
+              .prepare(`UPDATE inventory_items SET quantity_on_hand = quantity_on_hand + ?, unit_cost = ?, updated_at = now_utc_text() WHERE id = ?`)
+              .run(line.supplied, line.unitCost, item.id);
+            matched++;
+          } else {
+            unmatched++;
+            logger.info('Invoice cron: unmatched product code', { code: line.productCode, description: line.description });
+          }
+        }
+
+        await db
+          .prepare(
+            `INSERT INTO invoice_imports (invoice_number, supplier, email_message_id, lines_total, lines_matched, lines_unmatched)
+             VALUES (?, 'CNW', ?, ?, ?, ?)`
+          )
+          .run(invoiceNumber, email.id, lineItems.length, matched, unmatched);
+
+        await markAsRead(email.id);
+        results.processed++;
+        logger.info('Invoice cron: processed CNW invoice', { invoiceNumber, matched, unmatched });
+      } catch (err) {
+        logger.error('Invoice cron: error processing email', { subject: email.subject, error: err.message });
+        results.errors.push(err.message);
+      }
+    }
+
+    res.json({ ok: true, ...results });
   })
 );
 

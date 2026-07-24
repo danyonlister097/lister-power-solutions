@@ -365,6 +365,32 @@ CREATE TABLE IF NOT EXISTS job_stock_allocations (
 CREATE INDEX IF NOT EXISTS idx_job_stock_allocations_job_id ON job_stock_allocations(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_stock_allocations_item_id ON job_stock_allocations(item_id);
 
+-- Supplier product code stored on inventory items so CNW invoice imports can
+-- auto-match by code on future imports after the first manual match.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'inventory_items' AND column_name = 'supplier_code') THEN
+    ALTER TABLE inventory_items ADD COLUMN supplier_code TEXT;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_inventory_items_supplier_code ON inventory_items(supplier_code);
+
+-- One row per processed invoice email - used to prevent double-importing the
+-- same invoice and to give admins a visible audit trail of what came in.
+CREATE TABLE IF NOT EXISTS invoice_imports (
+  id SERIAL PRIMARY KEY,
+  invoice_number TEXT NOT NULL,
+  supplier TEXT NOT NULL DEFAULT 'CNW',
+  email_message_id TEXT,
+  lines_total INTEGER NOT NULL DEFAULT 0,
+  lines_matched INTEGER NOT NULL DEFAULT 0,
+  lines_unmatched INTEGER NOT NULL DEFAULT 0,
+  imported_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoice_imports_number ON invoice_imports(invoice_number, supplier);
+
 -- --- Asset management ---
 
 CREATE TABLE IF NOT EXISTS customer_assets (

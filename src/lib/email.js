@@ -1,42 +1,22 @@
-const nodemailer = require('nodemailer');
+const axios = require('axios');
 const config = require('../config');
 const logger = require('../lib/logger');
 
-// Lazily created so startup doesn't fail if SMTP creds aren't set yet.
-let _transporter = null;
-function getTransporter() {
-  if (!_transporter) {
-    _transporter = nodemailer.createTransport({
-      host: 'smtp.office365.com',
-      port: 587,
-      secure: false,
-      auth: {
-        user: config.email.smtpUser,
-        pass: config.email.smtpPass,
-      },
-    });
-  }
-  return _transporter;
-}
-
-// Never throws: a broken email send should never take down a login or lockout
-// request, so failures are logged and swallowed. Without SMTP credentials set,
-// the email is logged to console instead, so the app keeps working in dev.
 async function sendEmail({ to, subject, html }) {
-  if (!config.email.smtpUser || !config.email.smtpPass) {
-    logger.warn('Email not sent (SMTP_USER / SMTP_PASS not configured) - logging instead', { to, subject });
+  if (!config.email.resendApiKey) {
+    logger.warn('Email not sent (RESEND_API_KEY not configured)', { to, subject });
     return;
   }
 
   try {
-    await getTransporter().sendMail({
-      from: config.email.from,
-      to,
-      subject,
-      html,
-    });
+    await axios.post(
+      'https://api.resend.com/emails',
+      { from: config.email.from, to, subject, html },
+      { headers: { Authorization: `Bearer ${config.email.resendApiKey}`, 'Content-Type': 'application/json' } }
+    );
   } catch (err) {
-    logger.error('Failed to send email', { to, subject, error: err.message });
+    const detail = err.response ? JSON.stringify(err.response.data) : err.message;
+    logger.error('Failed to send email', { to, subject, error: detail });
   }
 }
 
