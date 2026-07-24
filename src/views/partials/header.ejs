@@ -60,7 +60,7 @@
       <img src="/img/logo-icon.png" alt="" class="brand-logo">
       Lister Power Solutions
     </a>
-    <nav class="nav">
+    <nav class="nav" id="main-nav">
       <% if (allowed('dashboard')) { %><a href="/dashboard">Dashboard</a><% } %>
       <% if (allowed('schedule')) { %><a href="/jobs/schedule">Schedule</a><% } %>
       <% if (allowed('jobs')) { %><a href="/jobs">Jobs</a><% } %>
@@ -77,7 +77,27 @@
       <span class="whoami"><%= currentUser.name %> (<%= currentUser.role %>)</span>
       <button type="submit" class="btn-link">Log out</button>
     </form>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Open menu" aria-expanded="false">&#9776;</button>
   </header>
+  <script>
+    (function () {
+      var toggle = document.getElementById('nav-toggle');
+      var nav = document.getElementById('main-nav');
+      if (!toggle || !nav) return;
+      toggle.addEventListener('click', function () {
+        var open = nav.classList.toggle('nav-open');
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggle.textContent = open ? '✕' : '☰';
+      });
+      document.addEventListener('click', function (e) {
+        if (!nav.contains(e.target) && !toggle.contains(e.target)) {
+          nav.classList.remove('nav-open');
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.textContent = '☰';
+        }
+      });
+    })();
+  </script>
   <script>
     (function () {
       var topbar = document.querySelector('.topbar');

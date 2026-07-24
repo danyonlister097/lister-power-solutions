@@ -107,6 +107,19 @@ a { color: var(--color-primary); }
 .nav a { text-decoration: none; color: var(--color-text); font-weight: 600; font-size: 1.05rem; }
 .nav a:hover { color: var(--color-primary); }
 
+.nav-toggle {
+  display: none;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  color: var(--color-text);
+  line-height: 1;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
 .topbar-help {
   display: flex;
   align-items: center;
@@ -219,6 +232,34 @@ a { color: var(--color-primary); }
 .site-footer-guest { margin-top: 0; }
 
 @media (max-width: 640px) {
+  .topbar { flex-wrap: nowrap; padding: 0.55rem 0.75rem; gap: 0.5rem; }
+  .brand { font-size: 1rem; }
+  .brand-logo { height: 34px; }
+  .whoami { display: none; }
+  .nav-toggle { display: flex; align-items: center; }
+  .nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--color-surface);
+    border-bottom: 3px solid var(--color-primary);
+    flex-direction: column;
+    gap: 0;
+    padding: 0.5rem 0;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    z-index: 40;
+  }
+  .nav.nav-open { display: flex; }
+  .nav a {
+    padding: 0.75rem 1.25rem;
+    font-size: 1rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .nav a:last-child { border-bottom: none; }
+  .topbar-help { margin-left: 0; }
+
   .app-shell { flex-direction: column; }
   .sidebar {
     width: 100%;
