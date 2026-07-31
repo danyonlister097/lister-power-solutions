@@ -9,6 +9,62 @@
   <% } %>
 </div>
 
+<% if (currentUser.role === 'admin') { %>
+  <div class="leave-stats" style="margin-bottom:1rem;">
+    <div class="leave-stat leave-stat-approved">
+      <span class="leave-stat-value"><%= formatMoney(stockValueEx) %></span>
+      <span class="leave-stat-label">Stock value (ex GST)</span>
+    </div>
+    <div class="leave-stat leave-stat-approved">
+      <span class="leave-stat-value"><%= formatMoney(stockValueInc) %></span>
+      <span class="leave-stat-label">Stock value (inc GST)</span>
+    </div>
+    <div class="leave-stat leave-stat-pending">
+      <span class="leave-stat-value"><%= stockItemCount %></span>
+      <span class="leave-stat-label">Items in stock</span>
+    </div>
+    <% if (lowStockCount > 0) { %>
+    <div class="leave-stat leave-stat-declined" id="stat-low-stock" style="cursor:pointer;" title="Click to filter low stock items">
+      <span class="leave-stat-value"><%= lowStockCount %></span>
+      <span class="leave-stat-label">Low stock</span>
+    </div>
+    <% } %>
+    <% if (outOfStockCount > 0) { %>
+    <div class="leave-stat leave-stat-declined" id="stat-out-of-stock" style="cursor:pointer;opacity:0.75;" title="Click to filter out of stock items">
+      <span class="leave-stat-value"><%= outOfStockCount %></span>
+      <span class="leave-stat-label">Out of stock</span>
+    </div>
+    <% } %>
+    <% if (unpricedCount > 0) { %>
+    <div class="leave-stat" id="stat-unpriced" style="cursor:pointer;background:var(--color-surface-2);" title="Click to filter items with no cost set">
+      <span class="leave-stat-value"><%= unpricedCount %></span>
+      <span class="leave-stat-label">No cost set</span>
+    </div>
+    <% } %>
+  </div>
+<% } %>
+<script>
+  // Stat chip click-to-filter — delegates to window.invApplyFilter which is
+  // exposed by the main pagination IIFE below, so this runs after page load.
+  document.addEventListener('DOMContentLoaded', function () {
+    function wireStatFilter(id, filterFn) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('click', function () {
+        if (window.invApplyFilter) window.invApplyFilter(filterFn, id);
+      });
+    }
+    wireStatFilter('stat-low-stock', function (row) {
+      return row.querySelector('.badge-cancelled') !== null;
+    });
+    wireStatFilter('stat-out-of-stock', function (row) {
+      return (parseFloat(row.getAttribute('data-qty')) || 0) <= 0;
+    });
+    wireStatFilter('stat-unpriced', function (row) {
+      return row.getAttribute('data-cost') === '';
+    });
+  });
+</script>
 <% if (items.length) { %>
   <div class="card inventory-filters">
     <label style="flex:2;min-width:200px;">
@@ -24,12 +80,12 @@
     <label style="flex:1;min-width:200px;">
       Sort by
       <select id="inventory-sort">
+        <option value="qty-desc" selected>On hand (High&ndash;Low)</option>
         <option value="instock-name">In stock first</option>
         <option value="recently">Added recently (last 30 days)</option>
         <option value="name-asc">Name (A&ndash;Z)</option>
         <option value="name-desc">Name (Z&ndash;A)</option>
         <option value="qty-asc">On hand (Low&ndash;High)</option>
-        <option value="qty-desc">On hand (High&ndash;Low)</option>
         <option value="cost-asc">Cost ex GST (Low&ndash;High)</option>
         <option value="cost-desc">Cost ex GST (High&ndash;Low)</option>
       </select>
@@ -195,7 +251,8 @@
         var filtered = rows.filter(function (row) {
           var matchesSearch = !q || row.getAttribute('data-name').indexOf(q) !== -1 || row.getAttribute('data-category').indexOf(q) !== -1 || row.getAttribute('data-supplier').indexOf(q) !== -1;
           var matchesCategory = !cat || row.getAttribute('data-category') === cat;
-          return matchesSearch && matchesCategory;
+          var matchesStat = !statFilter || statFilter(row);
+          return matchesSearch && matchesCategory && matchesStat;
         });
 
         var mode = sortSelect.value;
@@ -280,6 +337,20 @@
       // duplicate so the user lands back where they were.
       var STATE_KEY = 'inv-state';
       var RESTORE_KEY = 'inv-restore';
+      var statFilter = null;
+
+      window.invApplyFilter = function (fn, chipId) {
+        statFilter = fn;
+        currentPage = 1;
+        document.querySelectorAll('.leave-stat[id^="stat-"]').forEach(function (el) {
+          el.style.outline = '';
+        });
+        if (chipId) {
+          var chip = document.getElementById(chipId);
+          if (chip) chip.style.outline = '2px solid var(--color-primary)';
+        }
+        render();
+      };
 
       function saveState() {
         sessionStorage.setItem(STATE_KEY, JSON.stringify({
@@ -305,9 +376,13 @@
         } catch (e) {}
       }
 
-      searchInput.addEventListener('input', function () { currentPage = 1; render(); });
-      categorySelect.addEventListener('change', function () { currentPage = 1; render(); });
-      sortSelect.addEventListener('change', function () { currentPage = 1; render(); });
+      function clearStatFilter() {
+        statFilter = null;
+        document.querySelectorAll('.leave-stat[id^="stat-"]').forEach(function (el) { el.style.outline = ''; });
+      }
+      searchInput.addEventListener('input', function () { clearStatFilter(); currentPage = 1; render(); });
+      categorySelect.addEventListener('change', function () { clearStatFilter(); currentPage = 1; render(); });
+      sortSelect.addEventListener('change', function () { clearStatFilter(); currentPage = 1; render(); });
       pageSizeSelect.addEventListener('change', function () { currentPage = 1; render(); });
       prevBtn.addEventListener('click', function () { currentPage -= 1; render(); });
       nextBtn.addEventListener('click', function () { currentPage += 1; render(); });

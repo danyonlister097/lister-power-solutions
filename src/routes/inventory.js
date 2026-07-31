@@ -31,7 +31,37 @@ router.get(
   '/',
   asyncHandler(async (req, res) => {
     const items = await db.prepare('SELECT * FROM inventory_items ORDER BY name ASC').all();
-    res.render('inventory/index', { title: 'Inventory', items, categories: await getCategories() });
+    let stockValueEx = 0;
+    let stockValueInc = 0;
+    let stockItemCount = 0;
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+    let unpricedCount = 0;
+    for (const item of items) {
+      if (item.quantity_on_hand > 0) {
+        stockItemCount++;
+        if (item.unit_cost !== null) {
+          stockValueEx += item.unit_cost * item.quantity_on_hand;
+          const incRate = item.unit_cost_inc_gst !== null ? item.unit_cost_inc_gst : item.unit_cost * 1.1;
+          stockValueInc += incRate * item.quantity_on_hand;
+        }
+        if (item.reorder_threshold !== null && item.quantity_on_hand <= item.reorder_threshold) lowStockCount++;
+      } else {
+        outOfStockCount++;
+      }
+      if (item.unit_cost === null) unpricedCount++;
+    }
+    res.render('inventory/index', {
+      title: 'Inventory',
+      items,
+      categories: await getCategories(),
+      stockValueEx,
+      stockValueInc,
+      stockItemCount,
+      lowStockCount,
+      outOfStockCount,
+      unpricedCount,
+    });
   })
 );
 
