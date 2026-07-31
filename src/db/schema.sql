@@ -509,6 +509,12 @@ CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
 -- one side of this circular FK has to be patched in after both tables exist.
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS quote_id INTEGER REFERENCES quotes(id);
 
+-- N/A flags let users bypass the photo/stock completion requirements when
+-- they genuinely don't apply to a particular job (e.g. a call-out with no
+-- materials used, or an internal job where photos aren't needed).
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS photos_na INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS stock_na INTEGER NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS quote_items (
   id SERIAL PRIMARY KEY,
   quote_id INTEGER NOT NULL REFERENCES quotes(id),

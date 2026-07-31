@@ -75,7 +75,7 @@
 <div class="card">
   <h2>Photos</h2>
   <% if (attachments.length === 0) { %>
-    <div class="empty-state">No photos yet.</div>
+    <div class="empty-state"><%= job.photos_na ? 'N/A — no photos required for this job.' : 'No photos yet.' %></div>
   <% } else { %>
     <div class="attachment-grid">
       <% attachments.forEach(a => { %>
@@ -100,6 +100,17 @@
       <input type="file" name="photos" accept="image/*" capture="environment" multiple>
     </label>
     <button type="submit" class="btn btn-primary btn-sm">Upload</button>
+  </form>
+  <form method="post" action="/jobs/<%= job.id %>/na-flags" data-preserve-scroll style="margin-top:0.75rem;">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="stock_na" value="<%= job.stock_na ? '1' : '0' %>">
+    <label class="toggle-label">
+      <span class="text-muted" style="font-size:0.85rem;">N/A — no photos required</span>
+      <span class="toggle-switch">
+        <input type="checkbox" name="photos_na" value="1" <%= job.photos_na ? 'checked' : '' %> onchange="this.form.submit()">
+        <span class="toggle-slider"></span>
+      </span>
+    </label>
   </form>
 </div>
 
@@ -143,7 +154,7 @@
 <div class="card">
   <h2>Stock used</h2>
   <% if (stockAllocations.length === 0) { %>
-    <div class="empty-state">No stock allocated yet.</div>
+    <div class="empty-state"><%= job.stock_na ? 'N/A — no stock used on this job.' : 'No stock allocated yet.' %></div>
   <% } else { %>
     <ul class="list">
       <% stockAllocations.forEach(a => { %>
@@ -181,6 +192,17 @@
       <div class="actions" style="grid-column: 1 / -1;">
         <button type="submit" class="btn btn-primary btn-sm">Allocate to this job</button>
       </div>
+    </form>
+    <form method="post" action="/jobs/<%= job.id %>/na-flags" data-preserve-scroll style="margin-top:0.75rem;">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="photos_na" value="<%= job.photos_na ? '1' : '0' %>">
+      <label class="toggle-label">
+        <span class="text-muted" style="font-size:0.85rem;">N/A — no stock used on this job</span>
+        <span class="toggle-switch">
+          <input type="checkbox" name="stock_na" value="1" <%= job.stock_na ? 'checked' : '' %> onchange="this.form.submit()">
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
     </form>
     <script>
       (function () {

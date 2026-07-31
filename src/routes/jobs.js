@@ -77,11 +77,16 @@ async function getJobOr404(req, res) {
 }
 
 async function checkCompletionRequirements(jobId) {
-  const photoCount = Number((await db.prepare('SELECT COUNT(*) AS n FROM job_attachments WHERE job_id = ?').get(jobId)).n);
-  const stockCount = Number((await db.prepare('SELECT COUNT(*) AS n FROM job_stock_allocations WHERE job_id = ?').get(jobId)).n);
+  const flags = await db.prepare('SELECT photos_na, stock_na FROM jobs WHERE id = ?').get(jobId);
   const missing = [];
-  if (photoCount === 0) missing.push('at least one photo must be added');
-  if (stockCount === 0) missing.push('stock used must be populated');
+  if (!flags?.photos_na) {
+    const photoCount = Number((await db.prepare('SELECT COUNT(*) AS n FROM job_attachments WHERE job_id = ?').get(jobId)).n);
+    if (photoCount === 0) missing.push('at least one photo must be added (or mark Photos as N/A)');
+  }
+  if (!flags?.stock_na) {
+    const stockCount = Number((await db.prepare('SELECT COUNT(*) AS n FROM job_stock_allocations WHERE job_id = ?').get(jobId)).n);
+    if (stockCount === 0) missing.push('stock used must be populated (or mark Stock as N/A)');
+  }
   return missing.length ? `Cannot mark job as completed: ${missing.join(' and ')}.` : null;
 }
 
@@ -992,6 +997,19 @@ router.post(
 
     setFlash(req, 'success', `Job marked ${status.replace('_', ' ')}.`);
     res.redirect(homeRoute(req.user));
+  })
+);
+
+router.post(
+  '/:id/na-flags',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const job = await getJobOr404(req, res);
+    if (!job) return;
+    await db
+      .prepare(`UPDATE jobs SET photos_na = ?, stock_na = ?, updated_at = now_utc_text() WHERE id = ?`)
+      .run(req.body.photos_na === '1' ? 1 : 0, req.body.stock_na === '1' ? 1 : 0, job.id);
+    res.redirect(`/jobs/${job.id}`);
   })
 );
 
