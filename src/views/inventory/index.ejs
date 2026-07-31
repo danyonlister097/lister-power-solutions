@@ -41,6 +41,12 @@
       <span class="leave-stat-label">No cost set</span>
     </div>
     <% } %>
+    <% if (deadStockCount > 0) { %>
+    <div class="leave-stat leave-stat-pending" id="stat-dead-stock" style="cursor:pointer;" title="In-stock items with no movement in 90 days — click to filter">
+      <span class="leave-stat-value"><%= deadStockCount %></span>
+      <span class="leave-stat-label">No movement (90d)</span>
+    </div>
+    <% } %>
   </div>
 <% } %>
 <script>
@@ -62,6 +68,10 @@
     });
     wireStatFilter('stat-unpriced', function (row) {
       return row.getAttribute('data-cost') === '';
+    });
+    var deadIds = new Set(<%- JSON.stringify(deadStockIds) %>);
+    wireStatFilter('stat-dead-stock', function (row) {
+      return deadIds.has(Number(row.getAttribute('data-id')));
     });
   });
 </script>
@@ -122,7 +132,7 @@
         <% items.forEach(item => {
              var low = item.reorder_threshold !== null && item.quantity_on_hand <= item.reorder_threshold;
         %>
-          <tr data-name="<%= item.name.toLowerCase() %>" data-category="<%= (item.category || '').toLowerCase() %>" data-qty="<%= item.quantity_on_hand %>" data-cost="<%= item.unit_cost !== null ? item.unit_cost : '' %>" data-supplier="<%= (item.supplier_code || '').toLowerCase() %>" data-updated="<%= item.updated_at || '' %>">
+          <tr data-id="<%= item.id %>" data-name="<%= item.name.toLowerCase() %>" data-category="<%= (item.category || '').toLowerCase() %>" data-qty="<%= item.quantity_on_hand %>" data-cost="<%= item.unit_cost !== null ? item.unit_cost : '' %>" data-supplier="<%= (item.supplier_code || '').toLowerCase() %>" data-updated="<%= item.updated_at || '' %>">
             <% if (currentUser.role === 'admin') { %><td><input type="checkbox" class="item-select" value="<%= item.id %>" aria-label="Select <%= item.name %>"></td><% } %>
             <td><a href="/inventory/<%= item.id %>"><%= item.name %></a></td>
             <td class="text-muted" style="font-size:0.85em;font-family:monospace;"><%= item.supplier_code || '—' %></td>

@@ -31,6 +31,23 @@ router.get(
   '/',
   asyncHandler(async (req, res) => {
     const items = await db.prepare('SELECT * FROM inventory_items ORDER BY name ASC').all();
+
+    // Items with stock on hand but no movement in 90 days — potential dead stock.
+    const cutoff90 = new Date();
+    cutoff90.setDate(cutoff90.getDate() - 90);
+    const cutoff90Str = cutoff90.toISOString();
+    const deadStockRows = await db
+      .prepare(
+        `SELECT i.id FROM inventory_items i
+         WHERE i.quantity_on_hand > 0
+           AND NOT EXISTS (
+             SELECT 1 FROM job_stock_allocations a
+             WHERE a.item_id = i.id AND a.created_at >= ?
+           )`
+      )
+      .all(cutoff90Str);
+    const deadStockIds = new Set(deadStockRows.map((r) => r.id));
+
     let stockValueEx = 0;
     let stockValueInc = 0;
     let stockItemCount = 0;
@@ -61,6 +78,8 @@ router.get(
       lowStockCount,
       outOfStockCount,
       unpricedCount,
+      deadStockCount: deadStockIds.size,
+      deadStockIds: [...deadStockIds],
     });
   })
 );
