@@ -39,10 +39,11 @@ function num(str) {
 
 // The product code and description run together with no separator (e.g.
 // "CBL1.5TEFFLAT TWIN & EARTH 1.5MM"), and there's no punctuation rule that
-// reliably tells them apart. Match against known supplier codes instead -
-// prefer the longest known code that prefixes the blob. Anything that
-// doesn't match a known code can't be split reliably, so it's left whole and
-// simply won't match an inventory item downstream (reported as unmatched).
+// reliably tells them apart. Match against known supplier codes first -
+// prefer the longest known code that prefixes the blob. For unknown codes,
+// fall back to a heuristic: CNW codes always end with uppercase letters, so
+// if the remainder starts with a digit (e.g. "2.5KW ...") the split point
+// is the last letter before that digit.
 function splitCodeAndDescription(blob, knownCodes) {
   let best = '';
   for (const code of knownCodes) {
@@ -52,6 +53,10 @@ function splitCodeAndDescription(blob, knownCodes) {
   }
   if (best) {
     return { productCode: best, description: blob.slice(best.length).trim() };
+  }
+  const m = blob.match(/^([A-Z][A-Z0-9.\-]*[A-Z])(\d)/);
+  if (m && blob.slice(m[1].length).includes(' ')) {
+    return { productCode: m[1], description: blob.slice(m[1].length).trim() };
   }
   return { productCode: blob.trim(), description: '' };
 }

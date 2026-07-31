@@ -94,9 +94,13 @@
 
   <div id="inventory-row-menu" class="context-menu" hidden>
     <a href="#" class="context-menu-item" data-action="edit">Edit</a>
+    <button type="button" class="context-menu-item" data-action="duplicate">Duplicate</button>
     <button type="button" class="context-menu-item context-menu-danger" data-action="delete">Delete</button>
   </div>
   <form id="inventory-row-delete-form" method="post" style="display:none;">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  </form>
+  <form id="inventory-row-duplicate-form" method="post" style="display:none;">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
   </form>
   <form id="bulk-delete-form" method="post" action="/inventory/bulk-delete" style="display:none;">
@@ -274,6 +278,7 @@
     (function () {
       var menu = document.getElementById('inventory-row-menu');
       var deleteForm = document.getElementById('inventory-row-delete-form');
+      var duplicateForm = document.getElementById('inventory-row-duplicate-form');
       var activeBtn = null;
 
       function closeMenu() {
@@ -322,6 +327,12 @@
 
         if (action === 'edit') {
           window.location.href = '/inventory/' + itemId;
+          return;
+        }
+
+        if (action === 'duplicate') {
+          duplicateForm.action = '/inventory/' + itemId + '/duplicate';
+          duplicateForm.submit();
           return;
         }
 

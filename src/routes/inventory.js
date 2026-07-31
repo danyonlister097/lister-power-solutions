@@ -293,6 +293,27 @@ router.post(
 );
 
 router.post(
+  '/:id/duplicate',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const item = await db.prepare('SELECT * FROM inventory_items WHERE id = ?').get(req.params.id);
+    if (!item) return res.status(404).render('error', { message: 'Item not found.' });
+
+    const newName = `${item.name} (copy)`;
+    await db
+      .prepare(
+        `INSERT INTO inventory_items (name, supplier_code, category, unit, quantity_on_hand, reorder_threshold, unit_cost, unit_cost_inc_gst)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(newName, item.supplier_code, item.category, item.unit, 0, item.reorder_threshold, item.unit_cost, item.unit_cost_inc_gst);
+
+    setFlash(req, 'success', `"${newName}" created — edit it to update the details.`);
+    res.redirect('/inventory');
+  })
+);
+
+router.post(
   '/:id/delete',
   requireRole('admin'),
   verifyCsrf,

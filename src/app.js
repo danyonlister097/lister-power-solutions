@@ -207,6 +207,7 @@ app.get(
                 );
               if (insertResult.lastInsertRowid) {
                 codeToItemId.set(line.productCode, insertResult.lastInsertRowid);
+                knownCodes.push(line.productCode);
               }
               autoAdded++;
               logger.info('Invoice cron: auto-added new inventory item', {
