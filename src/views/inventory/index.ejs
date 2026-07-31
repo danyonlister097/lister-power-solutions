@@ -24,6 +24,7 @@
     <label style="flex:1;min-width:200px;">
       Sort by
       <select id="inventory-sort">
+        <option value="instock-name">In stock first</option>
         <option value="name-asc">Name (A&ndash;Z)</option>
         <option value="name-desc">Name (Z&ndash;A)</option>
         <option value="qty-asc">On hand (Low&ndash;High)</option>
@@ -192,20 +193,31 @@
         });
 
         var mode = sortSelect.value;
-        var parts = mode.split('-');
-        var key = parts[0];
-        var dir = parts[1] === 'desc' ? -1 : 1;
-        var attr = key === 'name' ? 'data-name' : key === 'qty' ? 'data-qty' : 'data-cost';
-        filtered.sort(function (a, b) {
-          if (key === 'name') {
-            return a.getAttribute(attr).localeCompare(b.getAttribute(attr)) * dir;
-          }
-          var av = parseFloat(a.getAttribute(attr));
-          var bv = parseFloat(b.getAttribute(attr));
-          if (isNaN(av)) av = dir === 1 ? Infinity : -Infinity;
-          if (isNaN(bv)) bv = dir === 1 ? Infinity : -Infinity;
-          return (av - bv) * dir;
-        });
+        if (mode === 'instock-name') {
+          filtered.sort(function (a, b) {
+            var aqty = parseFloat(a.getAttribute('data-qty')) || 0;
+            var bqty = parseFloat(b.getAttribute('data-qty')) || 0;
+            var aInStock = aqty > 0 ? 0 : 1;
+            var bInStock = bqty > 0 ? 0 : 1;
+            if (aInStock !== bInStock) return aInStock - bInStock;
+            return a.getAttribute('data-name').localeCompare(b.getAttribute('data-name'));
+          });
+        } else {
+          var parts = mode.split('-');
+          var key = parts[0];
+          var dir = parts[1] === 'desc' ? -1 : 1;
+          var attr = key === 'name' ? 'data-name' : key === 'qty' ? 'data-qty' : 'data-cost';
+          filtered.sort(function (a, b) {
+            if (key === 'name') {
+              return a.getAttribute(attr).localeCompare(b.getAttribute(attr)) * dir;
+            }
+            var av = parseFloat(a.getAttribute(attr));
+            var bv = parseFloat(b.getAttribute(attr));
+            if (isNaN(av)) av = dir === 1 ? Infinity : -Infinity;
+            if (isNaN(bv)) bv = dir === 1 ? Infinity : -Infinity;
+            return (av - bv) * dir;
+          });
+        }
 
         return filtered;
       }

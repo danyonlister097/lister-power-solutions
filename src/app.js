@@ -13,7 +13,7 @@ const { formatMoney } = require('./lib/money');
 const { asyncHandler } = require('./lib/asyncHandler');
 const { generateWeeklyTimesheets } = require('./lib/timesheetGen');
 const { getUnreadSupplierEmails, getEmailAttachments, markAsRead } = require('./lib/graph');
-const { parseCnwInvoice } = require('./lib/cnwParser');
+const { parseCnwDocument } = require('./lib/cnwParser');
 
 const app = express();
 
@@ -99,7 +99,14 @@ app.get(
       return res.json({ ok: true, skipped: 'Graph API not configured' });
     }
 
-    const results = { processed: 0, skipped: 0, errors: [] };
+    const results = { processed: 0, skipped: 0, autoAdded: 0, markReadFailed: 0, errors: [] };
+
+    // Loaded once per run so the parser can split each PDF's mashed-together
+    // "productCode+description" text against real codes, and so the per-line
+    // stock update below doesn't need a query per line item.
+    const codeRows = await db.prepare(`SELECT id, supplier_code FROM inventory_items WHERE supplier_code IS NOT NULL`).all();
+    const knownCodes = codeRows.map((r) => r.supplier_code);
+    const codeToItemId = new Map(codeRows.map((r) => [r.supplier_code, r.id]));
 
     let emails;
     try {
@@ -107,6 +114,21 @@ app.get(
     } catch (err) {
       logger.error('Invoice cron: failed to fetch emails', { error: err.message });
       return res.status(500).json({ ok: false, error: err.message });
+    }
+
+    // Mailbox permissions currently only allow reading mail, not marking it
+    // read (PATCH comes back 403 ErrorAccessDenied) - see GRAPH_MAILBOX app
+    // registration. That must not undo a successful stock update: it's
+    // always attempted last, after the DB writes below have already landed,
+    // so a failure here is logged separately and doesn't roll anything back
+    // or get reported as a processing error.
+    async function tryMarkAsRead(emailId) {
+      try {
+        await markAsRead(emailId);
+      } catch (err) {
+        results.markReadFailed++;
+        logger.warn('Invoice cron: could not mark email as read', { emailId, error: err.message });
+      }
     }
 
     for (const email of emails) {
@@ -117,62 +139,106 @@ app.get(
         );
 
         if (!pdfAttachment || !pdfAttachment.contentBytes) {
-          await markAsRead(email.id);
+          logger.info('Invoice cron: skipping email - no PDF attachment (left unread)', { subject: email.subject });
           results.skipped++;
           continue;
         }
 
         const pdfBuffer = Buffer.from(pdfAttachment.contentBytes, 'base64');
-        const { invoiceNumber, lineItems } = await parseCnwInvoice(pdfBuffer);
+        const { type, invoiceNumber, lineItems } = await parseCnwDocument(pdfBuffer, knownCodes);
+        const isCredit = type === 'credit';
+        const supplier = isCredit ? 'CNW-CREDIT' : 'CNW';
 
         if (!invoiceNumber) {
-          logger.warn('Invoice cron: could not extract invoice number', { subject: email.subject });
-          await markAsRead(email.id);
+          // Could be a quote, packing slip, or other document — leave unread
+          // so it stays visible and doesn't get silently swallowed.
+          logger.info('Invoice cron: skipping email - not an invoice or credit note (left unread)', { subject: email.subject });
           results.skipped++;
           continue;
         }
 
         // Skip if already imported
         const existing = await db
-          .prepare(`SELECT id FROM invoice_imports WHERE invoice_number = ? AND supplier = 'CNW'`)
-          .get(invoiceNumber);
+          .prepare(`SELECT id FROM invoice_imports WHERE invoice_number = ? AND supplier = ?`)
+          .get(invoiceNumber, supplier);
         if (existing) {
-          await markAsRead(email.id);
+          logger.info('Invoice cron: skipping email - already imported', { invoiceNumber, supplier });
+          await tryMarkAsRead(email.id);
           results.skipped++;
           continue;
         }
 
         let matched = 0;
+        let autoAdded = 0;
         let unmatched = 0;
 
         for (const line of lineItems) {
           if (line.supplied <= 0) continue;
 
-          const item = await db
-            .prepare(`SELECT id FROM inventory_items WHERE supplier_code = ?`)
-            .get(line.productCode);
+          const itemId = codeToItemId.get(line.productCode);
 
-          if (item) {
-            await db
-              .prepare(`UPDATE inventory_items SET quantity_on_hand = quantity_on_hand + ?, unit_cost = ?, updated_at = now_utc_text() WHERE id = ?`)
-              .run(line.supplied, line.unitCost, item.id);
+          if (itemId) {
+            if (isCredit) {
+              await db
+                .prepare(`UPDATE inventory_items SET quantity_on_hand = quantity_on_hand - ?, updated_at = now_utc_text() WHERE id = ?`)
+                .run(line.supplied, itemId);
+            } else {
+              await db
+                .prepare(`UPDATE inventory_items SET quantity_on_hand = quantity_on_hand + ?, unit_cost = ?, updated_at = now_utc_text() WHERE id = ?`)
+                .run(line.supplied, line.unitCost, itemId);
+            }
             matched++;
+          } else if (!isCredit) {
+            // Auto-add unknown product codes as new inventory items so future
+            // invoices and job costing can find them without manual entry.
+            try {
+              const insertResult = await db
+                .prepare(
+                  `INSERT INTO inventory_items (name, supplier_code, unit, quantity_on_hand, unit_cost, updated_at)
+                   VALUES (?, ?, ?, ?, ?, now_utc_text())
+                   RETURNING id`
+                )
+                .run(
+                  line.description || line.productCode,
+                  line.productCode,
+                  line.unit || 'each',
+                  line.supplied,
+                  line.unitCost
+                );
+              if (insertResult.lastInsertRowid) {
+                codeToItemId.set(line.productCode, insertResult.lastInsertRowid);
+              }
+              autoAdded++;
+              logger.info('Invoice cron: auto-added new inventory item', {
+                code: line.productCode,
+                description: line.description,
+                quantity: line.supplied,
+                unit: line.unit,
+              });
+            } catch (insertErr) {
+              unmatched++;
+              logger.warn('Invoice cron: could not auto-add inventory item', {
+                code: line.productCode,
+                error: insertErr.message,
+              });
+            }
           } else {
             unmatched++;
-            logger.info('Invoice cron: unmatched product code', { code: line.productCode, description: line.description });
+            logger.info('Invoice cron: credit note unmatched product code', { code: line.productCode });
           }
         }
 
         await db
           .prepare(
             `INSERT INTO invoice_imports (invoice_number, supplier, email_message_id, lines_total, lines_matched, lines_unmatched)
-             VALUES (?, 'CNW', ?, ?, ?, ?)`
+             VALUES (?, ?, ?, ?, ?, ?)`
           )
-          .run(invoiceNumber, email.id, lineItems.length, matched, unmatched);
+          .run(invoiceNumber, supplier, email.id, lineItems.length, matched + autoAdded, unmatched);
 
-        await markAsRead(email.id);
+        await tryMarkAsRead(email.id);
         results.processed++;
-        logger.info('Invoice cron: processed CNW invoice', { invoiceNumber, matched, unmatched });
+        results.autoAdded += autoAdded;
+        logger.info('Invoice cron: processed CNW document', { type, invoiceNumber, matched, autoAdded, unmatched });
       } catch (err) {
         logger.error('Invoice cron: error processing email', { subject: email.subject, error: err.message });
         results.errors.push(err.message);

@@ -38,13 +38,22 @@ async function graphPatch(path, body) {
   });
 }
 
+// Known CNW automated invoice/credit-note sender addresses. Individual sales
+// reps also use @cnw.com.au but from personal addresses - the Graph filter
+// must list specific automated senders to avoid picking up quote emails etc.
+// Add a new branch address here when purchasing from a new CNW location.
+const CNW_SENDERS = [
+  'ipswich@cnw.com.au',
+  'cnwips@cnw.com.au',
+  'enoggera@cnw.com.au',
+];
+
 async function getUnreadSupplierEmails() {
   const mailbox = config.graph.mailbox;
-  const filter = encodeURIComponent(
-    `from/emailAddress/address eq 'ipswich@cnw.com.au' and isRead eq false and hasAttachments eq true`
-  );
+  const senderClauses = CNW_SENDERS.map((a) => `from/emailAddress/address eq '${a}'`).join(' or ');
+  const filter = encodeURIComponent(`(${senderClauses}) and isRead eq false and hasAttachments eq true`);
   const data = await graphGet(
-    `/users/${mailbox}/messages?$filter=${filter}&$select=id,subject,from,receivedDateTime&$top=20`
+    `/users/${mailbox}/messages?$filter=${filter}&$select=id,subject,from,receivedDateTime&$top=50`
   );
   return data.value || [];
 }
