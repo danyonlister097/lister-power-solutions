@@ -25,6 +25,7 @@
       Sort by
       <select id="inventory-sort">
         <option value="instock-name">In stock first</option>
+        <option value="recently">Added recently (last 30 days)</option>
         <option value="name-asc">Name (A&ndash;Z)</option>
         <option value="name-desc">Name (Z&ndash;A)</option>
         <option value="qty-asc">On hand (Low&ndash;High)</option>
@@ -36,8 +37,8 @@
     <label style="flex:0 0 120px;min-width:100px;">
       Per page
       <select id="inventory-page-size">
-        <option value="20" selected>20</option>
-        <option value="40">40</option>
+        <option value="20">20</option>
+        <option value="40" selected>40</option>
         <option value="80">80</option>
       </select>
     </label>
@@ -65,7 +66,7 @@
         <% items.forEach(item => {
              var low = item.reorder_threshold !== null && item.quantity_on_hand <= item.reorder_threshold;
         %>
-          <tr data-name="<%= item.name.toLowerCase() %>" data-category="<%= (item.category || '').toLowerCase() %>" data-qty="<%= item.quantity_on_hand %>" data-cost="<%= item.unit_cost !== null ? item.unit_cost : '' %>" data-supplier="<%= (item.supplier_code || '').toLowerCase() %>">
+          <tr data-name="<%= item.name.toLowerCase() %>" data-category="<%= (item.category || '').toLowerCase() %>" data-qty="<%= item.quantity_on_hand %>" data-cost="<%= item.unit_cost !== null ? item.unit_cost : '' %>" data-supplier="<%= (item.supplier_code || '').toLowerCase() %>" data-updated="<%= item.updated_at || '' %>">
             <% if (currentUser.role === 'admin') { %><td><input type="checkbox" class="item-select" value="<%= item.id %>" aria-label="Select <%= item.name %>"></td><% } %>
             <td><a href="/inventory/<%= item.id %>"><%= item.name %></a></td>
             <td class="text-muted" style="font-size:0.85em;font-family:monospace;"><%= item.supplier_code || '—' %></td>
@@ -153,6 +154,7 @@
               input.value = cb.value;
               bulkForm.appendChild(input);
             });
+            if (window.invSaveState) window.invSaveState();
             bulkForm.submit();
           });
         });
@@ -197,7 +199,17 @@
         });
 
         var mode = sortSelect.value;
-        if (mode === 'instock-name') {
+        if (mode === 'recently') {
+          var cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - 30);
+          filtered = filtered.filter(function (row) {
+            var upd = row.getAttribute('data-updated');
+            return upd && new Date(upd) >= cutoff;
+          });
+          filtered.sort(function (a, b) {
+            return new Date(b.getAttribute('data-updated')) - new Date(a.getAttribute('data-updated'));
+          });
+        } else if (mode === 'instock-name') {
           filtered.sort(function (a, b) {
             var aqty = parseFloat(a.getAttribute('data-qty')) || 0;
             var bqty = parseFloat(b.getAttribute('data-qty')) || 0;
@@ -262,6 +274,35 @@
         pageInfo.textContent = filtered.length ? 'Page ' + currentPage + ' of ' + totalPages : 'No items';
         prevBtn.disabled = currentPage <= 1;
         nextBtn.disabled = currentPage >= totalPages;
+      }
+
+      // Persist search/filter state across page reloads triggered by delete/
+      // duplicate so the user lands back where they were.
+      var STATE_KEY = 'inv-state';
+      var RESTORE_KEY = 'inv-restore';
+
+      function saveState() {
+        sessionStorage.setItem(STATE_KEY, JSON.stringify({
+          search: searchInput.value,
+          category: categorySelect.value,
+          sort: sortSelect.value,
+          pageSize: pageSizeSelect.value,
+          page: currentPage
+        }));
+        sessionStorage.setItem(RESTORE_KEY, '1');
+      }
+      window.invSaveState = saveState;
+
+      if (sessionStorage.getItem(RESTORE_KEY) === '1') {
+        sessionStorage.removeItem(RESTORE_KEY);
+        try {
+          var saved = JSON.parse(sessionStorage.getItem(STATE_KEY) || '{}');
+          if (saved.search !== undefined) searchInput.value = saved.search;
+          if (saved.category !== undefined) categorySelect.value = saved.category;
+          if (saved.sort !== undefined) sortSelect.value = saved.sort;
+          if (saved.pageSize !== undefined) pageSizeSelect.value = saved.pageSize;
+          if (saved.page !== undefined) currentPage = saved.page;
+        } catch (e) {}
       }
 
       searchInput.addEventListener('input', function () { currentPage = 1; render(); });
@@ -331,6 +372,7 @@
         }
 
         if (action === 'duplicate') {
+          if (window.invSaveState) window.invSaveState();
           duplicateForm.action = '/inventory/' + itemId + '/duplicate';
           duplicateForm.submit();
           return;
@@ -338,6 +380,7 @@
 
         if (action === 'delete') {
           window.showConfirm('Are you sure?', 'Delete \'' + itemName + '\'? Only possible if it has no allocation history.', function () {
+            if (window.invSaveState) window.invSaveState();
             deleteForm.action = '/inventory/' + itemId + '/delete';
             deleteForm.submit();
           });
