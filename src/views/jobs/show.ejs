@@ -60,19 +60,6 @@
 </div>
 
 <div class="card">
-  <h2>Update status</h2>
-  <form method="post" action="/jobs/<%= job.id %>/status" class="form-row form-row-2" data-preserve-scroll>
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <select name="status">
-      <% STATUSES.forEach(s => { %>
-        <option value="<%= s %>" <%= job.status === s ? 'selected' : '' %>><%= s.replace('_', ' ') %></option>
-      <% }) %>
-    </select>
-    <button type="submit" class="btn btn-primary">Update status</button>
-  </form>
-</div>
-
-<div class="card">
   <h2>Photos</h2>
   <% if (attachments.length === 0) { %>
     <div class="empty-state"><%= job.photos_na ? 'N/A — no photos required for this job.' : 'No photos yet.' %></div>
@@ -379,4 +366,16 @@
     <% } %>
   </div>
 <% } %>
+<div class="card">
+  <h2>Update status</h2>
+  <form method="post" action="/jobs/<%= job.id %>/status" class="form-row form-row-2" data-preserve-scroll>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <select name="status">
+      <% STATUSES.forEach(s => { %>
+        <option value="<%= s %>" <%= job.status === s ? 'selected' : '' %>><%= s.replace('_', ' ') %></option>
+      <% }) %>
+    </select>
+    <button type="submit" class="btn btn-primary">Update status</button>
+  </form>
+</div>
 <%- include('../partials/footer') %>
