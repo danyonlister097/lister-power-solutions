@@ -184,7 +184,7 @@
     </form>
     <script>
       (function () {
-        var items = <%- JSON.stringify(inventoryItems.map((i) => ({ id: i.id, name: i.name, unit: i.unit, qty: i.quantity_on_hand }))) %>;
+        var items = <%- JSON.stringify(inventoryItems.map((i) => ({ id: i.id, name: i.name, code: i.supplier_code || '', unit: i.unit, qty: i.quantity_on_hand }))) %>;
         var search = document.getElementById('stock-item-search');
         var hiddenId = document.getElementById('stock-item-id');
         var results = document.getElementById('stock-item-results');
@@ -200,7 +200,10 @@
           var q = search.value.trim().toLowerCase();
           if (!q) return closeResults();
 
-          var matches = items.filter(function (i) { return i.name.toLowerCase().indexOf(q) !== -1; }).slice(0, 15);
+          var matches = items.filter(function (i) {
+            return i.name.toLowerCase().indexOf(q) !== -1 ||
+              (i.code && i.code.toLowerCase().indexOf(q) !== -1);
+          }).slice(0, 15);
           if (!matches.length) {
             results.innerHTML = '<div class="autocomplete-empty">No matching items</div>';
             results.hidden = false;
@@ -210,7 +213,9 @@
           results.innerHTML = matches
             .map(function (i) {
               return '<div class="autocomplete-result" data-id="' + i.id + '" data-name="' + i.name.replace(/"/g, '&quot;') + '">' +
-                i.name + ' <span class="autocomplete-meta">(' + i.qty + ' ' + i.unit + ' on hand)</span></div>';
+                i.name +
+                (i.code ? ' <span class="autocomplete-meta">' + i.code + '</span>' : '') +
+                ' <span class="autocomplete-meta">(' + i.qty + ' ' + i.unit + ' on hand)</span></div>';
             })
             .join('');
           results.hidden = false;
