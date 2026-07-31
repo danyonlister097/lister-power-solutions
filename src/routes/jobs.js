@@ -1128,7 +1128,7 @@ router.post(
 
     setFlash(req, 'success', `Job "${job.title}" deleted.`);
     const returnTo = typeof req.body.returnTo === 'string' && req.body.returnTo.startsWith('/') ? req.body.returnTo : null;
-    res.redirect(returnTo || homeRoute(req.user));
+    res.redirect(returnTo || '/jobs');
   })
 );
 

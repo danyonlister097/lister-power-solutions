@@ -76,17 +76,37 @@
       <div class="section-heading"><%= day %></div>
     <% }
 %>
-    <a class="list-item" href="/jobs/<%= j.id %>">
-      <span>
-        <span class="list-item-title"><%= j.title %></span><br>
-        <span class="list-item-meta">
-          <%= j.customer_name %>
-          <% if (j.all_day) { %> &middot; All day
-          <% } else if (j.scheduled_start) { %> &middot; <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) %><% } %>
-          <% if (j.assigneeNames) { %> &middot; <%= j.assigneeNames %><% } %>
+    <div class="list-item row-menu-hover-target" style="padding:0;gap:0;">
+      <a href="/jobs/<%= j.id %>" style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1rem;gap:0.5rem;text-decoration:none;color:inherit;min-width:0;">
+        <span style="min-width:0;">
+          <span class="list-item-title"><%= j.title %></span><br>
+          <span class="list-item-meta">
+            <%= j.customer_name %>
+            <% if (j.all_day) { %> &middot; All day
+            <% } else if (j.scheduled_start) { %> &middot; <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) %><% } %>
+            <% if (j.assigneeNames) { %> &middot; <%= j.assigneeNames %><% } %>
+          </span>
         </span>
-      </span>
-      <span class="badge badge-<%= j.status %>"><%= j.status.replace('_', ' ') %></span>
-    </a>
+        <span class="badge badge-<%= j.status %>"><%= j.status.replace('_', ' ') %></span>
+      </a>
+      <% if (isAdmin) { %>
+      <div class="row-menu-cell" style="padding-right:0.5rem;position:relative;">
+        <button class="row-menu-btn" aria-label="More actions" aria-expanded="false">⋮</button>
+        <div class="context-menu" hidden>
+          <a class="context-menu-item" href="/jobs/<%= j.id %>/edit">Edit</a>
+          <form method="post" action="/jobs/<%= j.id %>/duplicate" style="margin:0;">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="returnTo" value="/jobs?range=<%= range %>&status=<%= status %>&assignedTo=<%= assignedTo %>">
+            <button type="submit" class="context-menu-item">Duplicate</button>
+          </form>
+          <form method="post" action="/jobs/<%= j.id %>/delete" data-confirm="Delete this job? This cannot be undone." style="margin:0;">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="returnTo" value="/jobs?range=<%= range %>&status=<%= status %>&assignedTo=<%= assignedTo %>">
+            <button type="submit" class="context-menu-item context-menu-danger">Delete</button>
+          </form>
+        </div>
+      </div>
+      <% } %>
+    </div>
 <% }) } %>
 <%- include('../partials/footer') %>
