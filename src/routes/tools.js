@@ -22,8 +22,4 @@ router.get('/breaker-sizing', (req, res) => {
   res.render('tools/breaker-sizing', { title: 'Circuit Breaker Sizing Calculator' });
 });
 
-router.get('/max-demand', (req, res) => {
-  res.render('tools/max-demand', { title: 'Maximum Demand Calculator' });
-});
-
 module.exports = router;
