@@ -146,7 +146,18 @@ router.get(
 
     const techs = isAdmin ? await db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY sort_order, name').all() : [];
 
-    res.render('jobs/list', { title: 'Jobs', jobs, techs, status, range, assignedTo, isAdmin, STATUSES });
+    // Status counters — scoped to the same assignee filter but across all time/status
+    const countRows = isAdmin && !assignedTo
+      ? await db.prepare('SELECT status, COUNT(*) AS n FROM jobs GROUP BY status').all()
+      : await db.prepare(
+          `SELECT jobs.status, COUNT(*) AS n FROM jobs
+           JOIN job_assignees ja ON ja.job_id = jobs.id AND ja.user_id = @uid
+           GROUP BY jobs.status`
+        ).all({ uid: isAdmin ? Number(assignedTo) : req.user.id });
+    const statusCounts = Object.fromEntries(STATUSES.map((s) => [s, 0]));
+    for (const row of countRows) if (statusCounts[row.status] !== undefined) statusCounts[row.status] = Number(row.n);
+
+    res.render('jobs/list', { title: 'Jobs', jobs, techs, status, range, assignedTo, isAdmin, STATUSES, statusCounts });
   })
 );
 

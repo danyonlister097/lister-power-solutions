@@ -9,6 +9,29 @@
   <% } %>
 </div>
 
+<%
+  const statMeta = {
+    unscheduled: { label: 'Unscheduled', cls: 'leave-stat-pending' },
+    scheduled:   { label: 'Scheduled',   cls: '' },
+    in_progress: { label: 'In Progress', cls: 'leave-stat-pending' },
+    completed:   { label: 'Completed',   cls: 'leave-stat-approved' },
+    cancelled:   { label: 'Cancelled',   cls: 'leave-stat-declined' },
+  };
+%>
+<div class="leave-stats" style="margin-bottom:1rem;flex-wrap:nowrap;">
+  <% STATUSES.forEach(s => {
+    const meta = statMeta[s] || { label: s, cls: '' };
+    const isActive = status === s;
+  %>
+    <a href="?range=all&status=<%= s %>&assignedTo=<%= assignedTo %>"
+       class="leave-stat <%= meta.cls %>"
+       style="text-decoration:none;<%= isActive ? 'outline:2px solid currentColor;outline-offset:2px;' : '' %>">
+      <span class="leave-stat-value"><%= statusCounts[s] %></span>
+      <span class="leave-stat-label"><%= meta.label %></span>
+    </a>
+  <% }) %>
+</div>
+
 <div class="filters">
   <a href="?range=upcoming&status=<%= status %>&assignedTo=<%= assignedTo %>" class="<%= range === 'upcoming' ? 'active' : '' %>">Upcoming</a>
   <a href="?range=today&status=<%= status %>&assignedTo=<%= assignedTo %>" class="<%= range === 'today' ? 'active' : '' %>">Today</a>
