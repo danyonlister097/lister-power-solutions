@@ -1,74 +1,204 @@
 <%- include('../partials/header', { title: 'Cable Sizing Calculator' }) %>
+<style>
+/* ── Layout grid ────────────────────────────────────────────── */
+.cs-input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+  align-items: start;
+  margin-bottom: 1rem;
+}
+.cs-results-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+  align-items: start;
+  margin-bottom: 1rem;
+}
+.cs-imp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+@media (max-width: 860px) {
+  .cs-input-grid   { grid-template-columns: 1fr 1fr; }
+  .cs-results-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 520px) {
+  .cs-input-grid   { grid-template-columns: 1fr; }
+  .cs-results-grid { grid-template-columns: 1fr; }
+  .cs-imp-grid     { grid-template-columns: 1fr; }
+}
+
+/* ── Larger form fields ─────────────────────────────────────── */
+.cs-card { padding: 1.25rem 1.5rem; }
+.cs-card h2 { font-size: 1rem; font-weight: 700; margin: 0 0 1rem; border-bottom: 2px solid var(--color-primary,#2980b9); padding-bottom: 0.4rem; color: var(--color-primary,#2980b9); }
+.cs-field { margin-bottom: 0.9rem; }
+.cs-field:last-child { margin-bottom: 0; }
+.cs-field label { display: block; font-size: 0.82rem; color: var(--color-text-muted,#666); margin-bottom: 0.3rem; font-weight: 500; }
+.cs-field input,
+.cs-field select { width: 100%; font-size: 0.95rem; padding: 0.5rem 0.6rem; box-sizing: border-box; }
+.cs-field .cs-inline { display: flex; gap: 0.5rem; }
+.cs-field .cs-inline input  { flex: 1; min-width: 0; }
+.cs-field .cs-inline select { flex: 0 0 auto; width: auto; }
+
+/* ── Custom method dropdown ─────────────────────────────────── */
+.method-select { position: relative; }
+.method-trigger {
+  display: flex; align-items: center; gap: 0.6rem;
+  border: 1px solid var(--color-border,#ccc); border-radius: 4px;
+  padding: 0.5rem 0.6rem; cursor: pointer; background: var(--color-background,#fff);
+  user-select: none; font-size: 0.95rem;
+}
+.method-trigger:hover { border-color: var(--color-primary,#2980b9); }
+.method-trigger svg { flex-shrink:0; border-radius:3px; display:block; width:52px; height:37px; }
+.method-trigger-label { flex:1; }
+.method-trigger-chevron { margin-left:auto; font-size:0.75rem; color:var(--color-text-muted,#888); }
+.method-dropdown {
+  display: none; position: absolute; left:0; right:0; top:calc(100% + 3px);
+  background: var(--color-background,#fff); border:1px solid var(--color-border,#ccc);
+  border-radius:4px; z-index:200; max-height:320px; overflow-y:auto;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.13);
+}
+.method-dropdown.open { display: block; }
+.method-option {
+  display:flex; align-items:center; gap:0.6rem;
+  padding:0.45rem 0.6rem; cursor:pointer; font-size:0.85rem;
+}
+.method-option:not(:last-child) { border-bottom:1px solid var(--color-border,#eee); }
+.method-option:hover { background:var(--color-background-alt,#f5f5f5); }
+.method-option.selected { background:var(--color-primary-tint,#e8f4fd); }
+.method-option svg { flex-shrink:0; border-radius:3px; display:block; width:52px; height:37px; }
+.method-option-label { font-weight:600; line-height:1.2; }
+.method-option-desc  { font-size:0.72rem; color:var(--color-text-muted,#777); margin-top:0.1rem; }
+
+/* ── Result tables ──────────────────────────────────────────── */
+.cs-kv { width:100%; border-collapse:collapse; font-size:0.9rem; }
+.cs-kv td { padding:0.5rem 0; }
+.cs-kv td:first-child { color:var(--color-text-muted,#666); }
+.cs-kv td:last-child  { text-align:right; font-weight:600; }
+.cs-kv tr:not(:last-child) td { border-bottom:1px solid var(--color-border,#eee); }
+
+/* ── All-sizes compact table ────────────────────────────────── */
+.cs-sizes-table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+.cs-sizes-table th {
+  text-align:left; padding:0.3rem 0.5rem;
+  font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.03em;
+  color:var(--color-text-muted,#777); border-bottom:2px solid var(--color-border,#ddd);
+  white-space:nowrap;
+}
+.cs-sizes-table td { padding:0.3rem 0.5rem; border-bottom:1px solid var(--color-border,#eee); white-space:nowrap; }
+.cs-sizes-table tr.cs-row-selected td { background:var(--color-primary-tint,#e8f4fd); font-weight:600; }
+.cs-sizes-table tr.cs-row-fail td { background:rgba(192,57,43,0.07); }
+.cs-sizes-table tr.cs-row-pass td { background:rgba(39,174,96,0.07); }
+.cs-cell-fail { color:var(--color-danger,#c0392b); font-weight:600; }
+.cs-cell-ok   { color:var(--color-success,#27ae60); font-weight:600; }
+.cs-cell-warn { color:var(--color-warning,#e67e22); font-weight:600; }
+.cs-show-more-row td { text-align:center; padding:0.4rem; border:none; }
+</style>
+
 <div class="page-header">
   <h1>Cable Sizing Calculator</h1>
   <a class="btn btn-secondary btn-sm" href="/tools">All tools</a>
 </div>
 
-<div class="flash flash-error" style="margin-bottom: 1.25rem;">
-  <strong>Reference tool only.</strong> Figures are indicative values in the style of AS/NZS 3008.1.1 (copper/aluminium conductors, PVC/XLPE insulation). Always verify the final cable selection against the current official AS/NZS 3008.1.1 and AS/NZS 3000 standards, or a current manufacturer selection guide, before specifying or installing.
+<div class="flash flash-error" style="margin-bottom:1.25rem;">
+  <strong>Reference tool only.</strong> Indicative values based on AS/NZS 3008.1.1 (copper/aluminium, PVC/XLPE). Always verify against current AS/NZS 3008.1.1 and AS/NZS 3000 before specifying or installing.
 </div>
 
-<div class="card card-narrow">
-  <h2 class="leave-form-title">Load &amp; supply</h2>
-  <div class="form-row form-row-2">
-    <label>
-      Design current (A)
-      <input type="number" id="cs-current" step="0.1" min="0.1" value="20">
-    </label>
-    <label>
-      Phase
+<!-- ============================================================ INPUTS -->
+<div class="cs-input-grid">
+
+  <!-- Load & supply -->
+  <div class="card cs-card">
+    <h2>Load &amp; supply</h2>
+    <div class="cs-field">
+      <label>Rating</label>
+      <div class="cs-inline">
+        <input type="number" id="cs-rating" step="0.1" min="0.1" value="63">
+        <select id="cs-rating-unit">
+          <option value="A">A</option>
+          <option value="kW">kW</option>
+        </select>
+      </div>
+    </div>
+    <div id="cs-pf-row" class="cs-field" style="display:none;">
+      <label>Power factor</label>
+      <input type="number" id="cs-pf" step="0.01" min="0.1" max="1.0" value="0.9">
+    </div>
+    <div class="cs-field">
+      <label>Phase</label>
       <select id="cs-phase">
         <option value="1">Single phase</option>
-        <option value="3">Three phase</option>
+        <option value="3" selected>3 phase AC</option>
       </select>
-    </label>
+    </div>
+    <div class="cs-field">
+      <label>Voltage (V)</label>
+      <input type="number" id="cs-voltage" step="1" min="1" value="400">
+    </div>
+    <div class="cs-field">
+      <label>Cable distance, one-way (m)</label>
+      <input type="number" id="cs-length" step="0.5" min="1" value="40">
+    </div>
+    <div class="cs-field">
+      <label>Max allowable voltage drop (%)</label>
+      <input type="number" id="cs-vdrop" step="0.1" min="0.5" max="10" value="3">
+    </div>
   </div>
-  <div class="form-row form-row-2">
-    <label>
-      Nominal voltage (V)
-      <input type="number" id="cs-voltage" step="1" value="230">
-    </label>
-    <label>
-      Cable length, one-way (m)
-      <input type="number" id="cs-length" step="0.5" min="1" value="20">
-    </label>
-  </div>
-  <label>
-    Max allowable voltage drop (%)
-    <input type="number" id="cs-vdrop" step="0.1" min="0.5" max="10" value="5">
-  </label>
-</div>
 
-<div class="card card-narrow">
-  <h2 class="leave-form-title">Cable &amp; installation</h2>
-  <div class="form-row form-row-2">
-    <label>
-      Conductor material
+  <!-- Cable -->
+  <div class="card cs-card">
+    <h2>Cable</h2>
+    <div class="cs-field">
+      <label>Insulation</label>
+      <select id="cs-insulation">
+        <option value="pvc">V-90 Standard 75&deg;C</option>
+        <option value="xlpe">X-90 XLPE 90&deg;C</option>
+      </select>
+    </div>
+    <div class="cs-field">
+      <label>Conductor</label>
       <select id="cs-conductor">
         <option value="copper">Copper</option>
         <option value="aluminium">Aluminium</option>
       </select>
-    </label>
-    <label>
-      Insulation
-      <select id="cs-insulation">
-        <option value="pvc">PVC (75&deg;C) &mdash; V75</option>
-        <option value="xlpe">XLPE (90&deg;C) &mdash; V90/X90</option>
+    </div>
+    <div class="cs-field">
+      <label>Active size</label>
+      <select id="cs-active-size">
+        <option value="-1">Auto</option>
       </select>
-    </label>
+    </div>
+    <div class="cs-field">
+      <label>Earth size (CPC)</label>
+      <select id="cs-earth-size">
+        <option value="-1">Auto</option>
+      </select>
+      <div id="cs-earth-auto-note" style="display:none;font-size:0.75rem;color:var(--color-warning,#e67e22);margin-top:0.25rem;">
+        Cannot select earth size when active size is Auto
+      </div>
+    </div>
   </div>
-  <label>
-    Installation method
-    <select id="cs-method">
-      <option value="enclosed">Enclosed &mdash; conduit/duct in wall or ceiling</option>
-      <option value="clipped">Clipped direct / surface mounted</option>
-      <option value="air">In free air, spaced from surface</option>
-      <option value="buried">Direct buried in ground</option>
-    </select>
-  </label>
-  <div class="form-row form-row-2">
-    <label id="cs-ambient-field">
-      Ambient temperature (&deg;C)
+
+  <!-- Installation -->
+  <div class="card cs-card">
+    <h2>Installation</h2>
+    <div class="cs-field">
+      <label>Installation method &mdash; AS/NZS 3008.1.1</label>
+      <div class="method-select" id="cs-method-select">
+        <div class="method-trigger" id="cs-method-trigger">
+          <svg id="cs-method-trigger-icon" viewBox="0 0 80 56" xmlns="http://www.w3.org/2000/svg"></svg>
+          <span class="method-trigger-label" id="cs-method-trigger-label"></span>
+          <span class="method-trigger-chevron">&#9660;</span>
+        </div>
+        <div class="method-dropdown" id="cs-method-dropdown"></div>
+      </div>
+    </div>
+
+    <div id="cs-ambient-section" class="cs-field">
+      <label>Ambient temperature (&deg;C)</label>
       <select id="cs-ambient">
         <option value="25">25</option>
         <option value="30">30</option>
@@ -78,158 +208,564 @@
         <option value="50">50</option>
         <option value="55">55</option>
       </select>
-    </label>
-    <label id="cs-groundtemp-field" style="display:none;">
-      Ground temperature (&deg;C)
-      <select id="cs-groundtemp">
-        <option value="15">15</option>
-        <option value="20">20</option>
-        <option value="25" selected>25</option>
-        <option value="30">30</option>
-        <option value="35">35</option>
-        <option value="40">40</option>
-      </select>
-    </label>
-    <label id="cs-soil-field" style="display:none;">
-      Soil thermal resistivity (K.m/W)
-      <select id="cs-soil">
-        <option value="0.8">0.8</option>
-        <option value="1.0">1.0</option>
-        <option value="1.2" selected>1.2 (standard)</option>
-        <option value="1.5">1.5</option>
-        <option value="2.0">2.0</option>
-        <option value="2.5">2.5</option>
-        <option value="3.0">3.0</option>
-      </select>
-    </label>
-    <label>
-      Circuits grouped together
+    </div>
+
+    <div id="cs-buried-section" style="display:none;">
+      <div class="cs-field">
+        <label>Ground temperature (&deg;C)</label>
+        <select id="cs-groundtemp">
+          <option value="15">15</option>
+          <option value="20">20</option>
+          <option value="25" selected>25</option>
+          <option value="30">30</option>
+          <option value="35">35</option>
+          <option value="40">40</option>
+        </select>
+      </div>
+      <div class="cs-field">
+        <label>Soil resistivity (K.m/W)</label>
+        <select id="cs-soil">
+          <option value="0.8">0.8</option>
+          <option value="1.0">1.0</option>
+          <option value="1.2" selected>1.2 (standard)</option>
+          <option value="1.5">1.5</option>
+          <option value="2.0">2.0</option>
+          <option value="2.5">2.5</option>
+          <option value="3.0">3.0</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="cs-field">
+      <label>Circuits grouped together</label>
       <input type="number" id="cs-grouping" step="1" min="1" max="20" value="1">
-    </label>
+    </div>
+  </div>
+
+</div><!-- /cs-input-grid -->
+
+<!-- ============================================================ NO SOLUTION -->
+<div id="cs-no-solution" style="display:none;margin-bottom:1rem;">
+  <div class="flash flash-error">
+    No standard size up to 240&nbsp;mm&sup2; satisfies both requirements. Consider parallel runs, a shorter route, or a reduced voltage-drop allowance.
   </div>
 </div>
 
-<div class="card">
-  <h2>Result</h2>
-  <div id="cs-result-summary"></div>
+<!-- ============================================================ RESULTS -->
+<div id="cs-results-wrap" style="display:none;">
 
-  <div class="section-heading">All standard sizes</div>
-  <div class="timesheet-scroll">
-    <table class="timesheet-table" id="cs-result-table">
-      <thead>
-        <tr>
-          <th>Size (mm&sup2;)</th>
-          <th>Derated ampacity (A)</th>
-          <th>Current OK?</th>
-          <th>Voltage drop (V / %)</th>
-          <th>Drop OK?</th>
-        </tr>
-      </thead>
-      <tbody id="cs-result-body"></tbody>
-    </table>
+  <!-- Stat boxes -->
+  <div class="card cs-card" style="margin-bottom:1rem;">
+    <h2>Result</h2>
+    <div class="leave-stats" id="cs-stat-boxes"></div>
+    <p class="text-muted" id="cs-governed-line" style="margin:0.75rem 0 0;font-size:0.85rem;"></p>
   </div>
-</div>
+
+  <!-- 3-column results -->
+  <div class="cs-results-grid">
+
+    <div class="card cs-card">
+      <h2>Selected cable</h2>
+      <table class="cs-kv" id="cs-cable-table"></table>
+    </div>
+
+    <div class="card cs-card">
+      <h2>Current rating</h2>
+      <table class="cs-kv" id="cs-current-table"></table>
+    </div>
+
+    <div class="card cs-card">
+      <h2>Voltage drop</h2>
+      <table class="cs-kv" id="cs-vdrop-table"></table>
+    </div>
+
+  </div>
+
+  <!-- 2-column impedance -->
+  <div class="cs-imp-grid">
+
+    <div class="card cs-card">
+      <h2>Impedance &mdash; active / neutral cores</h2>
+      <p class="text-muted" style="font-size:0.78rem;margin:0 0 0.6rem;">AS/NZS 3008 Tables 4.7(A) col&nbsp;5 &amp; 4.1(B) col&nbsp;8 at 75&deg;C</p>
+      <table class="cs-kv" id="cs-imp-active-table"></table>
+    </div>
+
+    <div class="card cs-card">
+      <h2>Impedance &mdash; earth core (CPC)</h2>
+      <p class="text-muted" style="font-size:0.78rem;margin:0 0 0.6rem;">Copper conductor, 75&deg;C</p>
+      <table class="cs-kv" id="cs-imp-earth-table"></table>
+    </div>
+
+  </div>
+
+  <!-- All sizes table -->
+  <div class="card cs-card">
+    <details>
+      <summary style="cursor:pointer;font-weight:700;font-size:1rem;padding:0.25rem 0;list-style:none;display:flex;align-items:center;gap:0.5rem;color:var(--color-primary,#2980b9);">
+        <span id="cs-sizes-icon">&#9654;</span> All standard sizes
+      </summary>
+      <div style="margin-top:1rem;overflow-x:auto;">
+        <table class="cs-sizes-table">
+          <thead>
+            <tr>
+              <th>Active (mm&sup2;)</th>
+              <th>Earth (mm&sup2;)</th>
+              <th>Derated (A)</th>
+              <th>VD (V)</th>
+              <th>VD (%)</th>
+            </tr>
+          </thead>
+          <tbody id="cs-all-body"></tbody>
+        </table>
+      </div>
+    </details>
+  </div>
+
+</div><!-- /cs-results-wrap -->
 
 <script src="/js/electrical-tables.js"></script>
 <script src="/js/cable-sizing.js"></script>
 <script>
-  (function () {
-    var els = {
-      current: document.getElementById('cs-current'),
-      phase: document.getElementById('cs-phase'),
-      voltage: document.getElementById('cs-voltage'),
-      length: document.getElementById('cs-length'),
-      vdrop: document.getElementById('cs-vdrop'),
-      conductor: document.getElementById('cs-conductor'),
-      insulation: document.getElementById('cs-insulation'),
-      method: document.getElementById('cs-method'),
-      ambient: document.getElementById('cs-ambient'),
-      groundtemp: document.getElementById('cs-groundtemp'),
-      soil: document.getElementById('cs-soil'),
-      grouping: document.getElementById('cs-grouping'),
-    };
-    var ambientField = document.getElementById('cs-ambient-field');
-    var groundtempField = document.getElementById('cs-groundtemp-field');
-    var soilField = document.getElementById('cs-soil-field');
-    var summary = document.getElementById('cs-result-summary');
-    var body = document.getElementById('cs-result-body');
+(function () {
+  var T = window.ElectricalTables;
 
-    function fmt(n, dp) {
-      return Number.isFinite(n) ? n.toFixed(dp === undefined ? 2 : dp) : '—';
-    }
+  // ── Installation methods ────────────────────────────────────────────────
+  var METHODS = [
+    {
+      id: 'spaced-air', tableMethod: 'air', thermalFactor: 1.0, buried: false,
+      label: 'Spaced from surface',
+      desc: 'Ladder, tray or catenary wire',
+      icon: '<svg viewBox="0 0 80 56" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="56" fill="#e8f0f8"/><rect y="44" width="80" height="12" fill="#a0a0a0"/><line x1="-8" y1="56" x2="17" y2="44" stroke="#777" stroke-width="1.5"/><line x1="14" y1="56" x2="39" y2="44" stroke="#777" stroke-width="1.5"/><line x1="36" y1="56" x2="61" y2="44" stroke="#777" stroke-width="1.5"/><line x1="58" y1="56" x2="83" y2="44" stroke="#777" stroke-width="1.5"/><circle cx="40" cy="22" r="13" fill="#3d3d3d"/><circle cx="34" cy="23" r="5" fill="#e67e22"/><circle cx="46" cy="23" r="5" fill="#e67e22"/></svg>'
+    },
+    {
+      id: 'touching', tableMethod: 'clipped', thermalFactor: 1.0, buried: false,
+      label: 'Touching surface',
+      desc: 'Wall, floor, ceiling, tray or ventilated trench',
+      icon: '<svg viewBox="0 0 80 56" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="56" fill="#e8f0f8"/><rect y="35" width="80" height="21" fill="#a0a0a0"/><line x1="-5" y1="47" x2="20" y2="35" stroke="#777" stroke-width="1.5"/><line x1="18" y1="47" x2="43" y2="35" stroke="#777" stroke-width="1.5"/><line x1="41" y1="47" x2="66" y2="35" stroke="#777" stroke-width="1.5"/><line x1="64" y1="47" x2="89" y2="35" stroke="#777" stroke-width="1.5"/><circle cx="40" cy="22" r="13" fill="#3d3d3d"/><circle cx="34" cy="23" r="5" fill="#e67e22"/><circle cx="46" cy="23" r="5" fill="#e67e22"/></svg>'
+    },
+    {
+      id: 'sun', tableMethod: 'clipped', thermalFactor: 0.9, buried: false,
+      label: 'Exposed to sun',
+      desc: 'Any surface, direct solar radiation',
+      icon: '<svg viewBox="0 0 80 56" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="56" fill="#e8f0f8"/><rect y="35" width="80" height="21" fill="#a0a0a0"/><line x1="-5" y1="47" x2="20" y2="35" stroke="#777" stroke-width="1.5"/><line x1="18" y1="47" x2="43" y2="35" stroke="#777" stroke-width="1.5"/><line x1="41" y1="47" x2="66" y2="35" stroke="#777" stroke-width="1.5"/><circle cx="35" cy="22" r="13" fill="#3d3d3d"/><circle cx="29" cy="23" r="5" fill="#e67e22"/><circle cx="41" cy="23" r="5" fill="#e67e22"/><circle cx="67" cy="9" r="6" fill="#f1c40f"/><line x1="67" y1="1" x2="67" y2="-1" stroke="#f1c40f" stroke-width="2"/><line x1="74" y1="2" x2="77" y2="0" stroke="#f1c40f" stroke-width="2"/><line x1="77" y1="9" x2="80" y2="9" stroke="#f1c40f" stroke-width="2"/><line x1="74" y1="16" x2="77" y2="19" stroke="#f1c40f" stroke-width="2"/><line x1="60" y1="2" x2="57" y2="0" stroke="#f1c40f" stroke-width="2"/><line x1="57" y1="9" x2="54" y2="9" stroke="#f1c40f" stroke-width="2"/></svg>'
+    },
+    {
+      id: 'enclosure-air', tableMethod: 'enclosed', thermalFactor: 1.0, buried: false,
+      label: 'Wiring enclosure in air',
+      desc: 'Conduit or trench with removable covers',
+      icon: '<svg viewBox="0 0 80 56" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="56" fill="#e8f0f8"/><circle cx="40" cy="28" r="21" fill="#c8c8c8" stroke="#888" stroke-width="2.5"/><circle cx="40" cy="28" r="13" fill="#3d3d3d"/><circle cx="34" cy="29" r="5" fill="#e67e22"/><circle cx="46" cy="29" r="5" fill="#e67e22"/></svg>'
+    },
+    {
+      id: 'partial-enc', tableMethod: 'enclosed', thermalFactor: 0.8, buried: false,
+      label: 'Partial thermal insul., enclosed',
+      desc: 'Partially surrounded by insulation, in wiring enclosure',
+      icon: '<svg viewBox="0 0 80 56" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="56" fill="#e8f0f8"/><rect x="40" width="40" height="56" fill="#fde8e8"/><circle cx="40" cy="28" r="21" fill="none" stroke="#888" stroke-width="2.5"/><path d="M40 7 A21 21 0 0 1 40 49 Z" fill="#f0a0a0" opacity="0.5"/><circle cx="40" cy="28" r="13" fill="#3d3d3d"/><circle cx="34" cy="29" r="5" fill="#e67e22"/><circle cx="46" cy="29" r="5" fill="#e67e22"/></svg>'
+    },
+    {
+      id: 'partial-open', tableMethod: 'enclosed', thermalFactor: 0.875, buried: false,
+      label: 'Partial thermal insul., open',
+      desc: 'Partially surrounded by insulation, unenclosed',
+      icon: '<svg viewBox="0 0 80 56" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="56" fill="#e8f0f8"/><rect x="40" width="40" height="56" fill="#fde8e8"/><circle cx="40" cy="28" r="13" fill="#3d3d3d"/><circle cx="34" cy="29" r="5" fill="#e67e22"/><circle cx="46" cy="29" r="5" fill="#e67e22"/></svg>'
+    },
+    {
+      id: 'full-enc', tableMethod: 'enclosed', thermalFactor: 0.6, buried: false,
+      label: 'Full thermal insul., enclosed',
+      desc: 'Completely surrounded by insulation, in wiring enclosure',
+      icon: '<svg viewBox="0 0 80 56" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="56" fill="#fde8e8"/><circle cx="40" cy="28" r="21" fill="#f0a0a0" stroke="#d07070" stroke-width="2.5"/><circle cx="40" cy="28" r="13" fill="#3d3d3d"/><circle cx="34" cy="29" r="5" fill="#e67e22"/><circle cx="46" cy="29" r="5" fill="#e67e22"/></svg>'
+    },
+    {
+      id: 'full-open', tableMethod: 'enclosed', thermalFactor: 0.58, buried: false,
+      label: 'Full thermal insul., open',
+      desc: 'Completely surrounded by insulation, unenclosed',
+      icon: '<svg viewBox="0 0 80 56" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="56" fill="#fde8e8"/><circle cx="40" cy="28" r="13" fill="#3d3d3d"/><circle cx="34" cy="29" r="5" fill="#e67e22"/><circle cx="46" cy="29" r="5" fill="#e67e22"/></svg>'
+    },
+    {
+      id: 'buried-direct', tableMethod: 'buried', thermalFactor: 1.0, buried: true,
+      label: 'Buried direct',
+      desc: 'Direct buried in soil or concrete',
+      icon: '<svg viewBox="0 0 80 56" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="56" fill="#8b5e3c"/><rect width="80" height="10" fill="#c8e6f7"/><rect y="8" width="80" height="7" fill="#5d8a3c"/><circle cx="40" cy="38" r="13" fill="#3d3d3d"/><circle cx="34" cy="39" r="5" fill="#e67e22"/><circle cx="46" cy="39" r="5" fill="#e67e22"/></svg>'
+    },
+    {
+      id: 'buried-enc', tableMethod: 'buried', thermalFactor: 1.0, buried: true,
+      label: 'Underground wiring enclosure',
+      desc: 'Buried conduit or pipe',
+      icon: '<svg viewBox="0 0 80 56" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="56" fill="#8b5e3c"/><rect width="80" height="10" fill="#c8e6f7"/><rect y="8" width="80" height="7" fill="#5d8a3c"/><circle cx="40" cy="38" r="17" fill="#a07040" stroke="#6b4a28" stroke-width="2.5"/><circle cx="40" cy="38" r="11" fill="#3d3d3d"/><circle cx="34.5" cy="39" r="4" fill="#e67e22"/><circle cx="45.5" cy="39" r="4" fill="#e67e22"/></svg>'
+    },
+  ];
 
-    function updateFieldVisibility() {
-      var buried = els.method.value === 'buried';
-      ambientField.style.display = buried ? 'none' : '';
-      groundtempField.style.display = buried ? '' : 'none';
-      soilField.style.display = buried ? '' : 'none';
-    }
+  var selectedMethodId = 'enclosure-air';
 
-    function render() {
-      updateFieldVisibility();
+  // Build custom icon dropdown
+  var triggerEl    = document.getElementById('cs-method-trigger');
+  var triggerIcon  = document.getElementById('cs-method-trigger-icon');
+  var triggerLabel = document.getElementById('cs-method-trigger-label');
+  var dropdownEl   = document.getElementById('cs-method-dropdown');
 
-      var input = {
-        current: Number.parseFloat(els.current.value) || 0,
-        phase: Number.parseInt(els.phase.value, 10),
-        voltage: Number.parseFloat(els.voltage.value) || 0,
-        length: Number.parseFloat(els.length.value) || 0,
-        maxVdropPct: Number.parseFloat(els.vdrop.value) || 5,
-        conductor: els.conductor.value,
-        insulation: els.insulation.value,
-        method: els.method.value,
-        ambient: Number.parseInt(els.ambient.value, 10),
-        groundTemp: Number.parseInt(els.groundtemp.value, 10),
-        soilResistivity: Number.parseFloat(els.soil.value),
-        circuitsGrouped: Number.parseInt(els.grouping.value, 10) || 1,
-      };
+  function setTriggerDisplay(m) {
+    triggerIcon.innerHTML = m.icon.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '');
+    triggerIcon.setAttribute('viewBox', '0 0 80 56');
+    triggerLabel.textContent = m.label;
+  }
 
-      var result = window.CableSizing.calculate(input);
+  METHODS.forEach(function (m) {
+    var opt = document.createElement('div');
+    opt.className = 'method-option' + (m.id === selectedMethodId ? ' selected' : '');
+    opt.setAttribute('data-mid', m.id);
+    opt.innerHTML = m.icon + '<div><div class="method-option-label">' + m.label +
+      '</div><div class="method-option-desc">' + m.desc + '</div></div>';
+    opt.addEventListener('click', function () {
+      selectMethod(m.id);
+      dropdownEl.classList.remove('open');
+    });
+    dropdownEl.appendChild(opt);
+  });
 
-      if (!result.recommended) {
-        summary.innerHTML =
-          '<div class="flash flash-error">No standard size up to 240mm&sup2; satisfies both the current rating and voltage drop requirements. Consider parallel runs, a shorter route, a lower voltage-drop allowance check, or specialist design advice.</div>';
-      } else {
-        var r = result.recommended;
-        summary.innerHTML =
-          '<div class="leave-stats">' +
-          '<div class="leave-stat leave-stat-approved"><span class="leave-stat-value">' + r.size + ' mm&sup2;</span><span class="leave-stat-label">Recommended size</span></div>' +
-          '<div class="leave-stat leave-stat-pending"><span class="leave-stat-value">' + fmt(r.deratedAmpacity, 1) + ' A</span><span class="leave-stat-label">Derated ampacity</span></div>' +
-          '<div class="leave-stat leave-stat-declined"><span class="leave-stat-value">' + fmt(r.vdropPct, 2) + '%</span><span class="leave-stat-label">Voltage drop at this size</span></div>' +
-          '</div>' +
-          '<p class="text-muted" style="margin-top:0.75rem;">Governed by: <strong>' + result.governedBy + '</strong> &middot; Total derating factor applied: ' + fmt(result.totalDerating, 3) +
-          ' (temperature ' + fmt(result.tempFactor, 3) + ' &times; grouping ' + fmt(result.groupFactor, 3) +
-          (input.method === 'buried' ? ' &times; soil ' + fmt(result.soilFactor, 3) : '') + ') &middot; Allowed voltage drop: ' + fmt(result.allowedDropVolts, 2) + ' V</p>';
+  setTriggerDisplay(METHODS.find(function (m) { return m.id === selectedMethodId; }));
+
+  triggerEl.addEventListener('click', function (e) {
+    e.stopPropagation();
+    dropdownEl.classList.toggle('open');
+  });
+  document.addEventListener('click', function () { dropdownEl.classList.remove('open'); });
+  dropdownEl.addEventListener('click', function (e) { e.stopPropagation(); });
+
+  // Details toggle icon
+  var detailsEl = document.querySelector('#cs-results-wrap details');
+  if (detailsEl) {
+    detailsEl.addEventListener('toggle', function () {
+      var icon = document.getElementById('cs-sizes-icon');
+      if (icon) icon.innerHTML = detailsEl.open ? '&#9660;' : '&#9654;';
+    });
+  }
+
+  // Populate active size select
+  var activeSizeEl = document.getElementById('cs-active-size');
+  T.SIZES.forEach(function (s, i) {
+    var opt = document.createElement('option');
+    opt.value = i; opt.textContent = s + ' mm²';
+    activeSizeEl.appendChild(opt);
+  });
+
+  // Earth size select — options rebuilt dynamically based on active size
+  var earthSizeEl   = document.getElementById('cs-earth-size');
+  var earthAutoNote = document.getElementById('cs-earth-auto-note');
+
+  // Unique standard earth sizes in order (from EARTH_SIZES values)
+  var EARTH_OPTIONS = T.SIZES.filter(function (s, i, arr) {
+    return T.EARTH_SIZES.indexOf(s) !== -1 && arr.indexOf(s) === i;
+  });
+
+  function populateEarthOptions(activeIdx) {
+    var current = earthSizeEl.value;
+    while (earthSizeEl.options.length > 1) earthSizeEl.remove(1); // keep Auto
+    var minEarth = activeIdx >= 0 ? T.EARTH_SIZES[activeIdx] : 0;
+    EARTH_OPTIONS.forEach(function (s) {
+      if (s >= minEarth) {
+        var opt = document.createElement('option');
+        opt.value = T.SIZES.indexOf(s);
+        opt.textContent = s + ' mm²';
+        earthSizeEl.appendChild(opt);
       }
+    });
+    // Restore previous selection if still valid, else fall back to Auto
+    if ([].slice.call(earthSizeEl.options).some(function (o) { return o.value === current; })) {
+      earthSizeEl.value = current;
+    } else {
+      earthSizeEl.value = '-1';
+    }
+  }
 
-      body.innerHTML = result.rows
-        .map(function (row) {
-          var isRecommended = result.recommended && row.size === result.recommended.size;
-          return (
-            '<tr' + (isRecommended ? ' style="background: var(--color-primary-tint);"' : '') + '>' +
-            '<td>' + row.size + (isRecommended ? ' <span class="badge badge-completed">recommended</span>' : '') + '</td>' +
-            '<td>' + fmt(row.deratedAmpacity, 1) + '</td>' +
-            '<td>' + (row.ampacityOk ? '&#10003;' : '&#10007;') + '</td>' +
-            '<td>' + fmt(row.vdropVolts, 2) + ' V / ' + fmt(row.vdropPct, 2) + '%</td>' +
-            '<td>' + (row.vdropOk ? '&#10003;' : '&#10007;') + '</td>' +
-            '</tr>'
-          );
-        })
-        .join('');
+  populateEarthOptions(-1);
+
+  var els = {
+    rating:     document.getElementById('cs-rating'),
+    ratingUnit: document.getElementById('cs-rating-unit'),
+    pf:         document.getElementById('cs-pf'),
+    phase:      document.getElementById('cs-phase'),
+    voltage:    document.getElementById('cs-voltage'),
+    length:     document.getElementById('cs-length'),
+    vdrop:      document.getElementById('cs-vdrop'),
+    insulation: document.getElementById('cs-insulation'),
+    conductor:  document.getElementById('cs-conductor'),
+    activeSize: activeSizeEl,
+    earthSize:  earthSizeEl,
+    ambient:    document.getElementById('cs-ambient'),
+    groundtemp: document.getElementById('cs-groundtemp'),
+    soil:       document.getElementById('cs-soil'),
+    grouping:   document.getElementById('cs-grouping'),
+  };
+
+  var pfRow      = document.getElementById('cs-pf-row');
+  var ambientSec = document.getElementById('cs-ambient-section');
+  var buriedSec  = document.getElementById('cs-buried-section');
+  var noSolution = document.getElementById('cs-no-solution');
+  var resultsWrap= document.getElementById('cs-results-wrap');
+
+  function getMethod() {
+    return METHODS.find(function (m) { return m.id === selectedMethodId; }) || METHODS[3];
+  }
+
+  function selectMethod(id) {
+    selectedMethodId = id;
+    var m = METHODS.find(function (x) { return x.id === id; });
+    if (m) setTriggerDisplay(m);
+    document.querySelectorAll('.method-option').forEach(function (opt) {
+      opt.classList.toggle('selected', opt.getAttribute('data-mid') === id);
+    });
+    updateVisibility();
+    render();
+  }
+
+  function updateVisibility() {
+    var buried = getMethod().buried;
+    var isKw   = els.ratingUnit.value === 'kW';
+    pfRow.style.display      = isKw ? '' : 'none';
+    ambientSec.style.display = buried ? 'none' : '';
+    buriedSec.style.display  = buried ? '' : 'none';
+  }
+
+  function getDesignCurrent() {
+    var rating = Number.parseFloat(els.rating.value) || 0;
+    if (els.ratingUnit.value === 'kW') {
+      var pf = Number.parseFloat(els.pf.value) || 0.9;
+      var v  = Number.parseFloat(els.voltage.value) || 1;
+      var ph = Number.parseInt(els.phase.value, 10);
+      return ph === 3
+        ? (rating * 1000) / (Math.sqrt(3) * v * pf)
+        : (rating * 1000) / (v * pf);
+    }
+    return rating;
+  }
+
+  function kvRows(rows) {
+    return rows.map(function (row, i) {
+      var last = i === rows.length - 1;
+      var bd = last ? '' : 'border-bottom:1px solid var(--color-border,#e0e0e0);';
+      return '<tr>' +
+        '<td style="padding:0.5rem 0;' + bd + 'color:var(--color-text-muted,#777);">' + row[0] + '</td>' +
+        '<td style="padding:0.5rem 0;text-align:right;font-weight:600;' + bd + '">' + row[1] + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function fmt(n, dp) {
+    return Number.isFinite(n) ? n.toFixed(dp === undefined ? 2 : dp) : '—';
+  }
+
+  function render() {
+    var method    = getMethod();
+    var current   = getDesignCurrent();
+    var voltage   = Number.parseFloat(els.voltage.value) || 0;
+    var forcedIdx = Number.parseInt(els.activeSize.value, 10);
+
+    var activeIsAuto = forcedIdx < 0;
+    populateEarthOptions(activeIsAuto ? -1 : forcedIdx);
+    earthSizeEl.disabled = activeIsAuto;
+    earthAutoNote.style.display = activeIsAuto ? 'block' : 'none';
+    if (activeIsAuto) earthSizeEl.value = '-1';
+    var forcedEarthIdx = activeIsAuto ? -1 : Number.parseInt(earthSizeEl.value, 10);
+
+    var input = {
+      current:              current,
+      phase:                Number.parseInt(els.phase.value, 10),
+      voltage:              voltage,
+      length:               Number.parseFloat(els.length.value) || 0,
+      maxVdropPct:          Number.parseFloat(els.vdrop.value) || 3,
+      conductor:            els.conductor.value,
+      insulation:           els.insulation.value,
+      method:               method.tableMethod,
+      installThermalFactor: method.thermalFactor,
+      ambient:              Number.parseInt(els.ambient.value, 10),
+      groundTemp:           Number.parseInt(els.groundtemp.value, 10),
+      soilResistivity:      Number.parseFloat(els.soil.value),
+      circuitsGrouped:      Number.parseInt(els.grouping.value, 10) || 1,
+      forcedSizeIdx:        forcedIdx,
+      forcedEarthSizeIdx:   forcedEarthIdx,
+    };
+
+    var result = window.CableSizing.calculate(input);
+    var rec    = result.recommended;
+
+    if (!rec) {
+      noSolution.style.display  = '';
+      resultsWrap.style.display = 'none';
+      return;
+    }
+    noSolution.style.display  = 'none';
+    resultsWrap.style.display = '';
+    if (detailsEl && !detailsEl.open) detailsEl.open = true;
+
+    var earthSize = T.SIZES[result.earthIdx];
+
+    var ampWarn = rec.ampacityOk ? '' : ' <span class="badge" style="background:#c0392b;color:#fff;font-size:0.7rem;">exceeds rating</span>';
+    var vdWarn  = rec.vdropOk   ? '' : ' <span class="badge" style="background:#c0392b;color:#fff;font-size:0.7rem;">exceeds limit</span>';
+
+    document.getElementById('cs-stat-boxes').innerHTML =
+      '<div class="leave-stat leave-stat-approved">' +
+        '<span class="leave-stat-value">' + rec.size + ' mm²</span>' +
+        '<span class="leave-stat-label">Active size</span>' +
+      '</div>' +
+      '<div class="leave-stat" style="border-left:4px solid #2980b9;">' +
+        '<span class="leave-stat-value" style="color:#2980b9;">' + earthSize + ' mm²</span>' +
+        '<span class="leave-stat-label">Earth CPC</span>' +
+      '</div>' +
+      '<div class="leave-stat leave-stat-pending">' +
+        '<span class="leave-stat-value">' + fmt(rec.deratedAmpacity, 1) + ' A</span>' +
+        '<span class="leave-stat-label">Derated rating' + ampWarn + '</span>' +
+      '</div>' +
+      '<div class="leave-stat leave-stat-declined">' +
+        '<span class="leave-stat-value">' + fmt(rec.vdropPct, 2) + '%</span>' +
+        '<span class="leave-stat-label">Voltage drop' + vdWarn + '</span>' +
+      '</div>';
+
+    var installLine = method.thermalFactor < 1
+      ? ' &times; install ' + fmt(result.installFactor, 2) : '';
+    document.getElementById('cs-governed-line').innerHTML =
+      'Governed by: <strong>' + result.governedBy + '</strong>' +
+      ' &nbsp;&middot;&nbsp; Derating: ' + fmt(result.totalDerating, 3) +
+      ' (temp ' + fmt(result.tempFactor, 3) +
+      ' &times; grouping ' + fmt(result.groupFactor, 3) +
+      (method.buried ? ' &times; soil ' + fmt(result.soilFactor, 3) : '') +
+      installLine + ')' +
+      ' &nbsp;&middot;&nbsp; Allowed: ' + fmt(result.allowedDropVolts, 2) + ' V';
+
+    var cableRows = [];
+    if (input.phase === 3) {
+      cableRows.push(['Phase 1 core', rec.size + ' mm²']);
+      cableRows.push(['Phase 2 core', rec.size + ' mm²']);
+      cableRows.push(['Phase 3 core', rec.size + ' mm²']);
+      cableRows.push(['Neutral core',  rec.size + ' mm²']);
+    } else {
+      cableRows.push(['Active core', rec.size + ' mm²']);
+      cableRows.push(['Neutral core', rec.size + ' mm²']);
+    }
+    cableRows.push(['Earth core (CPC)', earthSize + ' mm²']);
+    cableRows.push(['Conductor', els.conductor.value === 'copper' ? 'Copper' : 'Aluminium (active) / Copper (earth)']);
+    document.getElementById('cs-cable-table').innerHTML = kvRows(cableRows);
+
+    document.getElementById('cs-current-table').innerHTML = kvRows([
+      ['Derated current rating', fmt(rec.deratedAmpacity, 1) + ' A' + ampWarn],
+      ['Design current', fmt(current, 1) + ' A'],
+      ['Operating temperature', fmt(result.operatingTemp, 0) + ' °C'],
+      ['Max. operating temperature', result.maxTemp + ' °C'],
+    ]);
+
+    document.getElementById('cs-vdrop-table').innerHTML = kvRows([
+      ['Voltage drop', fmt(rec.vdropPct, 2) + '% / ' + fmt(rec.vdropVolts, 2) + ' V' + vdWarn],
+      ['Voltage at load', fmt(result.voltageAtLoad, 1) + ' V'],
+      ['Max. distance for ' + input.maxVdropPct + '% drop', fmt(result.maxDistanceM, 0) + ' m'],
+    ]);
+
+    var ia = result.activeImpedance, ie = result.earthImpedance;
+    document.getElementById('cs-imp-active-table').innerHTML = kvRows([
+      ['Resistance per core', fmt(ia.r, 4) + ' Ω/km'],
+      ['Reactance per core',  fmt(ia.x, 4) + ' Ω/km'],
+      ['Impedance per core',  fmt(ia.z, 4) + ' Ω/km'],
+    ]);
+    document.getElementById('cs-imp-earth-table').innerHTML = kvRows([
+      ['Resistance per core', fmt(ie.r, 4) + ' Ω/km'],
+      ['Reactance per core',  fmt(ie.x, 4) + ' Ω/km'],
+      ['Impedance per core',  fmt(ie.z, 4) + ' Ω/km'],
+    ]);
+
+    function rowHtml(row) {
+      var isSel   = rec && row.size === rec.size;
+      var allPass = row.ampacityOk && row.vdropOk;
+      var anyFail = !row.ampacityOk || !row.vdropOk;
+      var trClass = isSel ? 'cs-row-selected' : (allPass ? 'cs-row-pass' : 'cs-row-fail');
+      var ampClass = row.ampacityOk ? ' class="cs-cell-ok"' : ' class="cs-cell-fail"';
+      var vdClass  = row.vdropOk   ? ' class="cs-cell-ok"' : ' class="cs-cell-fail"';
+      var tick = allPass ? ' <span style="color:var(--color-success,#27ae60);">&#10003;</span>' : '';
+      var sizeLabel = row.size + (isSel ? ' <span class="badge badge-completed">&#10003;</span>' : tick);
+      return '<tr class="' + trClass + '">' +
+        '<td>' + sizeLabel + '</td>' +
+        '<td>' + row.earthSize + '</td>' +
+        '<td' + ampClass + '>' + fmt(row.deratedAmpacity, 1) + '</td>' +
+        '<td' + vdClass  + '>' + fmt(row.vdropVolts, 2) + '</td>' +
+        '<td' + vdClass  + '>' + fmt(row.vdropPct, 2) + '%</td>' +
+        '</tr>';
     }
 
-    els.phase.addEventListener('change', function () {
-      // Nudge voltage to the common default for the selected phase, unless
-      // the user has already typed something other than the other default.
-      if (els.phase.value === '3' && els.voltage.value === '230') els.voltage.value = '400';
-      if (els.phase.value === '1' && els.voltage.value === '400') els.voltage.value = '230';
-    });
+    var recIdx   = rec ? result.rows.findIndex(function (r) { return r.size === rec.size; }) : result.rows.length - 1;
+    var visible  = result.rows.slice(0, recIdx + 1);
+    var hidden   = result.rows.slice(recIdx + 1);
+    var tbody    = document.getElementById('cs-all-body');
+    tbody.innerHTML = visible.map(rowHtml).join('');
 
-    Object.keys(els).forEach(function (key) {
-      els[key].addEventListener('input', render);
-      els[key].addEventListener('change', render);
-    });
+    if (hidden.length > 0) {
+      var moreRow = document.createElement('tr');
+      moreRow.className = 'cs-show-more-row';
+      moreRow.innerHTML = '<td colspan="5" style="text-align:center;padding:0.4rem;border:none;">' +
+        '<button class="btn btn-secondary btn-sm" type="button">' +
+        'Show ' + hidden.length + ' larger size' + (hidden.length === 1 ? '' : 's') + ' &#9660;</button></td>';
+      tbody.appendChild(moreRow);
+      moreRow.querySelector('button').addEventListener('click', function () {
+        moreRow.remove();
+        hidden.forEach(function (row) {
+          tbody.insertAdjacentHTML('beforeend', rowHtml(row));
+        });
+      });
+    }
+  }
 
-    render();
-  })();
+  // ── localStorage persistence ────────────────────────────────────────────
+  var LS_KEY = 'cs_form_v1';
+  var LS_FIELDS = ['rating','ratingUnit','pf','phase','voltage','length','vdrop',
+                   'insulation','conductor','activeSize','ambient','groundtemp','soil','grouping'];
+
+  function saveState() {
+    var state = { method: selectedMethodId };
+    LS_FIELDS.forEach(function (k) { state[k] = els[k] ? els[k].value : undefined; });
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function restoreState() {
+    try {
+      var raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      var state = JSON.parse(raw);
+      LS_FIELDS.forEach(function (k) {
+        if (state[k] !== undefined && els[k]) els[k].value = state[k];
+      });
+      if (state.method) {
+        selectedMethodId = state.method;
+        var m = METHODS.find(function (x) { return x.id === state.method; });
+        if (m) setTriggerDisplay(m);
+        document.querySelectorAll('.method-option').forEach(function (opt) {
+          opt.classList.toggle('selected', opt.getAttribute('data-mid') === state.method);
+        });
+      }
+      // Rebuild earth options based on restored active size
+      var fi = Number.parseInt(els.activeSize.value, 10);
+      populateEarthOptions(fi >= 0 ? fi : -1);
+      if (state.earthSize !== undefined && els.earthSize) els.earthSize.value = state.earthSize;
+    } catch (e) {}
+  }
+
+  // ── Event listeners ─────────────────────────────────────────────────────
+  els.phase.addEventListener('change', function () {
+    if (els.phase.value === '3' && els.voltage.value === '230') els.voltage.value = '400';
+    if (els.phase.value === '1' && els.voltage.value === '400') els.voltage.value = '230';
+    saveState(); render();
+  });
+
+  ['rating', 'ratingUnit', 'pf', 'voltage', 'length', 'vdrop',
+   'insulation', 'conductor', 'activeSize', 'earthSize',
+   'ambient', 'groundtemp', 'soil', 'grouping'].forEach(function (key) {
+    els[key].addEventListener('input',  function () { saveState(); render(); });
+    els[key].addEventListener('change', function () { saveState(); render(); });
+  });
+
+  // Also save state when method changes (hooked in selectMethod below)
+  var _origSelectMethod = selectMethod;
+  selectMethod = function (id) {
+    _origSelectMethod(id);
+    saveState();
+  };
+
+  restoreState();
+  updateVisibility();
+  render();
+})();
 </script>
 <%- include('../partials/footer') %>
