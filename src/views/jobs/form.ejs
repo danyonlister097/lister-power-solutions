@@ -65,6 +65,17 @@
     <label>
       Date
       <input type="date" name="date" id="job-date" value="<%= job.date || '' %>">
+      <script>
+        (function () {
+          var d = document.getElementById('job-date');
+          if (!d.value) {
+            var t = new Date();
+            d.value = t.getFullYear() + '-' +
+              String(t.getMonth() + 1).padStart(2, '0') + '-' +
+              String(t.getDate()).padStart(2, '0');
+          }
+        })();
+      </script>
     </label>
     <label class="toggle-label">
       <span>All day</span>
