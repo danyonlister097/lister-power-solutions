@@ -27,17 +27,30 @@
           <th>Status</th>
           <th>Total</th>
           <th>Due</th>
+          <th style="width:2.5rem;position:sticky;right:0;background:var(--color-surface);"></th>
         </tr>
       </thead>
       <tbody>
         <% invoices.forEach(inv => { %>
-          <tr>
+          <tr class="row-menu-hover-target">
             <td><a href="/invoices/<%= inv.id %>"><%= inv.invoice_number %></a></td>
             <td><%= inv.job_title %></td>
             <td><%= inv.customer_name %></td>
             <td><span class="badge badge-<%= inv.effective_status %>"><%= inv.effective_status %></span></td>
             <td><%= formatMoney(inv.total) %></td>
             <td><%= formatAuDate(inv.due_date) %></td>
+            <td class="row-menu-cell">
+              <button class="row-menu-btn" aria-label="More actions" aria-expanded="false">⋮</button>
+              <div class="context-menu" hidden>
+                <a class="context-menu-item" href="/invoices/<%= inv.id %>">View</a>
+                <% if (currentUser.role === 'admin' && inv.effective_status !== 'paid') { %>
+                  <form method="post" action="/invoices/<%= inv.id %>/delete" data-confirm="Delete this invoice? This cannot be undone." style="margin:0;">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit" class="context-menu-item context-menu-danger">Delete</button>
+                  </form>
+                <% } %>
+              </div>
+            </td>
           </tr>
         <% }) %>
       </tbody>

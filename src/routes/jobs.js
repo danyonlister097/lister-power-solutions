@@ -77,7 +77,7 @@ async function getJobOr404(req, res) {
 }
 
 async function checkCompletionRequirements(jobId) {
-  const flags = await db.prepare('SELECT photos_na, stock_na FROM jobs WHERE id = ?').get(jobId);
+  const flags = await db.prepare('SELECT photos_na, stock_na, actual_start, actual_end FROM jobs WHERE id = ?').get(jobId);
   const missing = [];
   if (!flags?.photos_na) {
     const photoCount = Number((await db.prepare('SELECT COUNT(*) AS n FROM job_attachments WHERE job_id = ?').get(jobId)).n);
@@ -87,7 +87,9 @@ async function checkCompletionRequirements(jobId) {
     const stockCount = Number((await db.prepare('SELECT COUNT(*) AS n FROM job_stock_allocations WHERE job_id = ?').get(jobId)).n);
     if (stockCount === 0) missing.push('stock used must be populated (or mark Stock as N/A)');
   }
-  return missing.length ? `Cannot mark job as completed: ${missing.join(' and ')}.` : null;
+  if (!flags?.actual_start) missing.push('actual start time must be recorded');
+  if (!flags?.actual_end) missing.push('actual finish time must be recorded');
+  return missing.length ? `Cannot mark job as completed: ${missing.join(', ')}.` : null;
 }
 
 router.get(
@@ -974,6 +976,34 @@ router.post(
 
     setFlash(req, 'success', 'Job updated.');
     res.redirect(returnTo || homeRoute(req.user));
+  })
+);
+
+router.post(
+  '/:id/actual-start',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const job = await getJobOr404(req, res);
+    if (!job) return;
+    const toIso = (v) => { if (!v || !v.trim()) return null; const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d.toISOString(); };
+    const actualStart = toIso(req.body.actual_start);
+    await db.prepare(`UPDATE jobs SET actual_start = @actualStart, updated_at = datetime('now') WHERE id = @id`).run({ id: job.id, actualStart });
+    setFlash(req, 'success', 'Start time saved.');
+    res.redirect(`/jobs/${job.id}`);
+  })
+);
+
+router.post(
+  '/:id/actual-end',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const job = await getJobOr404(req, res);
+    if (!job) return;
+    const toIso = (v) => { if (!v || !v.trim()) return null; const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d.toISOString(); };
+    const actualEnd = toIso(req.body.actual_end);
+    await db.prepare(`UPDATE jobs SET actual_end = @actualEnd, updated_at = datetime('now') WHERE id = @id`).run({ id: job.id, actualEnd });
+    setFlash(req, 'success', 'Finish time saved.');
+    res.redirect(`/jobs/${job.id}`);
   })
 );
 

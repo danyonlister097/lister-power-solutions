@@ -239,8 +239,8 @@ router.post(
   asyncHandler(async (req, res) => {
     const invoice = await db.prepare('SELECT * FROM invoices WHERE id = ?').get(req.params.id);
     if (!invoice) return res.status(404).render('error', { message: 'Invoice not found.' });
-    if (invoice.status !== 'draft') {
-      setFlash(req, 'error', 'Only a draft invoice can be deleted.');
+    if (invoice.status === 'paid') {
+      setFlash(req, 'error', 'A paid invoice cannot be deleted.');
       return res.redirect(`/invoices/${invoice.id}`);
     }
 

@@ -136,3 +136,47 @@
     });
   }
 })();
+
+// Site-wide context menu (row-menu-btn + context-menu).
+// Usage: add class="row-menu-btn" to a trigger button, class="context-menu"
+// to the sibling dropdown, both inside a class="row-menu-cell" container.
+// Uses position:fixed so it works inside overflow:auto scroll containers.
+(function () {
+  function closeAll(exceptMenu) {
+    document.querySelectorAll('.context-menu:not([hidden])').forEach(function (m) {
+      if (m === exceptMenu) return;
+      m.hidden = true;
+      m.style.cssText = '';
+      var btn = m.closest('.row-menu-cell') && m.closest('.row-menu-cell').querySelector('.row-menu-btn');
+      if (btn) { btn.classList.remove('row-menu-btn-active'); btn.setAttribute('aria-expanded', 'false'); }
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.row-menu-btn');
+    if (!btn) { closeAll(null); return; }
+    var cell = btn.closest('.row-menu-cell');
+    var menu = cell && cell.querySelector('.context-menu');
+    if (!menu) return;
+    var opening = menu.hidden;
+    closeAll(opening ? null : menu);
+    if (opening) {
+      var r = btn.getBoundingClientRect();
+      menu.style.position = 'fixed';
+      menu.style.top = (r.bottom + 4) + 'px';
+      menu.style.right = (window.innerWidth - r.right) + 'px';
+      menu.style.left = 'auto';
+      menu.hidden = false;
+      btn.classList.add('row-menu-btn-active');
+      btn.setAttribute('aria-expanded', 'true');
+    }
+    e.stopPropagation();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeAll(null);
+  });
+
+  window.addEventListener('scroll', function () { closeAll(null); }, true);
+  window.addEventListener('resize', function () { closeAll(null); });
+})();

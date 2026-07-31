@@ -56,10 +56,10 @@
         <button type="submit" class="btn btn-secondary btn-sm">Cancel</button>
       </form>
     <% } %>
-    <% if (invoice.status === 'draft') { %>
-      <form method="post" action="/invoices/<%= invoice.id %>/delete" style="display:inline;" data-confirm="Delete this draft invoice? This cannot be undone.">
+    <% if (currentUser.role === 'admin' && invoice.status !== 'paid') { %>
+      <form method="post" action="/invoices/<%= invoice.id %>/delete" style="display:inline;" data-confirm="Delete this invoice? This cannot be undone.">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <button type="submit" class="btn-link" style="color: var(--color-danger);">Delete</button>
+        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
       </form>
     <% } %>
   </div>

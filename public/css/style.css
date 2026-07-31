@@ -981,7 +981,7 @@ a.list-item:hover { border-color: var(--color-primary); }
 
 .shift-menu-btn:hover { background: rgba(255, 255, 255, 0.35); }
 
-.row-menu-cell { position: relative; width: 2.4rem; text-align: right; }
+.row-menu-cell { position: sticky; right: 0; width: 2.4rem; text-align: right; background: var(--color-surface); }
 
 .row-menu-btn {
   border: none;

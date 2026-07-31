@@ -21,9 +21,20 @@
     <dd>
       <% if (job.all_day) { %>
         <%= new Date(job.scheduled_start).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }) %> &middot; All day
-      <% } else if (job.scheduled_start) { %>
-        <%= new Date(job.scheduled_start).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %><% if (job.scheduled_end) { %> &ndash; <%= new Date(job.scheduled_end).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %><% } %>
+      <% } else if (job.scheduled_start) {
+        var _ss = new Date(job.scheduled_start);
+        var _dateStr = _ss.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        var _startTime = _ss.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+      %><%= _dateStr %>, <%= _startTime %><% if (job.scheduled_end) {
+          var _se = new Date(job.scheduled_end);
+          var _endStr = (_ss.toDateString() === _se.toDateString())
+            ? _se.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })
+            : _se.toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+        %> &ndash; <%= _endStr %><% } %>
       <% } else { %>Not scheduled<% } %>
+      <% if (currentUser.role !== 'admin') { %>
+        <span class="text-muted" style="font-size:0.78rem;display:block;margin-top:0.15rem;">Set by admin</span>
+      <% } %>
     </dd>
     <dt>Job site</dt>
     <dd>
@@ -57,6 +68,35 @@
       </form>
     </div>
   <% } %>
+</div>
+
+<%
+  function toLocalInput(isoStr) {
+    if (!isoStr) return '';
+    var d = new Date(isoStr);
+    var pad = function(n) { return String(n).padStart(2, '0'); };
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+           'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+%>
+<div class="card">
+  <div class="page-header" style="margin-bottom:0.5rem;">
+    <h2 style="margin:0;">Actual start time</h2>
+    <% if (job.actual_start) { %><span class="badge badge-completed">&#10003; Logged</span><% } %>
+  </div>
+  <% if (!job.actual_start) { %>
+    <p class="text-muted" style="font-size:0.85rem;margin:0 0 0.75rem;">Log the time you arrived and started on site.</p>
+  <% } %>
+  <form method="post" action="/jobs/<%= job.id %>/actual-start" class="form-row" data-preserve-scroll>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>
+      <%= job.actual_start ? 'Update' : 'Start time' %>
+      <input type="datetime-local" name="actual_start" value="<%= toLocalInput(job.actual_start) %>">
+    </label>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary btn-sm">Save start time</button>
+    </div>
+  </form>
 </div>
 
 <div class="card">
@@ -367,7 +407,33 @@
   </div>
 <% } %>
 <div class="card">
+  <div class="page-header" style="margin-bottom:0.5rem;">
+    <h2 style="margin:0;">Actual finish time</h2>
+    <% if (job.actual_end) { %><span class="badge badge-completed">&#10003; Logged</span><% } %>
+  </div>
+  <% if (!job.actual_end) { %>
+    <p class="text-muted" style="font-size:0.85rem;margin:0 0 0.75rem;">Log when you finished on site. Required before marking job as completed.</p>
+  <% } %>
+  <form method="post" action="/jobs/<%= job.id %>/actual-end" class="form-row" data-preserve-scroll>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>
+      <%= job.actual_end ? 'Update' : 'Finish time' %>
+      <input type="datetime-local" name="actual_end" value="<%= toLocalInput(job.actual_end) %>">
+    </label>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary btn-sm">Save finish time</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
   <h2>Update status</h2>
+  <% if (job.status !== 'completed') { %>
+    <% var _missingActuals = !job.actual_start || !job.actual_end; %>
+    <% if (_missingActuals) { %>
+      <p class="text-muted" style="font-size:0.85rem;margin:0 0 0.75rem;">&#9432; Record actual start and finish times above before marking as completed.</p>
+    <% } %>
+  <% } %>
   <form method="post" action="/jobs/<%= job.id %>/status" class="form-row form-row-2" data-preserve-scroll>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <select name="status">
