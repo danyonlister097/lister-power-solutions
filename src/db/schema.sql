@@ -578,3 +578,23 @@ CREATE TABLE IF NOT EXISTS feedback_items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_feedback_items_status ON feedback_items(status);
+
+-- date_of_birth for birthday milestone tracking on the dashboard
+ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth TEXT;
+
+-- Renewal / compliance tracking: licences, training, rego, insurance, compliance docs
+CREATE TABLE IF NOT EXISTS renewals (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'other',
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  asset_id INTEGER REFERENCES business_assets(id) ON DELETE SET NULL,
+  expiry_date TEXT NOT NULL,
+  notes TEXT,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+CREATE INDEX IF NOT EXISTS idx_renewals_expiry_date ON renewals(expiry_date);
+CREATE INDEX IF NOT EXISTS idx_renewals_category ON renewals(category);

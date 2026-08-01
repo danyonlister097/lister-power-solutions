@@ -70,6 +70,11 @@
     </label>
   <% } %>
 
+  <label>
+    Date of Birth <span style="font-weight:400;">(used for birthday milestone on dashboard)</span>
+    <input type="date" name="date_of_birth" value="<%= targetUser.date_of_birth || '' %>">
+  </label>
+
   <div class="section-heading" style="margin-top:1.5rem;">Contact details</div>
 
   <div class="form-row form-row-2">

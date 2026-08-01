@@ -18,6 +18,7 @@ const PERMISSIONS = [
   { key: 'inventory', label: 'Inventory' },
   { key: 'assets', label: 'Asset Register' },
   { key: 'tools', label: 'Tools' },
+  { key: 'renewals', label: 'Renewals' },
   { key: 'feedback', label: 'Bug Reports & Ideas' },
 ];
 

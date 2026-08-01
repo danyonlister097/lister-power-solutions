@@ -274,6 +274,7 @@ app.use('/assets', requirePermission('assets'), require('./routes/businessAssets
 app.use('/tools', requirePermission('tools'), require('./routes/tools'));
 app.use('/quotes', requirePermission('quotes'), require('./routes/quotes'));
 app.use('/invoices', requirePermission('invoices'), require('./routes/invoices'));
+app.use('/renewals', requirePermission('renewals'), require('./routes/renewals'));
 app.use('/feedback', requirePermission('feedback'), require('./routes/feedback'));
 
 app.use((req, res) => {

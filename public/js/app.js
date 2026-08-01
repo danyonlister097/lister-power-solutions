@@ -1,18 +1,3 @@
-// Site-wide behaviour: clicking anywhere in a date/time input opens its
-// native picker, not just the small calendar/clock icon. Applies to every
-// date/time field on every page, now and for anything added later.
-(function () {
-  document.addEventListener('click', function (e) {
-    var input = e.target.closest('input[type="date"], input[type="time"], input[type="datetime-local"]');
-    if (!input || typeof input.showPicker !== 'function') return;
-    try {
-      input.showPicker();
-    } catch (err) {
-      // showPicker() can throw if the input isn't visible/focusable; ignore.
-    }
-  });
-})();
-
 // Site-wide behaviour: any button with data-target="someId" toggles the
 // hidden attribute on the element with that id. Used for inline reveal
 // forms (e.g. "Upload completed" on a job's forms list).

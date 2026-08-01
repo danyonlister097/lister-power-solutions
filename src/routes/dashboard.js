@@ -197,6 +197,60 @@ router.get(
       )
       .all();
 
+    // Upcoming renewals: manual items + vehicle rego from asset register, within 60 days
+    const renewalsCutoff = addDays(todayIso, 60);
+    const [upcomingRenewals, upcomingAssetRego] = await Promise.all([
+      db
+        .prepare(
+          `SELECT r.id, r.title, r.category, r.expiry_date, u.name AS user_name
+           FROM renewals r
+           LEFT JOIN users u ON u.id = r.user_id
+           WHERE r.expiry_date <= ?
+           ORDER BY r.expiry_date ASC
+           LIMIT 10`
+        )
+        .all(renewalsCutoff),
+      db
+        .prepare(
+          `SELECT id, name, registration_expiry AS expiry_date
+           FROM business_assets
+           WHERE registration_expiry IS NOT NULL
+             AND registration_expiry <= ?
+             AND status IN ('active', 'in_repair')
+           ORDER BY registration_expiry ASC`
+        )
+        .all(renewalsCutoff),
+    ]);
+
+    // Combine and sort renewal items; asset rego rows get a synthetic category
+    const upcomingRenewalItems = [
+      ...upcomingRenewals,
+      ...upcomingAssetRego.map((a) => ({
+        id: null,
+        asset_register_id: a.id,
+        title: a.name,
+        category: 'vehicle_rego',
+        expiry_date: a.expiry_date,
+        user_name: null,
+      })),
+    ].sort((a, b) => (a.expiry_date < b.expiry_date ? -1 : 1));
+
+    // Staff birthdays: next occurrence within 30 days
+    const allStaff = await db
+      .prepare('SELECT id, name, date_of_birth FROM users WHERE active = 1 AND date_of_birth IS NOT NULL')
+      .all();
+    const thisYear = Number(todayIso.slice(0, 4));
+    const upcomingBirthdays = allStaff
+      .map((u) => {
+        const mmdd = u.date_of_birth.slice(5); // MM-DD
+        let nextBirthday = `${thisYear}-${mmdd}`;
+        if (nextBirthday < todayIso) nextBirthday = `${thisYear + 1}-${mmdd}`;
+        const daysUntil = Math.round((new Date(nextBirthday) - new Date(todayIso)) / 86400000);
+        return { ...u, nextBirthday, daysUntil };
+      })
+      .filter((u) => u.daysUntil <= 30)
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+
     res.render('dashboard/index', {
       title: 'Dashboard',
       jobsThisWeek,
@@ -214,6 +268,8 @@ router.get(
       upcomingMaintenance,
       activeTasks,
       openFeedback,
+      upcomingRenewalItems,
+      upcomingBirthdays,
       formatHours,
     });
   })

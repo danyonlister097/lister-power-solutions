@@ -250,6 +250,67 @@
   <% } %>
 </div>
 
+<div class="form-row form-row-2">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:0.75rem;">
+      <h2 style="margin:0;">Upcoming Renewals</h2>
+      <a href="/renewals" class="btn btn-secondary btn-sm">View all</a>
+    </div>
+    <% if (!upcomingRenewalItems.length) { %>
+      <p class="text-muted">No renewals due in the next 60 days.</p>
+    <% } else { %>
+      <ul class="list list-scroll">
+        <% upcomingRenewalItems.forEach(function(item) {
+          var today = new Date().toISOString().slice(0, 10);
+          var isOverdue = item.expiry_date < today;
+          var d30 = new Date(); d30.setDate(d30.getDate() + 30);
+          var isDueSoon = !isOverdue && new Date(item.expiry_date) <= d30;
+          var badgeCls = isOverdue ? 'badge-cancelled' : isDueSoon ? 'badge-overdue' : 'badge-in_progress';
+          var badgeLabel = isOverdue ? 'Overdue' : isDueSoon ? 'Due soon' : 'Coming up';
+          var href = item.asset_register_id ? '/assets/' + item.asset_register_id + '?returnTo=/dashboard' : '/renewals';
+        %>
+          <li>
+            <a href="<%= href %>" class="list-item">
+              <span>
+                <span class="list-item-title"><%= item.title %></span><br>
+                <span class="list-item-meta">
+                  <%= item.category === 'vehicle_rego' ? 'Vehicle Rego' : item.category === 'licence' ? 'Staff Licence' : item.category === 'training' ? 'Training' : item.category === 'insurance' ? 'Insurance' : item.category === 'compliance' ? 'Compliance' : 'Other' %>
+                  <% if (item.user_name) { %> &middot; <%= item.user_name %><% } %>
+                  &middot; <%= formatAuDate(item.expiry_date) %>
+                </span>
+              </span>
+              <span class="badge <%= badgeCls %>"><%= badgeLabel %></span>
+            </a>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>Upcoming Birthdays</h2>
+    <% if (!upcomingBirthdays.length) { %>
+      <p class="text-muted">No staff birthdays in the next 30 days.</p>
+    <% } else { %>
+      <ul class="list">
+        <% upcomingBirthdays.forEach(function(u) { %>
+          <li>
+            <span class="list-item">
+              <span>
+                <span class="list-item-title"><%= u.name %></span><br>
+                <span class="list-item-meta"><%= u.daysUntil === 0 ? 'Today!' : u.daysUntil === 1 ? 'Tomorrow' : 'In ' + u.daysUntil + ' days' %> &middot; <%= formatAuDate(u.nextBirthday) %></span>
+              </span>
+              <% if (u.daysUntil === 0) { %>
+                <span style="font-size:1.5rem;">🎂</span>
+              <% } %>
+            </span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+</div>
+
 <div class="card">
   <h2>Vehicles &amp; equipment &mdash; upcoming maintenance</h2>
   <% if (!upcomingMaintenance.length) { %>
