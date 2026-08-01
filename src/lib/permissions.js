@@ -2,24 +2,25 @@
 // tuned to, in nav order. The key is what's stored in user_permissions and
 // checked by requirePermission(); the label is what shows on the employee
 // form's checkboxes.
+// group 1 = business/management tools (restricted); group 2 = day-to-day employee tools (standard)
 const PERMISSIONS = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'schedule', label: 'Team Schedule' },
-  { key: 'jobs', label: 'Jobs' },
-  { key: 'customers', label: 'Customers' },
-  { key: 'quotes', label: 'Quotes' },
-  { key: 'invoices', label: 'Invoices' },
-  { key: 'employees', label: 'Employees' },
-  { key: 'timeclock', label: 'Time Clock' },
-  { key: 'leave', label: 'Request Leave' },
-  { key: 'tasks', label: 'Quick Task' },
-  { key: 'chat', label: 'Chat' },
-  { key: 'forms', label: 'Forms' },
-  { key: 'inventory', label: 'Inventory' },
-  { key: 'assets', label: 'Asset Register' },
-  { key: 'tools', label: 'Tools' },
-  { key: 'renewals', label: 'Renewals' },
-  { key: 'feedback', label: 'Bug Reports & Ideas' },
+  { key: 'dashboard',  label: 'Dashboard',            group: 1 },
+  { key: 'jobs',       label: 'Jobs',                  group: 1 },
+  { key: 'customers',  label: 'Customers',             group: 1 },
+  { key: 'quotes',     label: 'Quotes',                group: 1 },
+  { key: 'invoices',   label: 'Invoices',              group: 1 },
+  { key: 'employees',  label: 'Employees',             group: 1 },
+  { key: 'assets',     label: 'Asset Register',        group: 1 },
+  { key: 'renewals',   label: 'Renewals',              group: 1 },
+  { key: 'schedule',   label: 'Team Schedule',         group: 2 },
+  { key: 'timeclock',  label: 'Time Clock',            group: 2 },
+  { key: 'leave',      label: 'Request Leave',         group: 2 },
+  { key: 'tasks',      label: 'Quick Task',            group: 2 },
+  { key: 'chat',       label: 'Chat',                  group: 2 },
+  { key: 'forms',      label: 'Forms',                 group: 2 },
+  { key: 'inventory',  label: 'Inventory',             group: 2 },
+  { key: 'tools',      label: 'Tools',                 group: 2 },
+  { key: 'feedback',   label: 'Bug Reports & Ideas',   group: 2 },
 ];
 
 const PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);

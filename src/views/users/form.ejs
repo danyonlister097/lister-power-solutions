@@ -132,15 +132,65 @@
         Admins always have full access to everything, regardless of these boxes.
       </span>
     </div>
-    <div class="permissions-grid" id="permissions-grid" data-defaults='<%- JSON.stringify(DEFAULT_KEYS_BY_ROLE) %>' data-is-new="<%= targetUser.id ? '0' : '1' %>">
-      <% PERMISSIONS.forEach(p => { %>
-        <label class="permissions-item">
-          <input type="checkbox" name="permissions" value="<%= p.key %>" <%= selectedPermissions.includes(p.key) ? 'checked' : '' %>>
-          <%= p.label %>
+    <div id="permissions-grid" data-defaults='<%- JSON.stringify(DEFAULT_KEYS_BY_ROLE) %>' data-is-new="<%= targetUser.id ? '0' : '1' %>">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;">
+        <div style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-muted);">Level 1 Access</div>
+        <label class="permissions-item" style="margin:0;font-size:0.85rem;font-weight:500;">
+          <input type="checkbox" class="perm-select-all" data-group="1" style="display:inline-block;width:auto;">
+          Tick all
         </label>
-      <% }) %>
+      </div>
+      <div class="permissions-grid" data-group="1" style="margin-bottom:1rem;">
+        <% PERMISSIONS.filter(p => p.group === 1).forEach(p => { %>
+          <label class="permissions-item">
+            <input type="checkbox" name="permissions" value="<%= p.key %>" <%= selectedPermissions.includes(p.key) ? 'checked' : '' %>>
+            <%= p.label %>
+          </label>
+        <% }) %>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;">
+        <div style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-muted);">Level 2 Access</div>
+        <label class="permissions-item" style="margin:0;font-size:0.85rem;font-weight:500;">
+          <input type="checkbox" class="perm-select-all" data-group="2" style="display:inline-block;width:auto;">
+          Tick all
+        </label>
+      </div>
+      <div class="permissions-grid" data-group="2">
+        <% PERMISSIONS.filter(p => p.group === 2).forEach(p => { %>
+          <label class="permissions-item">
+            <input type="checkbox" name="permissions" value="<%= p.key %>" <%= selectedPermissions.includes(p.key) ? 'checked' : '' %>>
+            <%= p.label %>
+          </label>
+        <% }) %>
+      </div>
     </div>
   </div>
+  <script>
+  (function () {
+    function getGroupBoxes(group) {
+      return Array.from(document.querySelectorAll('.permissions-grid[data-group="' + group + '"] input[type="checkbox"]'));
+    }
+    function syncSelectAll(selectAll) {
+      var boxes = getGroupBoxes(selectAll.getAttribute('data-group'));
+      var checkedCount = boxes.filter(function (b) { return b.checked; }).length;
+      selectAll.checked = checkedCount === boxes.length;
+      selectAll.indeterminate = checkedCount > 0 && checkedCount < boxes.length;
+    }
+    document.querySelectorAll('.perm-select-all').forEach(function (selectAll) {
+      var group = selectAll.getAttribute('data-group');
+      // Set initial state
+      syncSelectAll(selectAll);
+      // Toggle all on click
+      selectAll.addEventListener('change', function () {
+        getGroupBoxes(group).forEach(function (b) { b.checked = selectAll.checked; });
+      });
+      // Keep "tick all" in sync when individual boxes change
+      getGroupBoxes(group).forEach(function (b) {
+        b.addEventListener('change', function () { syncSelectAll(selectAll); });
+      });
+    });
+  })();
+  </script>
 
   <div class="actions">
     <button type="submit" class="btn btn-primary">Save employee</button>
