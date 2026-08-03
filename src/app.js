@@ -14,6 +14,7 @@ const { asyncHandler } = require('./lib/asyncHandler');
 const { generateWeeklyTimesheets } = require('./lib/timesheetGen');
 const { getUnreadSupplierEmails, getEmailAttachments, markAsRead } = require('./lib/graph');
 const { parseCnwDocument } = require('./lib/cnwParser');
+const { sendFollowUpEmail } = require('./lib/email');
 
 const app = express();
 
@@ -248,6 +249,49 @@ app.get(
     }
 
     res.json({ ok: true, ...results });
+  })
+);
+
+app.get(
+  '/api/cron/send-followups',
+  asyncHandler(async (req, res) => {
+    if (config.app.cronSecret && req.headers.authorization !== `Bearer ${config.app.cronSecret}`) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const due = await db
+      .prepare(
+        `SELECT jf.id, jf.follow_up_type, jf.job_id,
+                j.title AS job_title,
+                c.name AS customer_name, c.email AS customer_email
+         FROM job_followups jf
+         JOIN jobs j ON j.id = jf.job_id
+         JOIN customers c ON c.id = jf.customer_id
+         WHERE jf.sent_at IS NULL AND jf.scheduled_at <= now_utc_text()
+           AND c.email IS NOT NULL`
+      )
+      .all();
+
+    let sent = 0;
+    let failed = 0;
+    for (const row of due) {
+      try {
+        await sendFollowUpEmail({
+          customerName: row.customer_name,
+          customerEmail: row.customer_email,
+          jobTitle: row.job_title,
+          followUpType: row.follow_up_type,
+        });
+        await db.prepare(`UPDATE job_followups SET sent_at = now_utc_text() WHERE id = ?`).run(row.id);
+        sent++;
+      } catch (err) {
+        logger.error('Follow-up email failed', { id: row.id, error: err.message });
+        failed++;
+      }
+    }
+
+    logger.info('Follow-up cron complete', { sent, failed });
+    res.json({ ok: true, sent, failed });
   })
 );
 

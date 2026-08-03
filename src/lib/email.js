@@ -71,4 +71,34 @@ async function sendPasswordResetEmail(user, resetUrl) {
   await sendEmail({ to: user.email, subject: 'Reset your Lister Power Solutions password', html });
 }
 
-module.exports = { sendEmail, sendAdminLoginNotification, sendAccountLockedEmail, sendPasswordResetEmail };
+const FOLLOWUP_TEMPLATES = {
+  '6month': {
+    subject: 'Service reminder from Lister Power Solutions',
+    title: 'Time for a service check',
+    body: (customerName, jobTitle) => `
+      <p>Hi ${customerName},</p>
+      <p>It's been 6 months since we completed <strong>${jobTitle}</strong>. Regular servicing keeps your equipment running at its best and helps avoid unexpected breakdowns.</p>
+      <p>Get in touch to book your service.</p>
+      <p><a href="mailto:admin@listerpowersolutions.com.au" style="color:#12b8a0;">Book a service</a></p>
+    `,
+  },
+  '12month': {
+    subject: 'Annual maintenance due — Lister Power Solutions',
+    title: 'Annual maintenance due',
+    body: (customerName, jobTitle) => `
+      <p>Hi ${customerName},</p>
+      <p>It's been 12 months since we completed <strong>${jobTitle}</strong>. Annual maintenance is due to keep everything compliant and in top condition.</p>
+      <p>Contact us to schedule your annual maintenance visit.</p>
+      <p><a href="mailto:admin@listerpowersolutions.com.au" style="color:#12b8a0;">Book maintenance</a></p>
+    `,
+  },
+};
+
+async function sendFollowUpEmail({ customerName, customerEmail, jobTitle, followUpType }) {
+  const tmpl = FOLLOWUP_TEMPLATES[followUpType];
+  if (!tmpl) return;
+  const html = wrapEmailBody(tmpl.title, tmpl.body(customerName, jobTitle));
+  await sendEmail({ to: customerEmail, subject: tmpl.subject, html });
+}
+
+module.exports = { sendEmail, sendAdminLoginNotification, sendAccountLockedEmail, sendPasswordResetEmail, sendFollowUpEmail };

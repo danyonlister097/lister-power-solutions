@@ -583,6 +583,18 @@ CREATE INDEX IF NOT EXISTS idx_feedback_items_status ON feedback_items(status);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS employment_start_date TEXT;
 
+-- Smart follow-up emails sent to customers after job completion
+CREATE TABLE IF NOT EXISTS job_followups (
+  id SERIAL PRIMARY KEY,
+  job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  follow_up_type TEXT NOT NULL CHECK (follow_up_type IN ('6month', '12month')),
+  scheduled_at TEXT NOT NULL,
+  sent_at TEXT,
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+CREATE INDEX IF NOT EXISTS idx_job_followups_scheduled ON job_followups(scheduled_at) WHERE sent_at IS NULL;
+
 -- Renewal / compliance tracking: licences, training, rego, insurance, compliance docs
 CREATE TABLE IF NOT EXISTS renewals (
   id SERIAL PRIMARY KEY,

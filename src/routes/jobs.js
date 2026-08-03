@@ -1087,6 +1087,20 @@ router.post(
 
     await setAssignees(job.id, assigneeIds);
 
+    // Schedule follow-up emails when a job is first marked completed
+    if (newStatus === 'completed' && job.status !== 'completed') {
+      const customer = await db.prepare('SELECT email FROM customers WHERE id = ?').get(b.customer_id);
+      if (customer && customer.email) {
+        const addMonths = (n) => {
+          const d = new Date();
+          d.setMonth(d.getMonth() + n);
+          return d.toISOString();
+        };
+        await db.prepare(`INSERT INTO job_followups (job_id, customer_id, follow_up_type, scheduled_at) VALUES (?, ?, '6month', ?)`).run(job.id, b.customer_id, addMonths(6));
+        await db.prepare(`INSERT INTO job_followups (job_id, customer_id, follow_up_type, scheduled_at) VALUES (?, ?, '12month', ?)`).run(job.id, b.customer_id, addMonths(12));
+      }
+    }
+
     setFlash(req, 'success', 'Job updated.');
     res.redirect(returnTo || homeRoute(req.user));
   })
