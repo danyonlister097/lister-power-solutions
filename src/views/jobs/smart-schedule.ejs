@@ -1,0 +1,181 @@
+<%- include('../partials/header', { title: 'Smart Schedule', wide: true }) %>
+<div class="page-header">
+  <h1>Smart Schedule</h1>
+  <div class="actions">
+    <a class="btn btn-secondary btn-sm" href="/jobs/schedule">Schedule</a>
+    <a class="btn btn-secondary btn-sm" href="/jobs">Jobs list</a>
+  </div>
+</div>
+
+<% if (!hasApiKey) { %>
+  <div class="flash flash-error">
+    <strong>Google Maps API key not configured.</strong>
+    Add <code>GOOGLE_MAPS_API_KEY</code> to your <code>.env</code> file (and to Vercel environment variables for production), then restart the server.
+    Enable the <em>Geocoding API</em> in Google Cloud Console.
+  </div>
+<% } %>
+
+<div class="card" style="display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap;">
+  <label style="flex:1;min-width:160px;max-width:260px;">
+    Week starting (Monday)
+    <input type="date" id="week-input" value="<%= weekStart %>">
+  </label>
+  <button type="button" id="generate-btn" class="btn btn-primary" <%= !hasApiKey ? 'disabled' : '' %>>
+    Generate Smart Schedule
+  </button>
+</div>
+
+<div id="ss-results" hidden>
+  <div id="ss-ungeocodable" hidden class="flash flash-error" style="margin-top:1rem;"></div>
+  <div id="ss-overflow" hidden class="flash flash-error" style="margin-top:1rem;"></div>
+  <div id="ss-days" style="display:flex;flex-direction:column;gap:1rem;margin-top:1rem;"></div>
+  <div id="ss-unlocated" hidden style="margin-top:1rem;"></div>
+</div>
+
+<div id="ss-loading" hidden style="margin-top:1.5rem;text-align:center;color:var(--color-text-muted);">
+  Geocoding addresses and calculating routes…
+</div>
+
+<script>
+(function () {
+  var csrf = '<%= csrfToken %>';
+  var generateBtn = document.getElementById('generate-btn');
+  var weekInput = document.getElementById('week-input');
+  var results = document.getElementById('ss-results');
+  var loading = document.getElementById('ss-loading');
+  var daysContainer = document.getElementById('ss-days');
+  var overflowEl = document.getElementById('ss-overflow');
+  var unlocatedEl = document.getElementById('ss-unlocated');
+
+  function catLabel(cat) {
+    var m = { vehicle_rego:'Vehicle Rego', licence:'Staff Licence', training:'Training', insurance:'Insurance', compliance:'Compliance', other:'Other' };
+    return m[cat] || cat;
+  }
+
+  function renderDay(day, index) {
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.style.cssText = 'border-left:4px solid var(--color-primary);';
+
+    var header = '<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">'
+      + '<div><strong style="font-size:1.05rem;">' + day.dayLabel + '</strong>'
+      + ' <span class="badge badge-scheduled" style="margin-left:0.4rem;">' + day.jobs.length + ' job' + (day.jobs.length !== 1 ? 's' : '') + '</span>'
+      + ' <span class="text-muted" style="font-size:0.85rem;margin-left:0.4rem;">~' + day.totalKm + ' km round trip</span></div>'
+      + '<button type="button" class="btn btn-primary btn-sm commit-btn" data-date="' + day.date + '" data-index="' + index + '">Commit this day</button>'
+      + '</div>';
+
+    var route = '<div style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-muted);margin-bottom:0.5rem;">Route order (home → jobs → home)</div>';
+    route += '<ol style="margin:0;padding-left:1.4rem;">';
+    day.jobs.forEach(function (j) {
+      var addr = [j.address_street, j.address_city, j.address_state].filter(Boolean).join(', ');
+      route += '<li style="padding:0.3rem 0;border-bottom:1px solid var(--color-border);">'
+        + '<strong>' + escHtml(j.title) + '</strong>'
+        + ' <span class="text-muted">— ' + escHtml(j.customer_name) + '</span>'
+        + (addr ? '<br><span class="list-item-meta">' + escHtml(addr) + '</span>' : '')
+        + '</li>';
+    });
+    route += '</ol>';
+
+    card.innerHTML = header + route;
+    card.querySelector('.commit-btn').addEventListener('click', function () {
+      commitDay(day, index, card);
+    });
+    return card;
+  }
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function commitDay(day, index, card) {
+    var btn = card.querySelector('.commit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Committing…';
+    var jobIds = day.jobs.map(function (j) { return j.id; });
+
+    fetch('/jobs/smart-schedule/commit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ _csrf: csrf, date: day.date, jobIds: jobIds }),
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.ok) {
+        btn.textContent = '✓ Committed';
+        btn.className = 'btn btn-secondary btn-sm';
+        card.style.borderLeftColor = 'var(--color-success, #16a34a)';
+        card.style.opacity = '0.7';
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Commit this day';
+        alert('Error: ' + (data.error || 'Unknown error'));
+      }
+    })
+    .catch(function () {
+      btn.disabled = false;
+      btn.textContent = 'Commit this day';
+      alert('Network error. Please try again.');
+    });
+  }
+
+  generateBtn.addEventListener('click', function () {
+    var week = weekInput.value;
+    if (!week) { alert('Please select a week.'); return; }
+
+    generateBtn.disabled = true;
+    generateBtn.textContent = 'Generating…';
+    results.hidden = true;
+    loading.hidden = false;
+    daysContainer.innerHTML = '';
+    overflowEl.hidden = true;
+    unlocatedEl.hidden = true;
+
+    fetch('/jobs/smart-schedule/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ _csrf: csrf, week: week }),
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      loading.hidden = true;
+      generateBtn.disabled = false;
+      generateBtn.textContent = 'Generate Smart Schedule';
+
+      if (!data.ok) {
+        alert('Error: ' + (data.error || 'Unknown'));
+        return;
+      }
+
+      if (!data.schedule.length && !data.unlocated.length) {
+        daysContainer.innerHTML = '<div class="empty-state">No unscheduled jobs to arrange.</div>';
+        results.hidden = false;
+        return;
+      }
+
+      data.schedule.forEach(function (day, i) {
+        daysContainer.appendChild(renderDay(day, i));
+      });
+
+      if (data.overflow && data.overflow.length) {
+        overflowEl.textContent = data.overflow.length + ' job(s) couldn\'t fit in the 5-day week — run again next week or schedule them manually.';
+        overflowEl.hidden = false;
+      }
+
+      if (data.unlocated && data.unlocated.length) {
+        var names = data.unlocated.map(function (j) { return j.title + ' (' + j.customer_name + ')'; }).join(', ');
+        unlocatedEl.innerHTML = '<div class="flash flash-error">Could not geocode addresses for: ' + escHtml(names) + '. Add or fix their customer address, then re-generate.</div>';
+        unlocatedEl.hidden = false;
+      }
+
+      results.hidden = false;
+    })
+    .catch(function (err) {
+      loading.hidden = true;
+      generateBtn.disabled = false;
+      generateBtn.textContent = 'Generate Smart Schedule';
+      alert('Network error: ' + err.message);
+    });
+  });
+})();
+</script>
+<%- include('../partials/footer') %>

@@ -598,3 +598,7 @@ CREATE TABLE IF NOT EXISTS renewals (
 
 CREATE INDEX IF NOT EXISTS idx_renewals_expiry_date ON renewals(expiry_date);
 CREATE INDEX IF NOT EXISTS idx_renewals_category ON renewals(category);
+
+-- Geocoded coordinates for smart scheduling (populated on demand via Google Maps API)
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS lat REAL;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS lng REAL;

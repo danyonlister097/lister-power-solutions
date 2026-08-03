@@ -48,5 +48,8 @@ module.exports = {
     clientSecret: process.env.GRAPH_CLIENT_SECRET || '',
     mailbox: process.env.GRAPH_MAILBOX || '',
   },
+  maps: {
+    apiKey: process.env.GOOGLE_MAPS_API_KEY || '',
+  },
   logLevel: process.env.LOG_LEVEL || 'info',
 };

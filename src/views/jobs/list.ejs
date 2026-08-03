@@ -3,6 +3,7 @@
   <h1>Jobs</h1>
   <% if (isAdmin) { %>
     <div class="actions">
+      <button type="button" class="btn btn-danger btn-sm" id="bulk-delete-btn" hidden>Delete selected (<span id="bulk-delete-count">0</span>)</button>
       <a class="btn btn-secondary" href="/jobs/costing">Job Costing</a>
       <a class="btn btn-primary" href="/jobs/new">+ New job</a>
     </div>
@@ -77,6 +78,7 @@
     <% }
 %>
     <div class="list-item row-menu-hover-target" style="padding:0;gap:0;">
+      <% if (isAdmin) { %><label style="padding:0 0 0 1rem;display:flex;align-items:center;cursor:pointer;" aria-label="Select job"><input type="checkbox" class="job-select" value="<%= j.id %>"></label><% } %>
       <a href="/jobs/<%= j.id %>" style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1rem;gap:0.5rem;text-decoration:none;color:inherit;min-width:0;">
         <span style="min-width:0;">
           <span class="list-item-title"><%= j.title %></span><br>
@@ -109,4 +111,48 @@
       <% } %>
     </div>
 <% }) } %>
+
+<% if (isAdmin) { %>
+<form id="bulk-delete-form" method="post" action="/jobs/bulk-delete" style="display:none;">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+</form>
+<script>
+(function () {
+  var bulkBtn = document.getElementById('bulk-delete-btn');
+  var bulkCount = document.getElementById('bulk-delete-count');
+  var bulkForm = document.getElementById('bulk-delete-form');
+
+  function jobCheckboxes() {
+    return Array.prototype.slice.call(document.querySelectorAll('.job-select'));
+  }
+
+  function updateBulkBar() {
+    var checked = jobCheckboxes().filter(function (cb) { return cb.checked; });
+    bulkCount.textContent = checked.length;
+    bulkBtn.hidden = checked.length === 0;
+  }
+
+  jobCheckboxes().forEach(function (cb) {
+    cb.addEventListener('change', updateBulkBar);
+  });
+
+  bulkBtn.addEventListener('click', function () {
+    var checked = jobCheckboxes().filter(function (cb) { return cb.checked; });
+    if (!checked.length) return;
+    var msg = 'Delete ' + checked.length + ' selected job' + (checked.length === 1 ? '' : 's') + '? This cannot be undone.';
+    window.showConfirm('Are you sure?', msg, function () {
+      bulkForm.querySelectorAll('input[name="job_ids"]').forEach(function (el) { el.remove(); });
+      checked.forEach(function (cb) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'job_ids';
+        input.value = cb.value;
+        bulkForm.appendChild(input);
+      });
+      bulkForm.submit();
+    });
+  });
+})();
+</script>
+<% } %>
 <%- include('../partials/footer') %>

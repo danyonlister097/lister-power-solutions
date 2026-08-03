@@ -7,6 +7,8 @@ const { upload, putFile, fetchFile, deleteFile } = require('../lib/uploads');
 const { homeRoute } = require('../lib/homeRoute');
 const { JOB_COLORS, JOB_COLOR_VALUES } = require('../lib/jobColors');
 const { asyncHandler } = require('../lib/asyncHandler');
+const { geocodeAddress, buildAddress } = require('../lib/geocode');
+const { generateSchedule, nextMondayIso, addDaysToIso } = require('../lib/smartSchedule');
 
 const router = express.Router();
 
@@ -642,6 +644,117 @@ router.post(
   })
 );
 
+// ── Bulk delete ───────────────────────────────────────────────────────────────
+
+router.post(
+  '/bulk-delete',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const ids = []
+      .concat(req.body.job_ids || [])
+      .map((id) => Number.parseInt(id, 10))
+      .filter(Number.isFinite);
+
+    if (!ids.length) {
+      setFlash(req, 'error', 'No jobs selected.');
+      return res.redirect('/jobs');
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+    const attachments = await db
+      .prepare(`SELECT filename FROM job_attachments WHERE job_id IN (${placeholders})`)
+      .all(...ids);
+    await Promise.all(attachments.map((a) => deleteFile(a.filename)));
+    await db.prepare(`DELETE FROM job_attachments WHERE job_id IN (${placeholders})`).run(...ids);
+    await db.prepare(`DELETE FROM job_assignees WHERE job_id IN (${placeholders})`).run(...ids);
+    await db.prepare(`DELETE FROM jobs WHERE id IN (${placeholders})`).run(...ids);
+
+    setFlash(req, 'success', `${ids.length} job${ids.length === 1 ? '' : 's'} deleted.`);
+    res.redirect('/jobs');
+  })
+);
+
+// ── Smart Scheduling ──────────────────────────────────────────────────────────
+
+router.get(
+  '/smart-schedule',
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const config = require('../config');
+    const hasApiKey = !!config.maps.apiKey;
+    const weekStart = /^\d{4}-\d{2}-\d{2}$/.test(req.query.week || '') ? req.query.week : nextMondayIso();
+    res.render('jobs/smart-schedule', { title: 'Smart Schedule', weekStart, hasApiKey });
+  })
+);
+
+// POST /jobs/smart-schedule/generate — geocode missing customers, run algorithm, return JSON
+router.post(
+  '/smart-schedule/generate',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const weekStart = /^\d{4}-\d{2}-\d{2}$/.test(req.body.week || '') ? req.body.week : nextMondayIso();
+
+    // Fetch all unscheduled jobs with their customer address + existing coords
+    const jobs = await db
+      .prepare(
+        `SELECT jobs.id, jobs.title, jobs.description,
+                customers.id AS customer_id, customers.name AS customer_name,
+                customers.address_street, customers.address_city,
+                customers.address_state, customers.address_postcode,
+                customers.lat, customers.lng
+         FROM jobs
+         JOIN customers ON customers.id = jobs.customer_id
+         WHERE jobs.status = 'unscheduled'
+         ORDER BY jobs.created_at ASC`
+      )
+      .all();
+
+    // Geocode any customers that are missing coordinates (deduplicated by customer_id)
+    const needsGeocode = [...new Map(
+      jobs.filter((j) => j.lat == null || j.lng == null).map((j) => [j.customer_id, j])
+    ).values()];
+
+    for (const customer of needsGeocode) {
+      const address = buildAddress(customer);
+      if (!address.trim()) continue;
+      const coords = await geocodeAddress(address);
+      if (coords) {
+        await db.prepare('UPDATE customers SET lat = ?, lng = ? WHERE id = ?').run(coords.lat, coords.lng, customer.customer_id);
+        // Update in-memory so the algorithm uses fresh coords this run
+        jobs.filter((j) => j.customer_id === customer.customer_id).forEach((j) => {
+          j.lat = coords.lat;
+          j.lng = coords.lng;
+        });
+      }
+    }
+
+    const result = generateSchedule(jobs, weekStart);
+    res.json({ ok: true, weekStart, ...result });
+  })
+);
+
+// POST /jobs/smart-schedule/commit — assign a day's jobs to a scheduled_start date
+router.post(
+  '/smart-schedule/commit',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const { date, jobIds } = req.body;
+    if (!date || !Array.isArray(jobIds) || !jobIds.length) {
+      return res.status(400).json({ ok: false, error: 'date and jobIds required' });
+    }
+    const scheduledStart = `${date}T08:00:00`;
+    for (const id of jobIds) {
+      await db
+        .prepare(`UPDATE jobs SET scheduled_start = ?, status = 'scheduled', updated_at = datetime('now') WHERE id = ? AND status = 'unscheduled'`)
+        .run(scheduledStart, Number(id));
+    }
+    res.json({ ok: true, committed: jobIds.length });
+  })
+);
+
 router.get(
   '/new',
   requireRole('admin'),
@@ -812,7 +925,7 @@ router.get(
       inventoryItems,
       stockAllocations,
       linkedAssets,
-      closeUrl: safeReturnTo(req.query.returnTo) || homeRoute(req.user),
+      closeUrl: safeReturnTo(req.query.returnTo) || '/jobs',
     });
   })
 );

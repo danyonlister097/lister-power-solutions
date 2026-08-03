@@ -3,6 +3,7 @@
   <h1>Schedule</h1>
   <div class="actions">
     <a class="btn btn-secondary btn-sm" href="/jobs">List view</a>
+    <% if (isAdmin) { %><a class="btn btn-secondary btn-sm" href="/jobs/smart-schedule">Smart Schedule</a><% } %>
     <a class="btn btn-primary btn-sm" href="/jobs/new">+ New job</a>
   </div>
 </div>
