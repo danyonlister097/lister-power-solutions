@@ -235,14 +235,16 @@ router.get(
       })),
     ].sort((a, b) => (a.expiry_date < b.expiry_date ? -1 : 1));
 
-    // Staff birthdays: next occurrence within 30 days
+    // Milestones: birthdays + work anniversaries within 30 days, job count milestone
     const allStaff = await db
-      .prepare('SELECT id, name, date_of_birth FROM users WHERE active = 1 AND date_of_birth IS NOT NULL')
+      .prepare('SELECT id, name, date_of_birth, employment_start_date FROM users WHERE active = 1')
       .all();
     const thisYear = Number(todayIso.slice(0, 4));
+
     const upcomingBirthdays = allStaff
+      .filter((u) => u.date_of_birth)
       .map((u) => {
-        const mmdd = u.date_of_birth.slice(5); // MM-DD
+        const mmdd = u.date_of_birth.slice(5);
         let nextBirthday = `${thisYear}-${mmdd}`;
         if (nextBirthday < todayIso) nextBirthday = `${thisYear + 1}-${mmdd}`;
         const daysUntil = Math.round((new Date(nextBirthday) - new Date(todayIso)) / 86400000);
@@ -250,6 +252,25 @@ router.get(
       })
       .filter((u) => u.daysUntil <= 30)
       .sort((a, b) => a.daysUntil - b.daysUntil);
+
+    const upcomingAnniversaries = allStaff
+      .filter((u) => u.employment_start_date)
+      .map((u) => {
+        const mmdd = u.employment_start_date.slice(5);
+        const startYear = Number(u.employment_start_date.slice(0, 4));
+        let nextAnniv = `${thisYear}-${mmdd}`;
+        if (nextAnniv < todayIso) nextAnniv = `${thisYear + 1}-${mmdd}`;
+        const yearsOfService = Number(nextAnniv.slice(0, 4)) - startYear;
+        const daysUntil = Math.round((new Date(nextAnniv) - new Date(todayIso)) / 86400000);
+        return { ...u, nextAnniv, daysUntil, yearsOfService };
+      })
+      .filter((u) => u.daysUntil <= 30 && u.yearsOfService > 0)
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+
+    const totalJobs = Number((await db.prepare('SELECT COUNT(*) AS n FROM jobs').get()).n);
+    const nextJobMilestone = Math.ceil((totalJobs + 1) / 100) * 100;
+    const jobsUntilMilestone = nextJobMilestone - totalJobs;
+    const jobMilestone = { totalJobs, nextJobMilestone, jobsUntilMilestone, justHit: totalJobs % 100 === 0 && totalJobs > 0 };
 
     res.render('dashboard/index', {
       title: 'Dashboard',
@@ -270,6 +291,8 @@ router.get(
       openFeedback,
       upcomingRenewalItems,
       upcomingBirthdays,
+      upcomingAnniversaries,
+      jobMilestone,
       formatHours,
     });
   })

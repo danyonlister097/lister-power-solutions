@@ -289,20 +289,34 @@
 
   <div class="card">
     <h2>Milestones</h2>
-    <% if (!upcomingBirthdays.length) { %>
-      <p class="text-muted">No staff birthdays in the next 30 days.</p>
+    <%
+      var milestoneItems = [];
+      upcomingBirthdays.forEach(function(u) {
+        milestoneItems.push({ daysUntil: u.daysUntil, icon: '🎂', label: u.name, sub: 'Birthday &middot; ' + (u.daysUntil === 0 ? 'Today!' : u.daysUntil === 1 ? 'Tomorrow' : 'In ' + u.daysUntil + ' days') + ' &middot; ' + formatAuDate(u.nextBirthday) });
+      });
+      upcomingAnniversaries.forEach(function(u) {
+        var yrs = u.yearsOfService;
+        milestoneItems.push({ daysUntil: u.daysUntil, icon: '🏅', label: u.name, sub: yrs + ' year' + (yrs === 1 ? '' : 's') + ' with the team &middot; ' + (u.daysUntil === 0 ? 'Today!' : u.daysUntil === 1 ? 'Tomorrow' : 'In ' + u.daysUntil + ' days') + ' &middot; ' + formatAuDate(u.nextAnniv) });
+      });
+      milestoneItems.sort(function(a, b) { return a.daysUntil - b.daysUntil; });
+    %>
+    <% if (jobMilestone.justHit) { %>
+      <div class="flash flash-success" style="margin-bottom:0.75rem;">🏆 Just hit job #<%= jobMilestone.totalJobs %>!</div>
+    <% } else { %>
+      <p class="text-muted" style="margin-bottom:0.75rem;font-size:0.85rem;">Job #<%= jobMilestone.nextJobMilestone %> milestone — <%= jobMilestone.jobsUntilMilestone %> job<%= jobMilestone.jobsUntilMilestone === 1 ? '' : 's' %> away (<%= jobMilestone.totalJobs %> total)</p>
+    <% } %>
+    <% if (!milestoneItems.length) { %>
+      <p class="text-muted">No upcoming staff milestones in the next 30 days.</p>
     <% } else { %>
       <ul class="list">
-        <% upcomingBirthdays.forEach(function(u) { %>
+        <% milestoneItems.forEach(function(m) { %>
           <li>
             <span class="list-item">
               <span>
-                <span class="list-item-title"><%= u.name %></span><br>
-                <span class="list-item-meta"><%= u.daysUntil === 0 ? 'Today!' : u.daysUntil === 1 ? 'Tomorrow' : 'In ' + u.daysUntil + ' days' %> &middot; <%= formatAuDate(u.nextBirthday) %></span>
+                <span class="list-item-title"><%= m.label %></span><br>
+                <span class="list-item-meta"><%- m.sub %></span>
               </span>
-              <% if (u.daysUntil === 0) { %>
-                <span style="font-size:1.5rem;">🎂</span>
-              <% } %>
+              <span style="font-size:1.5rem;"><%= m.icon %></span>
             </span>
           </li>
         <% }) %>

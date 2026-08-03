@@ -16,7 +16,7 @@ const ROLES = ['admin', 'trade', 'apprentice'];
 // has, just extended to whoever gets this checkbox.
 
 async function getUserOr404(req, res) {
-  const user = await db.prepare('SELECT id, name, email, role, active, hourly_rate, phone_personal, phone_work, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, address_street, address_city, address_state, address_postcode, date_of_birth, locked_at FROM users WHERE id = ?').get(req.params.id);
+  const user = await db.prepare('SELECT id, name, email, role, active, hourly_rate, phone_personal, phone_work, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, address_street, address_city, address_state, address_postcode, date_of_birth, employment_start_date, locked_at FROM users WHERE id = ?').get(req.params.id);
   if (!user) {
     res.status(404).render('error', { message: 'Employee not found.' });
     return null;
@@ -100,7 +100,7 @@ router.post(
     const nextSortOrder = (await db.prepare('SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM users').get()).next;
 
     const result = await db
-      .prepare('INSERT INTO users (name, email, password_hash, role, sort_order, hourly_rate, phone_personal, phone_work, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, address_street, address_city, address_state, address_postcode, date_of_birth) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id')
+      .prepare('INSERT INTO users (name, email, password_hash, role, sort_order, hourly_rate, phone_personal, phone_work, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, address_street, address_city, address_state, address_postcode, date_of_birth, employment_start_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id')
       .run(
         b.name.trim(),
         email,
@@ -117,7 +117,8 @@ router.post(
         (b.address_city || '').trim() || null,
         (b.address_state || '').trim() || null,
         (b.address_postcode || '').trim() || null,
-        (b.date_of_birth || '').trim() || null
+        (b.date_of_birth || '').trim() || null,
+        (b.employment_start_date || '').trim() || null
       );
     await savePermissions(result.lastInsertRowid, selectedPermissions);
 
@@ -165,7 +166,7 @@ router.post(
     }
 
     await db
-      .prepare(`UPDATE users SET name = ?, email = ?, role = ?, active = ?, hourly_rate = ?, phone_personal = ?, phone_work = ?, emergency_contact_name = ?, emergency_contact_phone = ?, emergency_contact_relation = ?, address_street = ?, address_city = ?, address_state = ?, address_postcode = ?, date_of_birth = ?, updated_at = datetime('now') WHERE id = ?`)
+      .prepare(`UPDATE users SET name = ?, email = ?, role = ?, active = ?, hourly_rate = ?, phone_personal = ?, phone_work = ?, emergency_contact_name = ?, emergency_contact_phone = ?, emergency_contact_relation = ?, address_street = ?, address_city = ?, address_state = ?, address_postcode = ?, date_of_birth = ?, employment_start_date = ?, updated_at = datetime('now') WHERE id = ?`)
       .run(
         b.name.trim(),
         b.email.trim().toLowerCase(),
@@ -182,6 +183,7 @@ router.post(
         (b.address_state || '').trim() || null,
         (b.address_postcode || '').trim() || null,
         (b.date_of_birth || '').trim() || null,
+        (b.employment_start_date || '').trim() || null,
         targetUser.id
       );
     await savePermissions(targetUser.id, selectedPermissions);

@@ -581,6 +581,7 @@ CREATE INDEX IF NOT EXISTS idx_feedback_items_status ON feedback_items(status);
 
 -- date_of_birth for birthday milestone tracking on the dashboard
 ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS employment_start_date TEXT;
 
 -- Renewal / compliance tracking: licences, training, rego, insurance, compliance docs
 CREATE TABLE IF NOT EXISTS renewals (
