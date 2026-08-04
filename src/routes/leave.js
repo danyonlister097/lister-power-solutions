@@ -99,13 +99,15 @@ router.post(
     const status = allowed.includes(req.body.status) ? req.body.status : null;
     if (!status) return res.status(400).render('error', { message: 'Invalid status.' });
 
-    const isDecision = status === 'approved' || status === 'denied';
-    await db
-      .prepare(`UPDATE leave_requests SET status = ?,
-          decided_by = CASE WHEN ? THEN ? ELSE NULL END,
-          decided_at = CASE WHEN ? THEN datetime('now') ELSE NULL END,
-          updated_at = datetime('now') WHERE id = ?`)
-      .run(status, isDecision, req.user.id, isDecision, request.id);
+    if (status === 'pending') {
+      await db
+        .prepare("UPDATE leave_requests SET status = 'pending', decided_by = NULL, decided_at = NULL, updated_at = datetime('now') WHERE id = ?")
+        .run(request.id);
+    } else {
+      await db
+        .prepare("UPDATE leave_requests SET status = ?, decided_by = ?, decided_at = datetime('now'), updated_at = datetime('now') WHERE id = ?")
+        .run(status, req.user.id, request.id);
+    }
 
     const label = status === 'approved' ? 'approved' : status === 'denied' ? 'declined' : 'reset to pending';
     setFlash(req, 'success', `Leave request ${label}.`);
