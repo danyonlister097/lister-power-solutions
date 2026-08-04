@@ -801,9 +801,10 @@ router.get(
     const techs = await db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY sort_order, name').all();
     const preselectedCustomerId = req.query.customer_id ? Number(req.query.customer_id) : null;
     const preselectedDate = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '') ? req.query.date : '';
+    const randomColor = JOB_COLORS[Math.floor(Math.random() * JOB_COLORS.length)].value;
     res.render('jobs/form', {
       title: 'New Job',
-      job: { customer_id: preselectedCustomerId, date: preselectedDate, start_time: '', end_time: '', all_day: false, assigneeIds: [] },
+      job: { customer_id: preselectedCustomerId, date: preselectedDate, start_time: '', end_time: '', all_day: false, assigneeIds: [], color: randomColor },
       customers,
       techs,
       STATUSES,
