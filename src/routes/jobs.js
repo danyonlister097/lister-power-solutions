@@ -757,6 +757,7 @@ router.post(
       await db
         .prepare(`UPDATE jobs SET scheduled_start = ?, status = 'scheduled', updated_at = datetime('now') WHERE id = ? AND status = 'unscheduled'`)
         .run(scheduledStart, Number(id));
+      await db.prepare('DELETE FROM job_assignees WHERE job_id = ?').run(Number(id));
     }
     res.json({ ok: true, committed: jobIds.length });
   })
