@@ -57,11 +57,18 @@
     card.className = 'card';
     card.style.cssText = 'border-left:4px solid var(--color-primary);';
 
-    var header = '<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">'
-      + '<div><strong style="font-size:1.05rem;">' + day.dayLabel + '</strong>'
-      + ' <span class="badge badge-scheduled" style="margin-left:0.4rem;">' + day.jobs.length + ' job' + (day.jobs.length !== 1 ? 's' : '') + '</span>'
-      + ' <span class="text-muted" style="font-size:0.85rem;margin-left:0.4rem;">~' + day.totalKm + ' km round trip</span></div>'
-      + '<button type="button" class="btn btn-primary btn-sm commit-btn" data-date="' + day.date + '" data-index="' + index + '">Commit this day</button>'
+    var header = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">'
+      + '<div>'
+      + '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.4rem;">'
+      + '<span class="badge badge-scheduled">' + day.jobs.length + ' job' + (day.jobs.length !== 1 ? 's' : '') + '</span>'
+      + '<span class="text-muted" style="font-size:0.85rem;">~' + day.totalKm + ' km round trip</span>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:0.5rem;">'
+      + '<label style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--color-muted);white-space:nowrap;">Commit to date</label>'
+      + '<input type="date" class="day-date-input" value="' + day.date + '" style="font-size:0.9rem;padding:0.25rem 0.5rem;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);color:var(--color-text);">'
+      + '</div>'
+      + '</div>'
+      + '<button type="button" class="btn btn-primary btn-sm commit-btn" data-index="' + index + '">Commit this day</button>'
       + '</div>';
 
     var route = '<div style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-muted);margin-bottom:0.5rem;">Route order (home → jobs → home)</div>';
@@ -89,6 +96,9 @@
 
   function commitDay(day, index, card) {
     var btn = card.querySelector('.commit-btn');
+    var dateInput = card.querySelector('.day-date-input');
+    var chosenDate = dateInput ? dateInput.value : day.date;
+    if (!chosenDate) { alert('Please select a date before committing.'); return; }
     btn.disabled = true;
     btn.textContent = 'Committing…';
     var jobIds = day.jobs.map(function (j) { return j.id; });
@@ -96,7 +106,7 @@
     fetch('/jobs/smart-schedule/commit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ _csrf: csrf, date: day.date, jobIds: jobIds }),
+      body: JSON.stringify({ _csrf: csrf, date: chosenDate, jobIds: jobIds }),
     })
     .then(function (r) { return r.json(); })
     .then(function (data) {
