@@ -69,24 +69,6 @@ router.post(
 );
 
 router.post(
-  '/:id/resubmit',
-  verifyCsrf,
-  asyncHandler(async (req, res) => {
-    const request = await db.prepare('SELECT * FROM leave_requests WHERE id = ?').get(req.params.id);
-    if (!request || request.user_id !== req.user.id || request.status !== 'denied') {
-      return res.status(404).render('error', { message: 'Leave request not found.' });
-    }
-
-    await db
-      .prepare("UPDATE leave_requests SET status = 'pending', decided_by = NULL, decided_at = NULL, updated_at = datetime('now') WHERE id = ?")
-      .run(request.id);
-
-    setFlash(req, 'success', 'Leave request resubmitted for review.');
-    res.redirect('/leave');
-  })
-);
-
-router.post(
   '/:id/cancel',
   verifyCsrf,
   asyncHandler(async (req, res) => {
@@ -98,6 +80,35 @@ router.post(
     await db.prepare("UPDATE leave_requests SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?").run(request.id);
 
     setFlash(req, 'success', 'Leave request cancelled.');
+    res.redirect('/leave');
+  })
+);
+
+router.post(
+  '/:id/set-status',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== 'admin') {
+      return res.status(403).render('error', { message: 'You do not have access to this page.' });
+    }
+
+    const request = await db.prepare('SELECT * FROM leave_requests WHERE id = ?').get(req.params.id);
+    if (!request) return res.status(404).render('error', { message: 'Leave request not found.' });
+
+    const allowed = ['pending', 'approved', 'denied'];
+    const status = allowed.includes(req.body.status) ? req.body.status : null;
+    if (!status) return res.status(400).render('error', { message: 'Invalid status.' });
+
+    const isDecision = status === 'approved' || status === 'denied';
+    await db
+      .prepare(`UPDATE leave_requests SET status = ?,
+          decided_by = CASE WHEN ? THEN ? ELSE NULL END,
+          decided_at = CASE WHEN ? THEN datetime('now') ELSE NULL END,
+          updated_at = datetime('now') WHERE id = ?`)
+      .run(status, isDecision, req.user.id, isDecision, request.id);
+
+    const label = status === 'approved' ? 'approved' : status === 'denied' ? 'declined' : 'reset to pending';
+    setFlash(req, 'success', `Leave request ${label}.`);
     res.redirect('/leave');
   })
 );

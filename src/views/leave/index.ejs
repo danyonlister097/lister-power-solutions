@@ -89,10 +89,28 @@
                 <button type="submit" class="btn-link">Cancel</button>
               </form>
             <% } %>
-            <% if (variant === 'declined' && r.user_id === currentUserId) { %>
-              <form method="post" action="/leave/<%= r.id %>/resubmit">
+            <% if (isAdmin && variant === 'approved') { %>
+              <form method="post" action="/leave/<%= r.id %>/set-status">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <button type="submit" class="btn btn-secondary btn-sm">Resubmit</button>
+                <input type="hidden" name="status" value="denied">
+                <button type="submit" class="btn btn-secondary btn-sm">Decline</button>
+              </form>
+              <form method="post" action="/leave/<%= r.id %>/set-status">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="status" value="pending">
+                <button type="submit" class="btn btn-secondary btn-sm">Reset to Pending</button>
+              </form>
+            <% } %>
+            <% if (isAdmin && variant === 'declined') { %>
+              <form method="post" action="/leave/<%= r.id %>/set-status">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="status" value="approved">
+                <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+              </form>
+              <form method="post" action="/leave/<%= r.id %>/set-status">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="status" value="pending">
+                <button type="submit" class="btn btn-secondary btn-sm">Reset to Pending</button>
               </form>
             <% } %>
           </div>
