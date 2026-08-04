@@ -8,6 +8,73 @@
   </div>
 </div>
 
+<%
+  /* Mobile list view — precompute per-day job lists (de-duplicated by job ID) */
+  const mobileWeekDays = days.map(function(d, i) {
+    const seen = {};
+    const jobs = [];
+    rows.forEach(function(r) {
+      (r.days && r.days[i] ? r.days[i] : []).forEach(function(j) {
+        if (!seen[j.id]) { seen[j.id] = true; jobs.push(j); }
+      });
+    });
+    jobs.sort(function(a, b) { return (a.scheduled_start || '').localeCompare(b.scheduled_start || ''); });
+    return { iso: d.iso, date: d.date, hasJobs: jobs.length > 0, jobs: jobs };
+  });
+%>
+<div class="mobile-sched">
+  <div class="mobile-sched-header">
+    <div class="mobile-view-toggle">
+      <span class="mobile-view-btn active">List</span>
+      <a class="mobile-view-btn" href="?view=day&start=<%= todayIso %>">Day</a>
+    </div>
+    <a class="btn btn-primary btn-sm" href="/jobs/new">+ New</a>
+  </div>
+
+  <div class="mobile-date-strip">
+    <% mobileWeekDays.forEach(function(d) { %>
+      <a class="mobile-date-chip<%= d.iso === todayIso ? ' chip-today' : '' %><%= d.hasJobs ? ' chip-has-jobs' : '' %>"
+         href="#day-<%= d.iso %>">
+        <span class="chip-wd"><%= d.date.toLocaleDateString('en-AU', { weekday: 'short' }) %></span>
+        <span class="chip-num"><%= d.date.getDate() %></span>
+      </a>
+    <% }) %>
+  </div>
+
+  <div class="mobile-day-list">
+    <% mobileWeekDays.forEach(function(d) { %>
+      <div class="mobile-day-section" id="day-<%= d.iso %>">
+        <div class="mobile-day-heading">
+          <span class="mobile-day-label<%= d.iso === todayIso ? ' is-today' : '' %>">
+            <%= d.date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' }) %>
+          </span>
+          <a class="mobile-add-btn" href="/jobs/new?date=<%= d.iso %>" title="Add job">+</a>
+        </div>
+        <% if (!d.jobs.length) { %>
+          <p class="mobile-no-jobs">No jobs scheduled</p>
+        <% } else { %>
+          <% d.jobs.forEach(function(j) { %>
+            <a href="/jobs/<%= j.id %>"
+               class="mobile-job-card shift-<%= j.status %><%= j.color ? ' has-color' : '' %>"
+               <% if (j.color) { %>style="background-color: <%= j.color %>;"<% } %>>
+              <div class="mobile-job-time">
+                <% if (j.all_day) { %>All day<% } else if (j.scheduled_start) { %>
+                  <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %>
+                <% } else { %>—<% } %>
+              </div>
+              <div class="mobile-job-body">
+                <div class="mobile-job-title"><%= j.title %></div>
+                <div class="mobile-job-meta"><%= j.customer_name %><% if (j.assigneeNames) { %> · <%= j.assigneeNames %><% } %></div>
+              </div>
+              <span class="mobile-job-arrow">›</span>
+            </a>
+          <% }) %>
+        <% } %>
+      </div>
+    <% }) %>
+  </div>
+</div>
+
 <div class="sched-view-tabs">
   <a href="?view=day&start=<%= days[0].iso %>" class="<%= view === 'day' ? 'active' : '' %>">Day</a>
   <a href="?view=week&start=<%= days[0].iso %>" class="<%= view === 'week' ? 'active' : '' %>">Week</a>

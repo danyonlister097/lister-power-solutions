@@ -7,6 +7,55 @@
   </div>
 </div>
 
+<%
+  /* Mobile day view — flat deduplicated job list sorted by time */
+  const mobileDayJobs = (dayJobs || []).slice().sort(function(a, b) {
+    return (a.scheduled_start || '').localeCompare(b.scheduled_start || '');
+  });
+  const mobileDayShort = new Date(dayIso + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: '2-digit', month: '2-digit' });
+%>
+<div class="mobile-sched">
+  <div class="mobile-sched-header">
+    <div class="mobile-view-toggle">
+      <a class="mobile-view-btn" href="?view=week&start=<%= dayIso %>">List</a>
+      <span class="mobile-view-btn active">Day</span>
+    </div>
+    <a class="btn btn-primary btn-sm" href="/jobs/new?date=<%= dayIso %>">+ New</a>
+  </div>
+
+  <div class="mobile-day-nav">
+    <a class="mobile-day-nav-btn" href="?view=day&start=<%= prevStartIso %>">‹</a>
+    <span class="mobile-day-nav-label"><%= mobileDayShort %></span>
+    <a class="mobile-day-nav-btn" href="?view=day&start=<%= nextStartIso %>">›</a>
+  </div>
+
+  <div class="mobile-day-only-list">
+    <% if (!mobileDayJobs.length) { %>
+      <p class="mobile-no-jobs-center">No jobs scheduled for this day</p>
+    <% } else { %>
+      <% mobileDayJobs.forEach(function(j) { %>
+        <a href="/jobs/<%= j.id %>"
+           class="mobile-job-card shift-<%= j.status %><%= j.color ? ' has-color' : '' %>"
+           <% if (j.color) { %>style="background-color: <%= j.color %>;"<% } %>>
+          <div class="mobile-job-time">
+            <% if (j.all_day) { %>All day<% } else if (j.scheduled_start) { %>
+              <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %>
+              <% if (j.scheduled_end) { %>
+                <br><%= new Date(j.scheduled_end).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %>
+              <% } %>
+            <% } else { %>—<% } %>
+          </div>
+          <div class="mobile-job-body">
+            <div class="mobile-job-title"><%= j.title %></div>
+            <div class="mobile-job-meta"><%= j.customer_name %><% if (j.assigneeNames) { %> · <%= j.assigneeNames %><% } %></div>
+          </div>
+          <span class="mobile-job-arrow">›</span>
+        </a>
+      <% }) %>
+    <% } %>
+  </div>
+</div>
+
 <div class="sched-view-tabs">
   <a href="?view=day&start=<%= dayIso %>" class="active">Day</a>
   <a href="?view=week&start=<%= dayIso %>">Week</a>

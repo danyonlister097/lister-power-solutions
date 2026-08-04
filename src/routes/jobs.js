@@ -172,6 +172,10 @@ function toIsoDate(d) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function brisbaneTodayIso() {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: BUSINESS_TZ });
+}
+
 function mondayOf(d) {
   const date = new Date(d);
   const day = date.getDay();
@@ -297,6 +301,7 @@ async function renderGridView(req, res, numDays) {
     prevStartIso: toIsoDate(prevStart),
     nextStartIso: toIsoDate(nextStart),
     monthIso: `${rangeStart.getFullYear()}-${String(rangeStart.getMonth() + 1).padStart(2, '0')}`,
+    todayIso: brisbaneTodayIso(),
     isAdmin: req.user.role === 'admin',
     summary: {
       shifts: totalShifts,
@@ -521,8 +526,10 @@ async function renderDayView(req, res) {
     prevStartIso: toIsoDate(prevDay),
     nextStartIso: toIsoDate(nextDay),
     monthIso: `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}`,
+    todayIso: brisbaneTodayIso(),
     hourMarks,
     rows,
+    dayJobs: jobs,
     isAdmin: req.user.role === 'admin',
     summary: {
       shifts: totalShifts,
