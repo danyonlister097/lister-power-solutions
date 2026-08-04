@@ -682,6 +682,36 @@ router.post(
   })
 );
 
+// ── Bulk unschedule ───────────────────────────────────────────────────────────
+
+router.post(
+  '/bulk-unschedule',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const ids = []
+      .concat(req.body.job_ids || [])
+      .map((id) => Number.parseInt(id, 10))
+      .filter(Number.isFinite);
+
+    if (!ids.length) {
+      setFlash(req, 'error', 'No jobs selected.');
+      return res.redirect('/jobs');
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+    await db
+      .prepare(
+        `UPDATE jobs SET status = 'unscheduled', scheduled_start = NULL, scheduled_end = NULL, updated_at = datetime('now') WHERE id IN (${placeholders})`
+      )
+      .run(...ids);
+    await db.prepare(`DELETE FROM job_assignees WHERE job_id IN (${placeholders})`).run(...ids);
+
+    setFlash(req, 'success', `${ids.length} job${ids.length === 1 ? '' : 's'} reverted to unscheduled.`);
+    res.redirect('/jobs');
+  })
+);
+
 // ── Smart Scheduling ──────────────────────────────────────────────────────────
 
 router.get(
@@ -1147,7 +1177,7 @@ router.post(
     }
 
     setFlash(req, 'success', 'Job updated.');
-    res.redirect(returnTo || homeRoute(req.user));
+    res.redirect(returnTo || '/jobs');
   })
 );
 

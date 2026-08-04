@@ -3,6 +3,7 @@
   <h1>Jobs</h1>
   <% if (isAdmin) { %>
     <div class="actions">
+      <button type="button" class="btn btn-secondary btn-sm" id="bulk-unschedule-btn" hidden>Revert to Unscheduled (<span id="bulk-unschedule-count">0</span>)</button>
       <button type="button" class="btn btn-danger btn-sm" id="bulk-delete-btn" hidden>Delete selected (<span id="bulk-delete-count">0</span>)</button>
       <a class="btn btn-secondary" href="/jobs/costing">Job Costing</a>
       <a class="btn btn-primary" href="/jobs/new">+ New job</a>
@@ -95,7 +96,7 @@
       <div class="row-menu-cell" style="padding-right:0.5rem;position:relative;">
         <button class="row-menu-btn" aria-label="More actions" aria-expanded="false">⋮</button>
         <div class="context-menu" hidden>
-          <a class="context-menu-item" href="/jobs/<%= j.id %>/edit">Edit</a>
+          <a class="context-menu-item" href="/jobs/<%= j.id %>/edit?returnTo=<%= encodeURIComponent('/jobs?range=' + range + '&status=' + status + '&assignedTo=' + (assignedTo || '')) %>">Edit</a>
           <form method="post" action="/jobs/<%= j.id %>/duplicate" style="margin:0;">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <input type="hidden" name="returnTo" value="/jobs?range=<%= range %>&status=<%= status %>&assignedTo=<%= assignedTo %>">
@@ -116,11 +117,17 @@
 <form id="bulk-delete-form" method="post" action="/jobs/bulk-delete" style="display:none;">
   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 </form>
+<form id="bulk-unschedule-form" method="post" action="/jobs/bulk-unschedule" style="display:none;">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+</form>
 <script>
 (function () {
   var bulkBtn = document.getElementById('bulk-delete-btn');
   var bulkCount = document.getElementById('bulk-delete-count');
   var bulkForm = document.getElementById('bulk-delete-form');
+  var bulkUnscheduleBtn = document.getElementById('bulk-unschedule-btn');
+  var bulkUnscheduleCount = document.getElementById('bulk-unschedule-count');
+  var bulkUnscheduleForm = document.getElementById('bulk-unschedule-form');
 
   function jobCheckboxes() {
     return Array.prototype.slice.call(document.querySelectorAll('.job-select'));
@@ -130,6 +137,8 @@
     var checked = jobCheckboxes().filter(function (cb) { return cb.checked; });
     bulkCount.textContent = checked.length;
     bulkBtn.hidden = checked.length === 0;
+    bulkUnscheduleCount.textContent = checked.length;
+    bulkUnscheduleBtn.hidden = checked.length === 0;
   }
 
   jobCheckboxes().forEach(function (cb) {
@@ -150,6 +159,23 @@
         bulkForm.appendChild(input);
       });
       bulkForm.submit();
+    });
+  });
+
+  bulkUnscheduleBtn.addEventListener('click', function () {
+    var checked = jobCheckboxes().filter(function (cb) { return cb.checked; });
+    if (!checked.length) return;
+    var msg = 'Revert ' + checked.length + ' selected job' + (checked.length === 1 ? '' : 's') + ' to Unscheduled? This will clear their scheduled dates and unassign all staff.';
+    window.showConfirm('Revert to Unscheduled?', msg, function () {
+      bulkUnscheduleForm.querySelectorAll('input[name="job_ids"]').forEach(function (el) { el.remove(); });
+      checked.forEach(function (cb) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'job_ids';
+        input.value = cb.value;
+        bulkUnscheduleForm.appendChild(input);
+      });
+      bulkUnscheduleForm.submit();
     });
   });
 })();

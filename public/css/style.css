@@ -315,7 +315,13 @@ h2 { font-size: 1.15rem; }
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+  position: sticky;
+  top: var(--topbar-h, 0px);
+  z-index: 20;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.4rem 0 0.5rem;
 }
 
 .page-close {
@@ -1089,7 +1095,10 @@ a.list-item:hover { border-color: var(--color-primary); }
   .sched-summary,
   .day-sched { display: none !important; }
 
-  .page-header .actions { display: none; }
+  .page-header {
+    top: calc(var(--topbar-h, 0px) + var(--sidebar-h, 0px));
+  }
+  .sched-page-header { display: none !important; }
 
   .mobile-sched {
     display: flex;
@@ -1104,6 +1113,10 @@ a.list-item:hover { border-color: var(--color-primary); }
     padding: 0.6rem 1rem;
     border-bottom: 1px solid var(--color-border);
     gap: 0.75rem;
+    position: sticky;
+    top: calc(var(--topbar-h, 0px) + var(--sidebar-h, 0px));
+    z-index: 20;
+    background: var(--color-bg);
   }
 
   .mobile-view-toggle {

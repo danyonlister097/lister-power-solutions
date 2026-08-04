@@ -114,6 +114,26 @@
         window.addEventListener('resize', syncTopbarHeight);
       }
     })();
+    (function () {
+      function trackSidebarHeight() {
+        var sidebar = document.querySelector('.sidebar');
+        if (!sidebar) return;
+        function syncSidebarHeight() {
+          document.documentElement.style.setProperty('--sidebar-h', sidebar.offsetHeight + 'px');
+        }
+        syncSidebarHeight();
+        if (window.ResizeObserver) {
+          new ResizeObserver(syncSidebarHeight).observe(sidebar);
+        } else {
+          window.addEventListener('resize', syncSidebarHeight);
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', trackSidebarHeight);
+      } else {
+        trackSidebarHeight();
+      }
+    })();
   </script>
   <div class="app-shell">
     <aside class="sidebar">
