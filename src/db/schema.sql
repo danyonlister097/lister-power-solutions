@@ -612,6 +612,19 @@ CREATE TABLE IF NOT EXISTS renewals (
 CREATE INDEX IF NOT EXISTS idx_renewals_expiry_date ON renewals(expiry_date);
 CREATE INDEX IF NOT EXISTS idx_renewals_category ON renewals(category);
 
+-- Custom business milestones (project deadlines, certifications, anniversaries, etc.)
+CREATE TABLE IF NOT EXISTS milestones (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  date TEXT NOT NULL,
+  recurrence TEXT NOT NULL DEFAULT 'once' CHECK (recurrence IN ('once', 'annual')),
+  notes TEXT,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+CREATE INDEX IF NOT EXISTS idx_milestones_date ON milestones(date);
+
 -- Geocoded coordinates for smart scheduling (populated on demand via Google Maps API)
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS lat REAL;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS lng REAL;

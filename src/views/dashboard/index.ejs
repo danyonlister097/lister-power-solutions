@@ -287,8 +287,8 @@
     <% } %>
   </div>
 
-  <div class="card" style="border-left:6px solid #7c5cff;">
-    <h2>Milestones</h2>
+  <div class="card" style="border-left:6px solid #7c5cff;cursor:pointer;" onclick="window.location='/milestones'">
+    <h2>Business Milestones</h2>
     <%
       var milestoneItems = [];
       upcomingBirthdays.forEach(function(u) {
@@ -298,6 +298,10 @@
         var yrs = u.yearsOfService;
         milestoneItems.push({ daysUntil: u.daysUntil, icon: '🏅', label: u.name, sub: yrs + ' year' + (yrs === 1 ? '' : 's') + ' with the team &middot; ' + (u.daysUntil === 0 ? 'Today!' : u.daysUntil === 1 ? 'Tomorrow' : 'In ' + u.daysUntil + ' days') + ' &middot; ' + formatAuDate(u.nextAnniv) });
       });
+      upcomingCustomMilestones.forEach(function(m) {
+        var dayStr = m.daysUntil === 0 ? 'Today!' : m.daysUntil === 1 ? 'Tomorrow' : 'In ' + m.daysUntil + ' days';
+        milestoneItems.push({ daysUntil: m.daysUntil, icon: '⭐', label: m.displayTitle, sub: dayStr + ' &middot; ' + formatAuDate(m.nextDate) + (m.recurrence === 'annual' ? ' &middot; Annual' : '') });
+      });
       milestoneItems.sort(function(a, b) { return a.daysUntil - b.daysUntil; });
     %>
     <% if (jobMilestone.justHit) { %>
@@ -306,7 +310,7 @@
       <p class="text-muted" style="margin-bottom:0.75rem;font-size:0.85rem;">Job #<%= jobMilestone.nextJobMilestone %> milestone — <%= jobMilestone.jobsUntilMilestone %> job<%= jobMilestone.jobsUntilMilestone === 1 ? '' : 's' %> away (<%= jobMilestone.totalJobs %> total)</p>
     <% } %>
     <% if (!milestoneItems.length) { %>
-      <p class="text-muted">No upcoming staff milestones in the next 30 days.</p>
+      <p class="text-muted">No upcoming milestones in the next 30 days.</p>
     <% } else { %>
       <ul class="list">
         <% milestoneItems.forEach(function(m) { %>

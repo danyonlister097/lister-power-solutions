@@ -1,0 +1,133 @@
+<%- include('../partials/header', { title: 'Business Milestones' }) %>
+<div class="page-header">
+  <h1>Business Milestones</h1>
+  <% if (isAdmin) { %>
+    <button type="button" class="btn btn-primary" id="milestone-add-open">+ Add Milestone</button>
+  <% } %>
+</div>
+
+<% if (!milestones.length) { %>
+  <p class="text-muted">No milestones added yet.</p>
+<% } else { %>
+  <ul class="list">
+    <% milestones.forEach(function(m) { %>
+      <li>
+        <span class="list-item row-menu-hover-target">
+          <span style="min-width:0;flex:1;">
+            <span class="list-item-title"><%= m.title %></span><br>
+            <span class="list-item-meta">
+              <%= formatAuDate(m.date) %>
+              <% if (m.recurrence === 'annual') { %>&middot; Repeats annually<% } %>
+              <% if (m.notes) { %>&middot; <%= m.notes %><% } %>
+            </span>
+          </span>
+          <% if (isAdmin) { %>
+            <button type="button" class="row-menu-btn" data-milestone-id="<%= m.id %>" aria-label="Milestone options">&#8942;</button>
+          <% } %>
+        </span>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+
+<% if (isAdmin) { %>
+  <div id="milestone-add-modal" class="modal" hidden>
+    <div class="modal-box">
+      <h2>Add Milestone</h2>
+      <form method="post" action="/milestones">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label>
+          Title *
+          <input type="text" name="title" required placeholder="e.g. Business 5 Year Anniversary">
+        </label>
+        <div class="form-row form-row-2">
+          <label>
+            Date *
+            <input type="date" name="date" required>
+          </label>
+          <label>
+            Recurrence
+            <select name="recurrence">
+              <option value="once">One-off</option>
+              <option value="annual">Repeats annually</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          Notes (optional)
+          <textarea name="notes" rows="2" placeholder="Any extra details..."></textarea>
+        </label>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-secondary" id="milestone-add-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="milestone-row-menu" class="context-menu" hidden>
+    <button type="button" class="context-menu-item context-menu-danger" data-action="delete">Delete</button>
+  </div>
+  <form id="milestone-delete-form" method="post" style="display:none;">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  </form>
+
+  <script>
+    (function () {
+      // Modal
+      var modal = document.getElementById('milestone-add-modal');
+      document.getElementById('milestone-add-open').addEventListener('click', function () { modal.hidden = false; });
+      document.getElementById('milestone-add-cancel').addEventListener('click', function () { modal.hidden = true; });
+      modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
+
+      // Row menu
+      var menu = document.getElementById('milestone-row-menu');
+      var deleteForm = document.getElementById('milestone-delete-form');
+      var activeBtn = null;
+
+      function closeMenu() {
+        menu.hidden = true;
+        if (activeBtn) activeBtn.classList.remove('row-menu-btn-active');
+        activeBtn = null;
+      }
+
+      document.querySelectorAll('.row-menu-btn[data-milestone-id]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (activeBtn === btn) { closeMenu(); return; }
+          if (activeBtn) activeBtn.classList.remove('row-menu-btn-active');
+          activeBtn = btn;
+          btn.classList.add('row-menu-btn-active');
+          var rect = btn.getBoundingClientRect();
+          menu.style.top = window.scrollY + rect.bottom + 4 + 'px';
+          menu.style.left = window.scrollX + rect.right - 120 + 'px';
+          menu.hidden = false;
+        });
+      });
+
+      document.addEventListener('click', function (e) {
+        if (menu.hidden) return;
+        if (e.target.closest('#milestone-row-menu') || e.target.closest('.row-menu-btn[data-milestone-id]')) return;
+        closeMenu();
+      });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) closeMenu(); });
+
+      menu.addEventListener('click', function (e) {
+        var item = e.target.closest('.context-menu-item');
+        if (!item) return;
+        e.preventDefault();
+        var btn = activeBtn;
+        closeMenu();
+        if (!btn) return;
+        var id = btn.getAttribute('data-milestone-id');
+        if (item.getAttribute('data-action') === 'delete') {
+          window.showConfirm('Delete milestone?', 'This cannot be undone.', function () {
+            deleteForm.action = '/milestones/' + id + '/delete';
+            deleteForm.submit();
+          });
+        }
+      });
+    })();
+  </script>
+<% } %>
+<%- include('../partials/footer') %>

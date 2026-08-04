@@ -272,6 +272,27 @@ router.get(
     const jobsUntilMilestone = nextJobMilestone - totalJobs;
     const jobMilestone = { totalJobs, nextJobMilestone, jobsUntilMilestone, justHit: totalJobs % 100 === 0 && totalJobs > 0 };
 
+    const allCustomMilestones = await db.prepare('SELECT id, title, date, recurrence FROM milestones').all();
+    const upcomingCustomMilestones = allCustomMilestones
+      .map((m) => {
+        let nextDate = m.date;
+        let displayTitle = m.title;
+        if (m.recurrence === 'annual') {
+          const originalYear = Number(m.date.slice(0, 4));
+          const mmdd = m.date.slice(5);
+          nextDate = `${thisYear}-${mmdd}`;
+          if (nextDate < todayIso) nextDate = `${thisYear + 1}-${mmdd}`;
+          const yearOffset = Number(nextDate.slice(0, 4)) - originalYear;
+          if (yearOffset > 0) {
+            displayTitle = m.title.replace(/\b(\d+)\b/, (_, n) => String(Number(n) + yearOffset));
+          }
+        }
+        const daysUntil = Math.round((new Date(nextDate) - new Date(todayIso)) / 86400000);
+        return { ...m, nextDate, daysUntil, displayTitle };
+      })
+      .filter((m) => m.daysUntil >= 0 && m.daysUntil <= 30)
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+
     res.render('dashboard/index', {
       title: 'Dashboard',
       jobsThisWeek,
@@ -292,6 +313,7 @@ router.get(
       upcomingRenewalItems,
       upcomingBirthdays,
       upcomingAnniversaries,
+      upcomingCustomMilestones,
       jobMilestone,
       formatHours,
     });
