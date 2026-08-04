@@ -775,6 +775,42 @@ router.get(
   })
 );
 
+// ── Aircon auto-stock allocation ─────────────────────────────────────────────
+
+const AIRCON_JOB_PATTERN = /\baircon\s+(install(?:ation)?|replace(?:ment)?)\b/i;
+
+// Each entry's `pattern` is matched with ILIKE so inventory names don't need
+// to be exact - just distinctive enough to hit only the intended item.
+const AIRCON_STOCK_BASE = [
+  { code: 'NHPNL120S',   qty: 1 }, // W/P SWITCH IP66 2 POLE 20A 250VAC (isolator)
+  { code: 'CBL1.5TEF',   qty: 3 }, // FLAT TWIN & EARTH 1.5MM
+  { code: 'CBL1.5SDIRD', qty: 3 }, // SDI 1.5MM RED/WHITE 100M
+  { code: 'A-AEWC80',    qty: 1 }, // AIRCON DUCT WALL CAP 80MM
+  { code: 'A-AECD80',    qty: 1 }, // AIRCON DUCT STRAIGHT 2MTR 80MM
+  { code: 'CDT9020MD',   qty: 4 }, // MD CONDUIT PVC RIGID 20MM GREY 4MTR
+];
+
+const AIRCON_STOCK_SMALL = [...AIRCON_STOCK_BASE, { code: 'A-APCB0609', qty: 3 }]; // PAIRCOIL 1/4IN-3/8IN
+const AIRCON_STOCK_LARGE = [...AIRCON_STOCK_BASE, { code: 'A-APCB0612', qty: 3 }]; // PAIRCOIL 1/4IN-1/2IN
+
+function isLargeAircon(title) {
+  const m = title.match(/\b(\d+(?:\.\d+)?)\s*kw\b/i);
+  return m ? parseFloat(m[1]) >= 5 : false;
+}
+
+async function autoAllocateAirconStock(jobId, jobTitle, allocatedBy) {
+  if (!AIRCON_JOB_PATTERN.test(jobTitle)) return;
+  const stockList = isLargeAircon(jobTitle) ? AIRCON_STOCK_LARGE : AIRCON_STOCK_SMALL;
+  for (const { code, pattern, qty } of stockList) {
+    const item = code
+      ? await db.prepare('SELECT id FROM inventory_items WHERE supplier_code = ?').get(code)
+      : await db.prepare("SELECT id FROM inventory_items WHERE name ILIKE '%' || ? || '%' LIMIT 1").get(pattern);
+    if (!item) continue;
+    await db.prepare('INSERT INTO job_stock_allocations (job_id, item_id, quantity, allocated_by) VALUES (?, ?, ?, ?)').run(jobId, item.id, qty, allocatedBy);
+    await db.prepare('UPDATE inventory_items SET quantity_on_hand = quantity_on_hand - ?, updated_at = now_utc_text() WHERE id = ?').run(qty, item.id);
+  }
+}
+
 router.post(
   '/',
   requireRole('admin'),
@@ -829,6 +865,7 @@ router.post(
       });
 
     await setAssignees(result.lastInsertRowid, assigneeIds);
+    await autoAllocateAirconStock(result.lastInsertRowid, b.title.trim(), req.user.id);
 
     setFlash(req, 'success', `Job "${b.title.trim()}" created.`);
     res.redirect(`/jobs/${result.lastInsertRowid}`);
