@@ -69,6 +69,24 @@ router.post(
 );
 
 router.post(
+  '/:id/resubmit',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const request = await db.prepare('SELECT * FROM leave_requests WHERE id = ?').get(req.params.id);
+    if (!request || request.user_id !== req.user.id || request.status !== 'denied') {
+      return res.status(404).render('error', { message: 'Leave request not found.' });
+    }
+
+    await db
+      .prepare("UPDATE leave_requests SET status = 'pending', decided_by = NULL, decided_at = NULL, updated_at = datetime('now') WHERE id = ?")
+      .run(request.id);
+
+    setFlash(req, 'success', 'Leave request resubmitted for review.');
+    res.redirect('/leave');
+  })
+);
+
+router.post(
   '/:id/cancel',
   verifyCsrf,
   asyncHandler(async (req, res) => {

@@ -89,6 +89,12 @@
                 <button type="submit" class="btn-link">Cancel</button>
               </form>
             <% } %>
+            <% if (variant === 'declined' && r.user_id === currentUserId) { %>
+              <form method="post" action="/leave/<%= r.id %>/resubmit">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn btn-secondary btn-sm">Resubmit</button>
+              </form>
+            <% } %>
           </div>
           <% if (isAdmin && variant !== 'pending') { %>
             <button type="button" class="row-menu-btn" data-leave-id="<%= r.id %>" aria-label="Leave options" title="Leave options">&#8942;</button>
