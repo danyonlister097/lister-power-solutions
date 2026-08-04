@@ -6,24 +6,25 @@
   <% } %>
 </div>
 
-<% if (!milestones.length) { %>
-  <p class="text-muted">No milestones added yet.</p>
+<div class="section-heading">Upcoming — next 6 months</div>
+<% if (!upcoming.length) { %>
+  <p class="text-muted">No milestones in the next 6 months.</p>
 <% } else { %>
   <ul class="list">
-    <% milestones.forEach(function(m) { %>
+    <% upcoming.forEach(function(m) { %>
       <li>
-        <span class="list-item row-menu-hover-target">
+        <span class="list-item">
+          <span style="font-size:1.4rem;margin-right:0.5rem;flex-shrink:0;"><%= m.icon %></span>
           <span style="min-width:0;flex:1;">
-            <span class="list-item-title"><%= m.title %></span><br>
+            <span class="list-item-title"><%= m.label %></span><br>
             <span class="list-item-meta">
-              <%= formatAuDate(m.date) %>
-              <% if (m.recurrence === 'annual') { %>&middot; Repeats annually<% } %>
-              <% if (m.notes) { %>&middot; <%= m.notes %><% } %>
+              <%= m.sub %>
+              <% if (m.date) { %>
+                &middot; <%= formatAuDate(m.date) %>
+                &middot; <% if (m.days === 0) { %>Today!<% } else if (m.days === 1) { %>Tomorrow<% } else { %>In <%= m.days %> days<% } %>
+              <% } %>
             </span>
           </span>
-          <% if (isAdmin) { %>
-            <button type="button" class="row-menu-btn" data-milestone-id="<%= m.id %>" aria-label="Milestone options">&#8942;</button>
-          <% } %>
         </span>
       </li>
     <% }) %>
@@ -31,6 +32,29 @@
 <% } %>
 
 <% if (isAdmin) { %>
+  <div class="section-heading" style="margin-top:2rem;">Saved milestones</div>
+  <% if (!customMilestones.length) { %>
+    <p class="text-muted">No custom milestones added yet. Use "+ Add Milestone" to create one.</p>
+  <% } else { %>
+    <ul class="list">
+      <% customMilestones.forEach(function(m) { %>
+        <li>
+          <span class="list-item row-menu-hover-target">
+            <span style="min-width:0;flex:1;">
+              <span class="list-item-title"><%= m.title %></span><br>
+              <span class="list-item-meta">
+                <%= formatAuDate(m.date) %>
+                &middot; <%= m.recurrence === 'annual' ? 'Repeats annually' : 'One-off' %>
+                <% if (m.notes) { %>&middot; <%= m.notes %><% } %>
+              </span>
+            </span>
+            <button type="button" class="row-menu-btn" data-milestone-id="<%= m.id %>" aria-label="Milestone options">&#8942;</button>
+          </span>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+
   <div id="milestone-add-modal" class="modal" hidden>
     <div class="modal-box">
       <h2>Add Milestone</h2>
@@ -38,7 +62,7 @@
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <label>
           Title *
-          <input type="text" name="title" required placeholder="e.g. Business 5 Year Anniversary">
+          <input type="text" name="title" required placeholder="e.g. Business 2 Year Anniversary">
         </label>
         <div class="form-row form-row-2">
           <label>
@@ -74,13 +98,11 @@
 
   <script>
     (function () {
-      // Modal
       var modal = document.getElementById('milestone-add-modal');
       document.getElementById('milestone-add-open').addEventListener('click', function () { modal.hidden = false; });
       document.getElementById('milestone-add-cancel').addEventListener('click', function () { modal.hidden = true; });
       modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
 
-      // Row menu
       var menu = document.getElementById('milestone-row-menu');
       var deleteForm = document.getElementById('milestone-delete-form');
       var activeBtn = null;
@@ -119,10 +141,9 @@
         var btn = activeBtn;
         closeMenu();
         if (!btn) return;
-        var id = btn.getAttribute('data-milestone-id');
         if (item.getAttribute('data-action') === 'delete') {
           window.showConfirm('Delete milestone?', 'This cannot be undone.', function () {
-            deleteForm.action = '/milestones/' + id + '/delete';
+            deleteForm.action = '/milestones/' + btn.getAttribute('data-milestone-id') + '/delete';
             deleteForm.submit();
           });
         }
