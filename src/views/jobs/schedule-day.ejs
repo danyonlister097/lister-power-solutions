@@ -25,9 +25,17 @@
 
   <div class="mobile-day-nav">
     <a class="mobile-day-nav-btn" href="?view=day&start=<%= prevStartIso %>">‹</a>
-    <span class="mobile-day-nav-label"><%= mobileDayShort %></span>
+    <label class="mobile-day-nav-label mobile-day-nav-picker-label">
+      <%= mobileDayShort %> ▾
+      <input type="date" id="mobile-day-picker" value="<%= dayIso %>">
+    </label>
     <a class="mobile-day-nav-btn" href="?view=day&start=<%= nextStartIso %>">›</a>
   </div>
+  <script>
+    document.getElementById('mobile-day-picker').addEventListener('change', function () {
+      if (this.value) window.location.href = '?view=day&start=' + this.value;
+    });
+  </script>
 
   <div class="mobile-day-only-list">
     <% if (!mobileDayJobs.length) { %>
@@ -64,9 +72,17 @@
 
 <div class="sched-nav">
   <a class="btn btn-secondary btn-sm" href="?view=day&start=<%= prevStartIso %>">&larr; Prev</a>
-  <span class="sched-week-label"><%= dayLabel %></span>
+  <label class="sched-week-label sched-nav-picker-label" id="desktop-day-picker-label">
+    <%= dayLabel %> ▾
+    <input type="date" id="desktop-day-picker" value="<%= dayIso %>">
+  </label>
   <a class="btn btn-secondary btn-sm" href="?view=day&start=<%= nextStartIso %>">Next &rarr;</a>
 </div>
+<script>
+document.getElementById('desktop-day-picker').addEventListener('change', function () {
+  if (this.value) window.location.href = '?view=day&start=' + this.value;
+});
+</script>
 
 <div class="day-sched" id="sched-grid" data-csrf="<%= csrfToken %>" data-is-admin="<%= isAdmin ? '1' : '0' %>">
   <div class="day-sched-headers">
@@ -102,7 +118,7 @@
                 <div class="tech-utilisation-bar">
                   <div class="tech-utilisation-fill <%= row.utilisationPct > 100 ? 'tech-utilisation-over' : '' %>" style="width: <%= Math.min(row.utilisationPct, 100) %>%;"></div>
                 </div>
-                <span class="tech-utilisation-label"><%= row.utilisationPct %>% of 38h</span>
+                <span class="tech-utilisation-label"><%= row.utilisationPct %>% of <%= capacityHours %>h</span>
               </div>
             </div>
           </div>

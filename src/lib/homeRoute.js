@@ -21,6 +21,7 @@ const ROUTE_BY_PERMISSION = {
 
 function homeRoute(user) {
   if (!user) return '/login';
+  if (user.role !== 'admin') return '/jobs/schedule';
   const key = Object.keys(ROUTE_BY_PERMISSION).find((k) => user.permissions.includes(k));
   return key ? ROUTE_BY_PERMISSION[key] : '/jobs';
 }

@@ -1,7 +1,7 @@
 const { Readable } = require('stream');
 const express = require('express');
 const db = require('../db');
-const { requireRole, requirePermission, verifyCsrf } = require('../middleware/auth');
+const { requireAuth, requireRole, requirePermission, verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { upload, putFile, fetchFile, deleteFile } = require('../lib/uploads');
 const { homeRoute } = require('../lib/homeRoute');
@@ -295,6 +295,7 @@ async function renderGridView(req, res, numDays) {
   res.render('jobs/schedule', {
     title: 'Schedule',
     view: isDay ? 'day' : 'week',
+    capacityHours: 38,
     days,
     rows,
     weekLabel,
@@ -388,6 +389,7 @@ async function renderMonthView(req, res) {
     view: 'month',
     weeks,
     monthLabel: firstOfMonth.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }),
+    monthIso: `${year}-${String(month + 1).padStart(2, '0')}`,
     prevMonthIso: `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`,
     nextMonthIso: `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`,
     todayIso: toIsoDate(now),
@@ -499,7 +501,7 @@ async function renderDayView(req, res) {
         hoursLabel: formatHoursLabel(minutes),
         minutes,
         hourlyRate: t.hourly_rate,
-        utilisationPct: Math.round((minutes / 60 / 38) * 100),
+        utilisationPct: Math.round((minutes / 60 / 8) * 100),
       };
     }),
   ];
@@ -521,6 +523,7 @@ async function renderDayView(req, res) {
   res.render('jobs/schedule-day', {
     title: 'Schedule',
     view: 'day',
+    capacityHours: 8,
     dayIso,
     dayLabel: day.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
     prevStartIso: toIsoDate(prevDay),
@@ -542,7 +545,7 @@ async function renderDayView(req, res) {
 
 router.get(
   '/schedule',
-  requirePermission('schedule'),
+  requireAuth,
   asyncHandler(async (req, res) => {
     const view = ['day', 'week', 'month'].includes(req.query.view) ? req.query.view : 'week';
     if (view === 'month') return renderMonthView(req, res);

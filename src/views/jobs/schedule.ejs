@@ -10,6 +10,8 @@
 
 <%
   /* Mobile list view — precompute per-day job lists (de-duplicated by job ID) */
+  const mobileWeekLabel = days[0].date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+    + ' – ' + days[6].date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
   const mobileWeekDays = days.map(function(d, i) {
     const seen = {};
     const jobs = [];
@@ -24,12 +26,27 @@
 %>
 <div class="mobile-sched">
   <div class="mobile-sched-header">
-    <div class="mobile-view-toggle">
-      <span class="mobile-view-btn active">List</span>
-      <a class="mobile-view-btn" href="?view=day&start=<%= todayIso %>">Day</a>
+    <div class="mobile-sched-header-row">
+      <div class="mobile-view-toggle">
+        <span class="mobile-view-btn active">List</span>
+        <a class="mobile-view-btn" href="?view=day&start=<%= todayIso %>">Day</a>
+      </div>
+      <a class="btn btn-primary btn-sm" href="/jobs/new">+ New</a>
     </div>
-    <a class="btn btn-primary btn-sm" href="/jobs/new">+ New</a>
+    <div class="mobile-week-nav">
+      <a class="mobile-day-nav-btn" href="?view=week&start=<%= prevStartIso %>">‹</a>
+      <label class="mobile-day-nav-label mobile-day-nav-picker-label" id="mobile-week-picker-label">
+        <%= mobileWeekLabel %> ▾
+        <input type="date" id="mobile-week-picker" value="<%= days[0].iso %>">
+      </label>
+      <a class="mobile-day-nav-btn" href="?view=week&start=<%= nextStartIso %>">›</a>
+    </div>
   </div>
+  <script>
+    document.getElementById('mobile-week-picker').addEventListener('change', function () {
+      if (this.value) window.location.href = '?view=week&start=' + this.value;
+    });
+  </script>
 
   <div class="mobile-date-strip">
     <% mobileWeekDays.forEach(function(d) { %>
@@ -83,9 +100,23 @@
 
 <div class="sched-nav">
   <a class="btn btn-secondary btn-sm" href="?view=<%= view %>&start=<%= prevStartIso %>">&larr; Prev</a>
-  <span class="sched-week-label"><%= weekLabel %></span>
+  <label class="sched-week-label sched-nav-picker-label" id="desktop-week-picker-label">
+    <%= weekLabel %> ▾
+    <input type="date" id="desktop-week-picker" value="<%= days[0].iso %>">
+  </label>
   <a class="btn btn-secondary btn-sm" href="?view=<%= view %>&start=<%= nextStartIso %>">Next &rarr;</a>
 </div>
+<script>
+document.getElementById('desktop-week-picker').addEventListener('change', function () {
+  if (!this.value) return;
+  var d = new Date(this.value + 'T00:00:00');
+  var day = d.getDay();
+  var diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  var mon = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  window.location.href = '?view=week&start=' + mon;
+});
+</script>
 
 <div class="sched-scroll">
   <div class="sched-grid" id="sched-grid" data-csrf="<%= csrfToken %>" data-is-admin="<%= isAdmin ? '1' : '0' %>">
@@ -127,7 +158,7 @@
                 <div class="tech-utilisation-bar">
                   <div class="tech-utilisation-fill <%= row.utilisationPct > 100 ? 'tech-utilisation-over' : '' %>" style="width: <%= Math.min(row.utilisationPct, 100) %>%;"></div>
                 </div>
-                <span class="tech-utilisation-label"><%= row.utilisationPct %>% of 38h</span>
+                <span class="tech-utilisation-label"><%= row.utilisationPct %>% of <%= capacityHours %>h</span>
               </div>
             </div>
           </div>

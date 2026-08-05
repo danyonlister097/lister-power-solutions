@@ -15,9 +15,17 @@
 
 <div class="sched-nav">
   <a class="btn btn-secondary btn-sm" href="?view=month&month=<%= prevMonthIso %>">&larr; Prev</a>
-  <span class="sched-week-label"><%= monthLabel %></span>
+  <label class="sched-week-label sched-nav-picker-label" id="desktop-month-picker-label">
+    <%= monthLabel %> ▾
+    <input type="month" id="desktop-month-picker" value="<%= monthIso %>">
+  </label>
   <a class="btn btn-secondary btn-sm" href="?view=month&month=<%= nextMonthIso %>">Next &rarr;</a>
 </div>
+<script>
+document.getElementById('desktop-month-picker').addEventListener('change', function () {
+  if (this.value) window.location.href = '?view=month&month=' + this.value;
+});
+</script>
 
 <div class="month-grid" id="sched-grid" data-csrf="<%= csrfToken %>" data-is-admin="<%= isAdmin ? '1' : '0' %>">
   <div class="month-cell month-header-cell">Mon</div>
