@@ -16,11 +16,13 @@
 %>
 <div class="mobile-sched">
   <div class="mobile-sched-header">
-    <div class="mobile-view-toggle">
-      <a class="mobile-view-btn" href="?view=week&start=<%= dayIso %>">List</a>
-      <span class="mobile-view-btn active">Day</span>
+    <div class="mobile-sched-header-row">
+      <div class="mobile-view-toggle">
+        <a class="mobile-view-btn" href="?view=week&start=<%= dayIso %>">List</a>
+        <span class="mobile-view-btn active">Day</span>
+      </div>
+      <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new?date=<%= dayIso %>">+ New</a><% } %>
     </div>
-    <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new?date=<%= dayIso %>">+ New</a><% } %>
   </div>
 
   <div class="mobile-day-nav">
