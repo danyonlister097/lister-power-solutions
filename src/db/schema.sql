@@ -628,3 +628,26 @@ CREATE INDEX IF NOT EXISTS idx_milestones_date ON milestones(date);
 -- Geocoded coordinates for smart scheduling (populated on demand via Google Maps API)
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS lat REAL;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS lng REAL;
+
+-- Bills (accounts payable): supplier/contractor invoices received for stock, labour, etc.
+CREATE TABLE IF NOT EXISTS bills (
+  id SERIAL PRIMARY KEY,
+  supplier TEXT NOT NULL,
+  supplier_invoice_number TEXT,
+  invoice_date TEXT NOT NULL,
+  due_date TEXT,
+  amount_ex_gst REAL NOT NULL DEFAULT 0,
+  gst REAL NOT NULL DEFAULT 0,
+  total REAL NOT NULL DEFAULT 0,
+  category TEXT NOT NULL DEFAULT 'other' CHECK (category IN ('stock', 'contractor', 'subcontractor', 'utilities', 'other')),
+  status TEXT NOT NULL DEFAULT 'unpaid' CHECK (status IN ('unpaid', 'paid')),
+  notes TEXT,
+  file_url TEXT,
+  file_name TEXT,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  paid_at TEXT,
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+CREATE INDEX IF NOT EXISTS idx_bills_status ON bills(status);
+CREATE INDEX IF NOT EXISTS idx_bills_invoice_date ON bills(invoice_date);

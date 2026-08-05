@@ -1,12 +1,25 @@
 const express = require('express');
+const multer = require('multer');
 const db = require('../db');
 const { verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
+const { putFile, fetchFile, deleteFile } = require('../lib/uploads');
 
 const router = express.Router();
 
 const CATEGORIES = ['labour', 'material', 'subcontractor', 'travel', 'other'];
+const BILL_CATEGORIES = ['stock', 'contractor', 'subcontractor', 'utilities', 'other'];
+
+const BILL_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf']);
+const billUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (!BILL_MIME_TYPES.has(file.mimetype)) return cb(new Error('Only image files and PDFs are allowed.'));
+    cb(null, true);
+  },
+});
 
 async function totalFor(invoiceId) {
   const row = await db
@@ -25,6 +38,13 @@ function effectiveStatus(invoice) {
   return invoice.status;
 }
 
+function effectiveBillStatus(bill) {
+  if (bill.status === 'unpaid' && bill.due_date && bill.due_date < new Date().toISOString().slice(0, 10)) {
+    return 'overdue';
+  }
+  return bill.status;
+}
+
 async function nextInvoiceNumber() {
   const row = await db.prepare('SELECT COUNT(*) AS n FROM invoices').get();
   return `INV-${String(row.n + 1).padStart(4, '0')}`;
@@ -36,7 +56,18 @@ async function nextInvoiceNumber() {
 router.get(
   '/',
   asyncHandler(async (req, res) => {
+    const tab = req.query.tab === 'bills' ? 'bills' : 'invoices';
     const status = req.query.status || '';
+
+    if (tab === 'bills') {
+      let bills = (await db.prepare('SELECT * FROM bills ORDER BY invoice_date DESC, created_at DESC').all()).map((b) => ({
+        ...b,
+        effective_status: effectiveBillStatus(b),
+      }));
+      if (status) bills = bills.filter((b) => b.effective_status === status);
+      return res.render('invoices/index', { title: 'Bills', tab, bills, status, invoices: [], jobs: [] });
+    }
+
     const sql = `
       SELECT invoices.*, jobs.title AS job_title, customers.name AS customer_name,
         COALESCE((SELECT SUM(quantity * unit_price) FROM invoice_items WHERE invoice_items.invoice_id = invoices.id), 0) AS total
@@ -56,7 +87,7 @@ router.get(
       )
       .all();
 
-    res.render('invoices/index', { title: 'Invoices', invoices, status, jobs });
+    res.render('invoices/index', { title: 'Invoices', tab, invoices, status, jobs, bills: [] });
   })
 );
 
@@ -87,6 +118,106 @@ router.post(
     res.redirect(`/invoices/${result.lastInsertRowid}`);
   })
 );
+
+// ── Bills (accounts payable) ─────────────────────────────────────────────────
+
+router.post(
+  '/bills',
+  billUpload.single('attachment'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const { supplier, supplier_invoice_number, invoice_date, due_date, amount_ex_gst, gst, total, category, notes } = req.body;
+    if (!supplier || !invoice_date) {
+      setFlash(req, 'error', 'Supplier name and invoice date are required.');
+      return res.redirect('/invoices?tab=bills');
+    }
+
+    let fileUrl = null;
+    let fileName = null;
+    if (req.file) {
+      fileUrl = await putFile(req.file);
+      fileName = req.file.originalname;
+    }
+
+    await db
+      .prepare(
+        `INSERT INTO bills (supplier, supplier_invoice_number, invoice_date, due_date, amount_ex_gst, gst, total, category, notes, file_url, file_name, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        supplier.trim(),
+        supplier_invoice_number || null,
+        invoice_date,
+        due_date || null,
+        parseFloat(amount_ex_gst) || 0,
+        parseFloat(gst) || 0,
+        parseFloat(total) || 0,
+        BILL_CATEGORIES.includes(category) ? category : 'other',
+        notes || null,
+        fileUrl,
+        fileName,
+        req.user.id
+      );
+
+    setFlash(req, 'success', 'Bill added.');
+    res.redirect('/invoices?tab=bills');
+  })
+);
+
+router.post(
+  '/bills/:id/paid',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const bill = await db.prepare('SELECT * FROM bills WHERE id = ?').get(req.params.id);
+    if (!bill) return res.status(404).render('error', { message: 'Bill not found.' });
+    await db.prepare(`UPDATE bills SET status = 'paid', paid_at = now_utc_text(), updated_at = now_utc_text() WHERE id = ?`).run(bill.id);
+    setFlash(req, 'success', 'Bill marked as paid.');
+    res.redirect('/invoices?tab=bills');
+  })
+);
+
+router.post(
+  '/bills/:id/unpaid',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const bill = await db.prepare('SELECT * FROM bills WHERE id = ?').get(req.params.id);
+    if (!bill) return res.status(404).render('error', { message: 'Bill not found.' });
+    await db.prepare(`UPDATE bills SET status = 'unpaid', paid_at = NULL, updated_at = now_utc_text() WHERE id = ?`).run(bill.id);
+    setFlash(req, 'success', 'Bill marked as unpaid.');
+    res.redirect('/invoices?tab=bills');
+  })
+);
+
+router.post(
+  '/bills/:id/delete',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const bill = await db.prepare('SELECT * FROM bills WHERE id = ?').get(req.params.id);
+    if (!bill) return res.status(404).render('error', { message: 'Bill not found.' });
+    if (bill.file_url) await deleteFile(bill.file_url);
+    await db.prepare('DELETE FROM bills WHERE id = ?').run(bill.id);
+    setFlash(req, 'success', 'Bill deleted.');
+    res.redirect('/invoices?tab=bills');
+  })
+);
+
+router.get(
+  '/bills/:id/file',
+  asyncHandler(async (req, res) => {
+    const bill = await db.prepare('SELECT * FROM bills WHERE id = ?').get(req.params.id);
+    if (!bill || !bill.file_url) return res.status(404).render('error', { message: 'No file attached.' });
+    const stream = await fetchFile(bill.file_url);
+    if (!stream) return res.status(404).render('error', { message: 'File not found.' });
+    if (bill.file_name) {
+      const isPdf = bill.file_name.toLowerCase().endsWith('.pdf');
+      res.setHeader('Content-Disposition', `${isPdf ? 'inline' : 'inline'}; filename="${bill.file_name}"`);
+      if (isPdf) res.setHeader('Content-Type', 'application/pdf');
+    }
+    stream.pipe(res);
+  })
+);
+
+// ── Sales invoices ────────────────────────────────────────────────────────────
 
 router.get(
   '/:id',

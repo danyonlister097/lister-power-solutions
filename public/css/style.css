@@ -692,6 +692,7 @@ a.list-item:hover { border-color: var(--color-primary); }
 .badge-declined { background: #fbeaea; color: var(--color-danger); }
 .badge-paid { background: #e3f6e8; color: var(--color-success); }
 .badge-overdue { background: #fbeaea; color: var(--color-danger); }
+.badge-unpaid { background: #fff4e0; color: #9a6300; }
 
 .filters {
   display: flex;

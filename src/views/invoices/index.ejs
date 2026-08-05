@@ -1,63 +1,213 @@
-<%- include('../partials/header', { title: 'Invoices', wide: true }) %>
+<%- include('../partials/header', { title: tab === 'bills' ? 'Bills' : 'Invoices', wide: true }) %>
 <div class="page-header">
   <h1>Invoices</h1>
-  <button type="button" class="btn btn-primary" id="new-invoice-open">+ New Invoice</button>
+  <% if (tab === 'bills') { %>
+    <button type="button" class="btn btn-primary" id="new-bill-open">+ Add Bill</button>
+  <% } else { %>
+    <button type="button" class="btn btn-primary" id="new-invoice-open">+ New Invoice</button>
+  <% } %>
 </div>
 
-<div class="filters">
-  <a class="<%= status === '' ? 'active' : '' %>" href="/invoices">All</a>
-  <a class="<%= status === 'draft' ? 'active' : '' %>" href="/invoices?status=draft">Draft</a>
-  <a class="<%= status === 'sent' ? 'active' : '' %>" href="/invoices?status=sent">Sent</a>
-  <a class="<%= status === 'overdue' ? 'active' : '' %>" href="/invoices?status=overdue">Overdue</a>
-  <a class="<%= status === 'paid' ? 'active' : '' %>" href="/invoices?status=paid">Paid</a>
-  <a class="<%= status === 'cancelled' ? 'active' : '' %>" href="/invoices?status=cancelled">Cancelled</a>
+<div class="sched-view-tabs">
+  <a href="/invoices" class="<%= tab === 'invoices' ? 'active' : '' %>">Sales Invoices</a>
+  <a href="/invoices?tab=bills" class="<%= tab === 'bills' ? 'active' : '' %>">Bills</a>
 </div>
 
-<div class="section-heading">Invoices (<%= invoices.length %>)</div>
-<% if (!invoices.length) { %>
-  <p class="text-muted">No invoices yet.</p>
-<% } else { %>
-  <div class="timesheet-scroll">
-    <table class="timesheet-table">
-      <thead>
-        <tr>
-          <th>Invoice #</th>
-          <th>Job</th>
-          <th>Customer</th>
-          <th>Status</th>
-          <th>Total</th>
-          <th>Due</th>
-          <th style="width:2.5rem;position:sticky;right:0;background:var(--color-surface);"></th>
-        </tr>
-      </thead>
-      <tbody>
-        <% invoices.forEach(inv => { %>
-          <tr class="row-menu-hover-target">
-            <td><a href="/invoices/<%= inv.id %>"><%= inv.invoice_number %></a></td>
-            <td><%= inv.job_title %></td>
-            <td><%= inv.customer_name %></td>
-            <td><span class="badge badge-<%= inv.effective_status %>"><%= inv.effective_status %></span></td>
-            <td><%= formatMoney(inv.total) %></td>
-            <td><%= formatAuDate(inv.due_date) %></td>
-            <td class="row-menu-cell">
-              <button class="row-menu-btn" aria-label="More actions" aria-expanded="false">⋮</button>
-              <div class="context-menu" hidden>
-                <a class="context-menu-item" href="/invoices/<%= inv.id %>">View</a>
-                <% if (currentUser.role === 'admin' && inv.effective_status !== 'paid') { %>
-                  <form method="post" action="/invoices/<%= inv.id %>/delete" data-confirm="Delete this invoice? This cannot be undone." style="margin:0;">
+<% if (tab === 'bills') { %>
+
+  <div class="filters">
+    <a class="<%= status === '' ? 'active' : '' %>" href="/invoices?tab=bills">All</a>
+    <a class="<%= status === 'unpaid' ? 'active' : '' %>" href="/invoices?tab=bills&status=unpaid">Unpaid</a>
+    <a class="<%= status === 'overdue' ? 'active' : '' %>" href="/invoices?tab=bills&status=overdue">Overdue</a>
+    <a class="<%= status === 'paid' ? 'active' : '' %>" href="/invoices?tab=bills&status=paid">Paid</a>
+  </div>
+
+  <div class="section-heading">Bills (<%= bills.length %>)</div>
+  <% if (!bills.length) { %>
+    <p class="text-muted">No bills yet. Use "+ Add Bill" to record a supplier or contractor invoice.</p>
+  <% } else { %>
+    <div class="timesheet-scroll">
+      <table class="timesheet-table">
+        <thead>
+          <tr>
+            <th>Supplier</th>
+            <th>Inv #</th>
+            <th>Category</th>
+            <th>Date</th>
+            <th>Due</th>
+            <th>Status</th>
+            <th>Ex GST</th>
+            <th>GST</th>
+            <th>Total</th>
+            <th style="width:2.5rem;position:sticky;right:0;background:var(--color-surface);"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% bills.forEach(function(b) { %>
+            <tr class="row-menu-hover-target">
+              <td><strong><%= b.supplier %></strong></td>
+              <td><%= b.supplier_invoice_number || '—' %></td>
+              <td><span style="text-transform:capitalize;"><%= b.category %></span></td>
+              <td><%= formatAuDate(b.invoice_date) %></td>
+              <td><%= b.due_date ? formatAuDate(b.due_date) : '—' %></td>
+              <td><span class="badge badge-<%= b.effective_status %>"><%= b.effective_status %></span></td>
+              <td><%= formatMoney(b.amount_ex_gst) %></td>
+              <td><%= formatMoney(b.gst) %></td>
+              <td><%= formatMoney(b.total) %></td>
+              <td class="row-menu-cell">
+                <button class="row-menu-btn" aria-label="More actions" aria-expanded="false">⋮</button>
+                <div class="context-menu" hidden>
+                  <% if (b.file_url) { %>
+                    <a class="context-menu-item" href="/invoices/bills/<%= b.id %>/file" target="_blank">View attachment</a>
+                  <% } %>
+                  <% if (b.effective_status !== 'paid') { %>
+                    <form method="post" action="/invoices/bills/<%= b.id %>/paid" style="margin:0;">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit" class="context-menu-item">Mark as paid</button>
+                    </form>
+                  <% } else { %>
+                    <form method="post" action="/invoices/bills/<%= b.id %>/unpaid" style="margin:0;">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit" class="context-menu-item">Mark as unpaid</button>
+                    </form>
+                  <% } %>
+                  <% if (b.notes) { %>
+                    <div class="context-menu-item" style="cursor:default;color:var(--color-muted);font-size:0.8rem;white-space:normal;max-width:220px;pointer-events:none;"><%= b.notes %></div>
+                  <% } %>
+                  <form method="post" action="/invoices/bills/<%= b.id %>/delete" data-confirm="Delete this bill? This cannot be undone." style="margin:0;">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button type="submit" class="context-menu-item context-menu-danger">Delete</button>
                   </form>
-                <% } %>
-              </div>
-            </td>
-          </tr>
-        <% }) %>
-      </tbody>
-    </table>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+<% } else { %>
+
+  <div class="filters">
+    <a class="<%= status === '' ? 'active' : '' %>" href="/invoices">All</a>
+    <a class="<%= status === 'draft' ? 'active' : '' %>" href="/invoices?status=draft">Draft</a>
+    <a class="<%= status === 'sent' ? 'active' : '' %>" href="/invoices?status=sent">Sent</a>
+    <a class="<%= status === 'overdue' ? 'active' : '' %>" href="/invoices?status=overdue">Overdue</a>
+    <a class="<%= status === 'paid' ? 'active' : '' %>" href="/invoices?status=paid">Paid</a>
+    <a class="<%= status === 'cancelled' ? 'active' : '' %>" href="/invoices?status=cancelled">Cancelled</a>
   </div>
+
+  <div class="section-heading">Invoices (<%= invoices.length %>)</div>
+  <% if (!invoices.length) { %>
+    <p class="text-muted">No invoices yet.</p>
+  <% } else { %>
+    <div class="timesheet-scroll">
+      <table class="timesheet-table">
+        <thead>
+          <tr>
+            <th>Invoice #</th>
+            <th>Job</th>
+            <th>Customer</th>
+            <th>Status</th>
+            <th>Total</th>
+            <th>Due</th>
+            <th style="width:2.5rem;position:sticky;right:0;background:var(--color-surface);"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% invoices.forEach(function(inv) { %>
+            <tr class="row-menu-hover-target">
+              <td><a href="/invoices/<%= inv.id %>"><%= inv.invoice_number %></a></td>
+              <td><%= inv.job_title %></td>
+              <td><%= inv.customer_name %></td>
+              <td><span class="badge badge-<%= inv.effective_status %>"><%= inv.effective_status %></span></td>
+              <td><%= formatMoney(inv.total) %></td>
+              <td><%= formatAuDate(inv.due_date) %></td>
+              <td class="row-menu-cell">
+                <button class="row-menu-btn" aria-label="More actions" aria-expanded="false">⋮</button>
+                <div class="context-menu" hidden>
+                  <a class="context-menu-item" href="/invoices/<%= inv.id %>">View</a>
+                  <% if (currentUser.role === 'admin' && inv.effective_status !== 'paid') { %>
+                    <form method="post" action="/invoices/<%= inv.id %>/delete" data-confirm="Delete this invoice? This cannot be undone." style="margin:0;">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit" class="context-menu-item context-menu-danger">Delete</button>
+                    </form>
+                  <% } %>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
 <% } %>
 
+<%# ── Add Bill modal ────────────────────────────────────────────────────────── %>
+<div id="new-bill-modal" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="new-bill-modal-title" style="max-width:520px;">
+    <button type="button" class="modal-close" id="new-bill-close" aria-label="Close">&times;</button>
+    <h2 id="new-bill-modal-title">Add bill</h2>
+    <form method="post" action="/invoices/bills" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+        <label style="grid-column:1/-1;">
+          Supplier <span style="color:var(--color-danger)">*</span>
+          <input type="text" name="supplier" required placeholder="e.g. CNW Electrical">
+        </label>
+        <label>
+          Their invoice number
+          <input type="text" name="supplier_invoice_number" placeholder="e.g. INV-0042">
+        </label>
+        <label>
+          Category
+          <select name="category">
+            <option value="stock">Stock</option>
+            <option value="contractor">Contractor</option>
+            <option value="subcontractor">Subcontractor</option>
+            <option value="utilities">Utilities</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label>
+          Invoice date <span style="color:var(--color-danger)">*</span>
+          <input type="date" name="invoice_date" required>
+        </label>
+        <label>
+          Due date
+          <input type="date" name="due_date">
+        </label>
+        <label>
+          Amount ex GST ($)
+          <input type="number" name="amount_ex_gst" id="bill-ex-gst" min="0" step="0.01" placeholder="0.00">
+        </label>
+        <label>
+          GST ($)
+          <input type="number" name="gst" id="bill-gst" min="0" step="0.01" placeholder="0.00">
+        </label>
+        <label style="grid-column:1/-1;">
+          Total ($)
+          <input type="number" name="total" id="bill-total" min="0" step="0.01" placeholder="0.00">
+        </label>
+        <label style="grid-column:1/-1;">
+          Notes
+          <textarea name="notes" rows="2" placeholder="Optional notes…"></textarea>
+        </label>
+        <label style="grid-column:1/-1;">
+          Attachment <span style="font-size:0.8rem;color:var(--color-muted);">(PDF or image, max 20 MB)</span>
+          <input type="file" name="attachment" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif">
+        </label>
+      </div>
+      <div class="actions" style="margin-top:1rem;">
+        <button type="submit" class="btn btn-primary">Save bill</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<%# ── New Invoice modal ─────────────────────────────────────────────────────── %>
 <div id="new-invoice-modal" class="modal-backdrop" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="new-invoice-modal-title">
     <button type="button" class="modal-close" id="new-invoice-close" aria-label="Close">&times;</button>
@@ -71,7 +221,7 @@
           Job
           <select name="job_id" required>
             <option value="">Select a job&hellip;</option>
-            <% jobs.forEach(j => { %>
+            <% jobs.forEach(function(j) { %>
               <option value="<%= j.id %>"><%= j.title %> &mdash; <%= j.customer_name %></option>
             <% }) %>
           </select>
@@ -84,20 +234,53 @@
     <% } %>
   </div>
 </div>
-<script>
-  (function () {
-    var modal = document.getElementById('new-invoice-modal');
-    var openBtn = document.getElementById('new-invoice-open');
-    var closeBtn = document.getElementById('new-invoice-close');
 
-    openBtn.addEventListener('click', function () { modal.hidden = false; });
-    closeBtn.addEventListener('click', function () { modal.hidden = true; });
-    modal.addEventListener('click', function (e) {
-      if (e.target === modal) modal.hidden = true;
-    });
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && !modal.hidden) modal.hidden = true;
-    });
-  })();
+<script>
+(function () {
+  // Modal helpers
+  function wireModal(openId, closeId, modalId) {
+    var modal = document.getElementById(modalId);
+    var openBtn = document.getElementById(openId);
+    var closeBtn = document.getElementById(closeId);
+    if (!modal) return;
+    if (openBtn) openBtn.addEventListener('click', function () { modal.hidden = false; });
+    if (closeBtn) closeBtn.addEventListener('click', function () { modal.hidden = true; });
+    modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) modal.hidden = true; });
+  }
+  wireModal('new-invoice-open', 'new-invoice-close', 'new-invoice-modal');
+  wireModal('new-bill-open', 'new-bill-close', 'new-bill-modal');
+
+  // Auto-calculate bill totals
+  var exGst = document.getElementById('bill-ex-gst');
+  var gst   = document.getElementById('bill-gst');
+  var total = document.getElementById('bill-total');
+  function recalc(changed) {
+    var ex = parseFloat(exGst.value) || 0;
+    var g  = parseFloat(gst.value)   || 0;
+    var t  = parseFloat(total.value) || 0;
+    if (changed === 'ex' || changed === 'gst') {
+      total.value = (ex + g).toFixed(2);
+    } else if (changed === 'total') {
+      // back-calculate gst as 1/11 of total, ex as remainder
+      var calcGst = parseFloat((t / 11).toFixed(2));
+      gst.value   = calcGst;
+      exGst.value = parseFloat((t - calcGst).toFixed(2));
+    }
+  }
+  if (exGst) {
+    exGst.addEventListener('input', function () { recalc('ex'); });
+    gst.addEventListener('input',   function () { recalc('gst'); });
+    total.addEventListener('input', function () { recalc('total'); });
+  }
+
+  // Pre-fill today's date in the Add Bill modal
+  var dateInput = document.querySelector('#new-bill-modal input[name="invoice_date"]');
+  if (dateInput && !dateInput.value) {
+    var today = new Date();
+    var iso = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    dateInput.value = iso;
+  }
+})();
 </script>
 <%- include('../partials/footer') %>

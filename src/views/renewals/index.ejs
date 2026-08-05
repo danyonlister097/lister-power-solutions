@@ -119,11 +119,14 @@
       <div class="form-row form-row-2">
         <label>
           Category
-          <select name="category">
+          <select name="category" id="renewal-cat-select">
             <% CATEGORIES.forEach(c => { %>
               <option value="<%= c.key %>"><%= c.label %></option>
             <% }) %>
+            <option value="__custom__">Custom…</option>
           </select>
+          <input type="text" name="category_custom" id="renewal-cat-custom"
+                 placeholder="Enter category name" style="display:none;margin-top:0.5rem;">
         </label>
         <label>
           Expiry Date *
@@ -164,6 +167,8 @@
 
 <script>
 (function () {
+  var KNOWN_KEYS = <%- JSON.stringify(CATEGORIES.map(function(c) { return c.key; })) %>;
+
   var modal = document.getElementById('renewal-add-modal');
   var form = document.getElementById('renewal-form');
   var titleEl = document.getElementById('renewal-modal-title');
@@ -172,6 +177,29 @@
   var closeBtn = document.getElementById('renewal-modal-close');
   var cancelBtn = document.getElementById('renewal-modal-cancel');
   var idInput = form.querySelector('input[name="_id"]');
+  var catSelect = document.getElementById('renewal-cat-select');
+  var catCustom = document.getElementById('renewal-cat-custom');
+
+  catSelect.addEventListener('change', function () {
+    var isCustom = catSelect.value === '__custom__';
+    catCustom.style.display = isCustom ? '' : 'none';
+    catCustom.required = isCustom;
+    if (!isCustom) catCustom.value = '';
+  });
+
+  function setCategoryField(cat) {
+    if (!cat || KNOWN_KEYS.includes(cat)) {
+      catSelect.value = cat || KNOWN_KEYS[0];
+      catCustom.style.display = 'none';
+      catCustom.required = false;
+      catCustom.value = '';
+    } else {
+      catSelect.value = '__custom__';
+      catCustom.style.display = '';
+      catCustom.required = true;
+      catCustom.value = cat;
+    }
+  }
 
   function openAdd() {
     titleEl.textContent = 'Add Renewal';
@@ -179,6 +207,7 @@
     form.action = '/renewals';
     form.reset();
     idInput.value = '';
+    setCategoryField('');
     modal.hidden = false;
   }
 
@@ -189,7 +218,7 @@
     form.action = '/renewals/' + id;
     idInput.value = id;
     form.querySelector('[name="title"]').value = btn.getAttribute('data-title') || '';
-    form.querySelector('[name="category"]').value = btn.getAttribute('data-category') || '';
+    setCategoryField(btn.getAttribute('data-category') || '');
     form.querySelector('[name="user_id"]').value = btn.getAttribute('data-user_id') || '';
     form.querySelector('[name="asset_id"]').value = btn.getAttribute('data-asset_id') || '';
     form.querySelector('[name="expiry_date"]').value = btn.getAttribute('data-expiry_date') || '';

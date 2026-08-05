@@ -17,6 +17,14 @@ const CATEGORIES = [
 ];
 const CATEGORY_KEYS = CATEGORIES.map((c) => c.key);
 
+function resolveCategory(body, fallback) {
+  if (body.category === '__custom__') {
+    const custom = (body.category_custom || '').trim();
+    return custom || fallback || 'other';
+  }
+  return (body.category || '').trim() || fallback || 'other';
+}
+
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -114,7 +122,7 @@ router.post(
       )
       .run(
         b.title.trim(),
-        CATEGORY_KEYS.includes(b.category) ? b.category : 'other',
+        resolveCategory(b, 'other'),
         b.user_id ? Number(b.user_id) : null,
         b.asset_id ? Number(b.asset_id) : null,
         b.expiry_date,
@@ -139,7 +147,7 @@ router.post(
       )
       .run(
         (b.title || '').trim(),
-        CATEGORY_KEYS.includes(b.category) ? b.category : item.category,
+        resolveCategory(b, item.category),
         b.user_id ? Number(b.user_id) : null,
         b.asset_id ? Number(b.asset_id) : null,
         b.expiry_date,
