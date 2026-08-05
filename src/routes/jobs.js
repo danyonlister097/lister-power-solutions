@@ -292,18 +292,21 @@ async function renderGridView(req, res, numDays) {
     ? days[0].date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     : `${days[0].date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} - ${days[6].date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`;
 
+  const isAdmin = req.user.role === 'admin';
+  const visibleRows = isAdmin ? rows : rows.filter((r) => r.id === req.user.id);
+
   res.render('jobs/schedule', {
     title: 'Schedule',
     view: isDay ? 'day' : 'week',
     capacityHours: 38,
     days,
-    rows,
+    rows: visibleRows,
     weekLabel,
     prevStartIso: toIsoDate(prevStart),
     nextStartIso: toIsoDate(nextStart),
     monthIso: `${rangeStart.getFullYear()}-${String(rangeStart.getMonth() + 1).padStart(2, '0')}`,
     todayIso: brisbaneTodayIso(),
-    isAdmin: req.user.role === 'admin',
+    isAdmin,
     summary: {
       shifts: totalShifts,
       hours: totalHours,
@@ -371,11 +374,15 @@ async function renderMonthView(req, res) {
     });
   }
   jobs.forEach((j) => {
+    j.assigneeIds = (assigneesByJob[j.id] || []).map((a) => a.id);
     j.assigneeNames = (assigneesByJob[j.id] || []).map((a) => a.name).join(', ');
   });
 
+  const isAdmin = req.user.role === 'admin';
+  const visibleJobs = isAdmin ? jobs : jobs.filter((j) => j.assigneeIds.includes(req.user.id));
+
   const jobsByDay = {};
-  jobs.forEach((j) => {
+  visibleJobs.forEach((j) => {
     const day = j.scheduled_start.slice(0, 10);
     (jobsByDay[day] = jobsByDay[day] || []).push(j);
   });
@@ -393,7 +400,7 @@ async function renderMonthView(req, res) {
     prevMonthIso: `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`,
     nextMonthIso: `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`,
     todayIso: toIsoDate(now),
-    isAdmin: req.user.role === 'admin',
+    isAdmin,
   });
 }
 
@@ -520,6 +527,10 @@ async function renderDayView(req, res) {
     return sum + (r.minutes / 60) * r.hourlyRate;
   }, 0);
 
+  const isAdmin = req.user.role === 'admin';
+  const visibleRows = isAdmin ? rows : rows.filter((r) => r.id === req.user.id);
+  const visibleDayJobs = isAdmin ? jobs : jobs.filter((j) => j.assigneeIds.includes(req.user.id));
+
   res.render('jobs/schedule-day', {
     title: 'Schedule',
     view: 'day',
@@ -531,9 +542,9 @@ async function renderDayView(req, res) {
     monthIso: `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}`,
     todayIso: brisbaneTodayIso(),
     hourMarks,
-    rows,
-    dayJobs: jobs,
-    isAdmin: req.user.role === 'admin',
+    rows: visibleRows,
+    dayJobs: visibleDayJobs,
+    isAdmin,
     summary: {
       shifts: totalShifts,
       hours: totalHours,

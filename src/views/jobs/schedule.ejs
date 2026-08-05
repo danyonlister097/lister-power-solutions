@@ -2,13 +2,20 @@
 <div class="page-header sched-page-header">
   <h1>Schedule</h1>
   <div class="actions">
-    <a class="btn btn-secondary btn-sm" href="/jobs">List view</a>
+    <% if (isAdmin) { %><a class="btn btn-secondary btn-sm" href="/jobs">List view</a><% } %>
     <% if (isAdmin) { %><a class="btn btn-secondary btn-sm" href="/jobs/smart-schedule">Smart Schedule</a><% } %>
-    <a class="btn btn-primary btn-sm" href="/jobs/new">+ New job</a>
+    <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new">+ New job</a><% } %>
   </div>
 </div>
 
 <%
+  /* Today's Monday for the "back to current week" link */
+  const todayDate = new Date(todayIso + 'T00:00:00');
+  const todayDow = todayDate.getDay();
+  const todayMondayDate = new Date(todayDate);
+  todayMondayDate.setDate(todayDate.getDate() - (todayDow === 0 ? 6 : todayDow - 1));
+  const todayMondayIso = todayMondayDate.getFullYear() + '-' + String(todayMondayDate.getMonth() + 1).padStart(2, '0') + '-' + String(todayMondayDate.getDate()).padStart(2, '0');
+
   /* Mobile list view — precompute per-day job lists (de-duplicated by job ID) */
   const mobileWeekLabel = days[0].date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
     + ' – ' + days[6].date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
@@ -31,7 +38,7 @@
         <span class="mobile-view-btn active">List</span>
         <a class="mobile-view-btn" href="?view=day&start=<%= todayIso %>">Day</a>
       </div>
-      <a class="btn btn-primary btn-sm" href="/jobs/new">+ New</a>
+      <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new">+ New</a><% } %>
     </div>
     <div class="mobile-week-nav">
       <a class="mobile-day-nav-btn" href="?view=week&start=<%= prevStartIso %>">‹</a>
@@ -39,6 +46,9 @@
         <%= mobileWeekLabel %> ▾
         <input type="date" id="mobile-week-picker" value="<%= days[0].iso %>">
       </label>
+      <a class="mobile-day-nav-btn" href="?view=week&start=<%= todayMondayIso %>" title="Current week">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M5 1v3M11 1v3M2 7h12"/></svg>
+      </a>
       <a class="mobile-day-nav-btn" href="?view=week&start=<%= nextStartIso %>">›</a>
     </div>
   </div>
@@ -65,7 +75,7 @@
           <span class="mobile-day-label<%= d.iso === todayIso ? ' is-today' : '' %>">
             <%= d.date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' }) %>
           </span>
-          <a class="mobile-add-btn" href="/jobs/new?date=<%= d.iso %>" title="Add job">+</a>
+          <% if (isAdmin) { %><a class="mobile-add-btn" href="/jobs/new?date=<%= d.iso %>" title="Add job">+</a><% } %>
         </div>
         <% if (!d.jobs.length) { %>
           <p class="mobile-no-jobs">No jobs scheduled</p>
@@ -104,6 +114,9 @@
     <%= weekLabel %> ▾
     <input type="date" id="desktop-week-picker" value="<%= days[0].iso %>">
   </label>
+  <a class="btn btn-secondary btn-sm sched-today-btn" href="?view=week&start=<%= todayMondayIso %>" title="Go to current week">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M5 1v3M11 1v3M2 7h12"/></svg>
+  </a>
   <a class="btn btn-secondary btn-sm" href="?view=<%= view %>&start=<%= nextStartIso %>">Next &rarr;</a>
 </div>
 <script>

@@ -2,8 +2,8 @@
 <div class="page-header sched-page-header">
   <h1>Schedule</h1>
   <div class="actions">
-    <a class="btn btn-secondary btn-sm" href="/jobs">List view</a>
-    <a class="btn btn-primary btn-sm" href="/jobs/new?date=<%= dayIso %>">+ New job</a>
+    <% if (isAdmin) { %><a class="btn btn-secondary btn-sm" href="/jobs">List view</a><% } %>
+    <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new?date=<%= dayIso %>">+ New job</a><% } %>
   </div>
 </div>
 
@@ -20,7 +20,7 @@
       <a class="mobile-view-btn" href="?view=week&start=<%= dayIso %>">List</a>
       <span class="mobile-view-btn active">Day</span>
     </div>
-    <a class="btn btn-primary btn-sm" href="/jobs/new?date=<%= dayIso %>">+ New</a>
+    <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new?date=<%= dayIso %>">+ New</a><% } %>
   </div>
 
   <div class="mobile-day-nav">
@@ -29,6 +29,9 @@
       <%= mobileDayShort %> ▾
       <input type="date" id="mobile-day-picker" value="<%= dayIso %>">
     </label>
+    <a class="mobile-day-nav-btn" href="?view=day&start=<%= todayIso %>" title="Today">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M5 1v3M11 1v3M2 7h12"/></svg>
+    </a>
     <a class="mobile-day-nav-btn" href="?view=day&start=<%= nextStartIso %>">›</a>
   </div>
   <script>
@@ -76,6 +79,9 @@
     <%= dayLabel %> ▾
     <input type="date" id="desktop-day-picker" value="<%= dayIso %>">
   </label>
+  <a class="btn btn-secondary btn-sm sched-today-btn" href="?view=day&start=<%= todayIso %>" title="Go to today">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M5 1v3M11 1v3M2 7h12"/></svg>
+  </a>
   <a class="btn btn-secondary btn-sm" href="?view=day&start=<%= nextStartIso %>">Next &rarr;</a>
 </div>
 <script>

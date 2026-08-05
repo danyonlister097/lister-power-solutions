@@ -758,6 +758,13 @@ a.list-item:hover { border-color: var(--color-primary); }
 
 .sched-week-label { font-weight: 600; }
 
+.sched-today-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem 0.5rem;
+}
+
 .sched-nav-picker-label {
   position: relative;
   display: inline-block;
@@ -810,7 +817,7 @@ a.list-item:hover { border-color: var(--color-primary); }
   font-size: 0.95rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--color-muted);
+  color: var(--color-text);
 }
 
 .sched-day-header {
@@ -825,7 +832,7 @@ a.list-item:hover { border-color: var(--color-primary); }
   text-align: center;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--color-muted);
+  color: var(--color-text);
   text-decoration: none;
   cursor: pointer;
   transition: background-color 0.1s ease;
@@ -876,7 +883,7 @@ a.list-item:hover { border-color: var(--color-primary); }
   outline-offset: -2px;
 }
 
-.sched-row-header-unassigned { color: var(--color-muted); font-weight: 500; font-style: italic; }
+.sched-row-header-unassigned { color: var(--color-text); font-weight: 600; font-style: italic; }
 
 .tech-row-info {
   display: flex;
@@ -906,9 +913,9 @@ a.list-item:hover { border-color: var(--color-primary); }
   display: flex;
   gap: 0.7rem;
   margin-top: 0.15rem;
-  color: var(--color-muted);
+  color: var(--color-text);
   font-size: 0.78rem;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .tech-utilisation {
@@ -937,7 +944,8 @@ a.list-item:hover { border-color: var(--color-primary); }
   display: block;
   margin-top: 0.2rem;
   font-size: 0.72rem;
-  color: var(--color-muted);
+  color: var(--color-text);
+  font-weight: 600;
 }
 
 .tech-stat {
@@ -1202,10 +1210,10 @@ a.list-item:hover { border-color: var(--color-primary); }
 
   .chip-wd {
     font-size: 0.68rem;
-    color: var(--color-muted);
+    color: var(--color-text);
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    font-weight: 500;
+    font-weight: 700;
   }
 
   .chip-num {
@@ -1287,7 +1295,7 @@ a.list-item:hover { border-color: var(--color-primary); }
   .mobile-day-label {
     font-size: 0.8rem;
     font-weight: 700;
-    color: var(--color-muted);
+    color: var(--color-text);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
@@ -1511,7 +1519,7 @@ a.list-item:hover { border-color: var(--color-primary); }
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--color-muted);
+  color: var(--color-text);
   background: var(--color-bg);
 }
 
@@ -1594,7 +1602,7 @@ a.list-item:hover { border-color: var(--color-primary); }
   font-size: 0.95rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--color-muted);
+  color: var(--color-text);
   background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
   box-sizing: border-box;
@@ -1635,8 +1643,8 @@ a.list-item:hover { border-color: var(--color-primary); }
   align-items: center;
   justify-content: center;
   font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-muted);
+  font-weight: 700;
+  color: var(--color-text);
   border-right: 1px solid var(--color-border);
 }
 
