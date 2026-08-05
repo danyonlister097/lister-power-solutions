@@ -160,6 +160,25 @@ async function ensureSeedData() {
     }
   }
 
+  // Seed renewal categories with defaults if the table is empty.
+  const renewalCats = await pool.query('SELECT id FROM renewal_categories LIMIT 1');
+  if (renewalCats.rowCount === 0) {
+    const defaults = [
+      { key: 'licence', label: 'Staff Licence', sort_order: 10 },
+      { key: 'training', label: 'Training', sort_order: 20 },
+      { key: 'vehicle_rego', label: 'Vehicle Rego', sort_order: 30 },
+      { key: 'insurance', label: 'Insurance', sort_order: 40 },
+      { key: 'compliance', label: 'Compliance', sort_order: 50 },
+      { key: 'other', label: 'Other', sort_order: 60 },
+    ];
+    for (const c of defaults) {
+      await pool.query(
+        'INSERT INTO renewal_categories (key, label, sort_order) VALUES ($1, $2, $3) ON CONFLICT (key) DO NOTHING',
+        [c.key, c.label, c.sort_order]
+      );
+    }
+  }
+
   // Per-employee page permissions are new - any trade/apprentice that
   // predates this feature has zero rows in user_permissions yet, which
   // requirePermission() would otherwise read as "no access to anything".

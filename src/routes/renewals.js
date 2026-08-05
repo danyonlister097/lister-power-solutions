@@ -3,26 +3,16 @@ const db = require('../db');
 const { asyncHandler } = require('../lib/asyncHandler');
 const { verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
-const { addDays, brisbaneTodayIso } = require('../lib/timesheetCalc');
+const { brisbaneTodayIso } = require('../lib/timesheetCalc');
 
 const router = express.Router();
 
-const CATEGORIES = [
-  { key: 'licence', label: 'Staff Licence' },
-  { key: 'training', label: 'Training' },
-  { key: 'vehicle_rego', label: 'Vehicle Rego' },
-  { key: 'insurance', label: 'Insurance' },
-  { key: 'compliance', label: 'Compliance' },
-  { key: 'other', label: 'Other' },
-];
-const CATEGORY_KEYS = CATEGORIES.map((c) => c.key);
+function labelToKey(label) {
+  return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 50);
+}
 
-function resolveCategory(body, fallback) {
-  if (body.category === '__custom__') {
-    const custom = (body.category_custom || '').trim();
-    return custom || fallback || 'other';
-  }
-  return (body.category || '').trim() || fallback || 'other';
+async function loadCategories() {
+  return db.prepare('SELECT id, key, label FROM renewal_categories ORDER BY sort_order, label').all();
 }
 
 router.get(
@@ -30,8 +20,8 @@ router.get(
   asyncHandler(async (req, res) => {
     const cat = req.query.category || '';
     const todayIso = brisbaneTodayIso();
+    const CATEGORIES = await loadCategories();
 
-    // Manual renewal items
     const params = [];
     let where = '';
     if (cat && cat !== 'vehicle_rego') {
@@ -52,7 +42,6 @@ router.get(
       )
       .all(...params);
 
-    // Vehicle rego from asset register (shown under All and Vehicle Rego tabs)
     let assetRegos = [];
     if (!cat || cat === 'vehicle_rego') {
       assetRegos = await db
@@ -122,7 +111,7 @@ router.post(
       )
       .run(
         b.title.trim(),
-        resolveCategory(b, 'other'),
+        (b.category || 'other').trim(),
         b.user_id ? Number(b.user_id) : null,
         b.asset_id ? Number(b.asset_id) : null,
         b.expiry_date,
@@ -130,7 +119,73 @@ router.post(
         req.user.id
       );
     setFlash(req, 'success', 'Renewal item added.');
-    res.redirect('/renewals' + (req.body.category ? `?category=${req.body.category}` : ''));
+    res.redirect('/renewals');
+  })
+);
+
+// ── Categories management (must be before /:id routes) ──────────────────────
+
+router.post(
+  '/categories',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).render('error', { message: 'Forbidden.' });
+    const label = (req.body.label || '').trim();
+    if (!label) {
+      setFlash(req, 'error', 'Category name is required.');
+      return res.redirect('/renewals');
+    }
+    const key = labelToKey(label);
+    if (!key) {
+      setFlash(req, 'error', 'Invalid category name.');
+      return res.redirect('/renewals');
+    }
+    try {
+      const row = await db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM renewal_categories').get();
+      await db
+        .prepare('INSERT INTO renewal_categories (key, label, sort_order) VALUES (?, ?, ?)')
+        .run(key, label, Number(row.m) + 10);
+      setFlash(req, 'success', `Category "${label}" added.`);
+    } catch (err) {
+      if (err.code === '23505') {
+        setFlash(req, 'error', 'A category with that name already exists.');
+      } else {
+        throw err;
+      }
+    }
+    res.redirect('/renewals');
+  })
+);
+
+router.post(
+  '/categories/:catid/delete',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).render('error', { message: 'Forbidden.' });
+    await db.prepare('DELETE FROM renewal_categories WHERE id = ?').run(req.params.catid);
+    setFlash(req, 'success', 'Category deleted.');
+    res.redirect('/renewals');
+  })
+);
+
+// ── Per-item actions (after category routes so /categories/* is not swallowed) ──
+
+router.post(
+  '/:id/duplicate',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const item = await db
+      .prepare('SELECT title, category, user_id, asset_id, expiry_date, notes FROM renewals WHERE id = ?')
+      .get(req.params.id);
+    if (!item) return res.status(404).render('error', { message: 'Renewal not found.' });
+    await db
+      .prepare(
+        `INSERT INTO renewals (title, category, user_id, asset_id, expiry_date, notes, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(item.title, item.category, item.user_id, item.asset_id, item.expiry_date, item.notes, req.user.id);
+    setFlash(req, 'success', 'Renewal item duplicated.');
+    res.redirect('/renewals');
   })
 );
 
@@ -147,7 +202,7 @@ router.post(
       )
       .run(
         (b.title || '').trim(),
-        resolveCategory(b, item.category),
+        (b.category || '').trim() || item.category,
         b.user_id ? Number(b.user_id) : null,
         b.asset_id ? Number(b.asset_id) : null,
         b.expiry_date,
@@ -163,9 +218,7 @@ router.post(
   '/:id/delete',
   verifyCsrf,
   asyncHandler(async (req, res) => {
-    if (req.user.role !== 'admin') {
-      return res.status(403).render('error', { message: 'Forbidden.' });
-    }
+    if (req.user.role !== 'admin') return res.status(403).render('error', { message: 'Forbidden.' });
     await db.prepare('DELETE FROM renewals WHERE id = ?').run(req.params.id);
     setFlash(req, 'success', 'Renewal item deleted.');
     res.redirect('/renewals');
@@ -173,4 +226,3 @@ router.post(
 );
 
 module.exports = router;
-module.exports.CATEGORIES = CATEGORIES;

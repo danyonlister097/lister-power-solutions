@@ -651,3 +651,13 @@ CREATE TABLE IF NOT EXISTS bills (
 );
 CREATE INDEX IF NOT EXISTS idx_bills_status ON bills(status);
 CREATE INDEX IF NOT EXISTS idx_bills_invoice_date ON bills(invoice_date);
+
+-- Admin-managed category list for the Renewals tool.
+-- Seeded with defaults in db/index.js ensureSeedData(); admins can add/delete.
+CREATE TABLE IF NOT EXISTS renewal_categories (
+  id SERIAL PRIMARY KEY,
+  key TEXT NOT NULL UNIQUE,
+  label TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
+);
