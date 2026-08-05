@@ -6,7 +6,7 @@ const config = require('./config');
 const logger = require('./lib/logger');
 const db = require('./db');
 const { pool } = db;
-const { loadUser, requirePermission, attachCsrf } = require('./middleware/auth');
+const { loadUser, requireAuth, requirePermission, attachCsrf } = require('./middleware/auth');
 const { homeRoute } = require('./lib/homeRoute');
 const { formatAuDate } = require('./lib/dates');
 const { formatMoney } = require('./lib/money');
@@ -306,7 +306,13 @@ app.get('/', (req, res) => res.redirect(homeRoute(req.user)));
 // before the permission check ever runs.
 app.use('/dashboard', requirePermission('dashboard'), require('./routes/dashboard'));
 app.use('/customers', requirePermission('customers'), require('./routes/customers'));
-app.use('/jobs', requirePermission('jobs'), require('./routes/jobs'));
+app.use('/jobs', (req, res, next) => {
+  // /jobs/schedule is open to all authenticated users; everything else requires the 'jobs' permission
+  if (req.path === '/schedule' || req.path.startsWith('/schedule?') || req.path.startsWith('/schedule/')) {
+    return requireAuth(req, res, next);
+  }
+  return requirePermission('jobs')(req, res, next);
+}, require('./routes/jobs'));
 app.use('/users', requirePermission('employees'), require('./routes/users'));
 app.use('/timeclock', requirePermission('timeclock'), require('./routes/timeclock'));
 app.use('/leave', requirePermission('leave'), require('./routes/leave'));
