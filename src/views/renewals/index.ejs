@@ -32,10 +32,7 @@
 <div class="page-header">
   <h1>Renewals</h1>
   <% if (isAdmin) { %>
-    <div style="display:flex;gap:0.5rem;">
-      <button type="button" class="btn btn-secondary" id="manage-cat-open">Manage Categories</button>
-      <button type="button" class="btn btn-primary" id="renewal-add-open">+ Add Renewal</button>
-    </div>
+    <button type="button" class="btn btn-primary" id="renewal-add-open">+ Add Renewal</button>
   <% } %>
 </div>
 
@@ -155,6 +152,7 @@
             <% CATEGORIES.forEach(c => { %>
               <option value="<%= c.key %>"><%= c.label %></option>
             <% }) %>
+            <option value="__manage__" style="color:var(--color-primary);">+ Add category…</option>
           </select>
         </label>
         <label>
@@ -197,15 +195,9 @@
 <script>
 (function () {
   // ── Manage Categories modal ──
-  (function () {
-    var modal = document.getElementById('manage-cat-modal');
-    var openBtn = document.getElementById('manage-cat-open');
-    var closeBtn = document.getElementById('manage-cat-close');
-    openBtn.addEventListener('click', function () { modal.hidden = false; });
-    closeBtn.addEventListener('click', function () { modal.hidden = true; });
-    modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) modal.hidden = true; });
-  })();
+  var manageCatModal = document.getElementById('manage-cat-modal');
+  document.getElementById('manage-cat-close').addEventListener('click', function () { manageCatModal.hidden = true; });
+  manageCatModal.addEventListener('click', function (e) { if (e.target === manageCatModal) manageCatModal.hidden = true; });
 
   // ── Add / Edit Renewal modal ──
   var modal = document.getElementById('renewal-add-modal');
@@ -217,6 +209,17 @@
   var cancelBtn = document.getElementById('renewal-modal-cancel');
   var idInput = form.querySelector('input[name="_id"]');
   var catSelect = document.getElementById('renewal-cat-select');
+
+  // Intercept "+ Add category…" option
+  catSelect.addEventListener('change', function () {
+    if (catSelect.value === '__manage__') {
+      catSelect.value = catSelect.dataset.prev || catSelect.options[0].value;
+      modal.hidden = true;
+      manageCatModal.hidden = false;
+    } else {
+      catSelect.dataset.prev = catSelect.value;
+    }
+  });
 
   function openAdd() {
     titleEl.textContent = 'Add Renewal';
@@ -235,6 +238,7 @@
     idInput.value = id;
     form.querySelector('[name="title"]').value = btn.getAttribute('data-title') || '';
     catSelect.value = btn.getAttribute('data-category') || '';
+    catSelect.dataset.prev = catSelect.value;
     form.querySelector('[name="user_id"]').value = btn.getAttribute('data-user_id') || '';
     form.querySelector('[name="asset_id"]').value = btn.getAttribute('data-asset_id') || '';
     form.querySelector('[name="expiry_date"]').value = btn.getAttribute('data-expiry_date') || '';
@@ -248,7 +252,12 @@
   closeBtn.addEventListener('click', closeModal);
   cancelBtn.addEventListener('click', closeModal);
   modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (!modal.hidden) closeModal();
+      if (!manageCatModal.hidden) manageCatModal.hidden = true;
+    }
+  });
 
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.renewal-edit-btn');
