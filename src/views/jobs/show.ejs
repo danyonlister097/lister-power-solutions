@@ -194,7 +194,7 @@
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button type="button" class="qty-adj-btn" data-dir="-1" aria-label="Decrease"
                         style="width:1.8rem;height:1.8rem;border:1px solid var(--color-border);border-radius:4px;background:var(--color-surface);cursor:pointer;font-size:1rem;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">−</button>
-                <input type="number" name="quantity" value="<%= a.quantity %>" step="any" min="0.01" required
+                <input type="number" name="quantity" value="<%= a.quantity %>" step="any" min="1" required
                        style="width:4rem;text-align:center;padding:0.2rem 0.3rem;-moz-appearance:textfield;"
                        onwheel="this.blur()">
                 <button type="button" class="qty-adj-btn" data-dir="1" aria-label="Increase"
@@ -287,7 +287,7 @@
 
           results.innerHTML = matches
             .map(function (i) {
-              return '<div class="autocomplete-result" data-id="' + i.id + '" data-name="' + i.name.replace(/"/g, '&quot;') + '">' +
+              return '<div class="autocomplete-result" data-id="' + i.id + '" data-name="' + i.name.replace(/"/g, '&quot;') + '" data-qty="' + i.qty + '">' +
                 i.name +
                 (i.code ? ' <span class="autocomplete-meta">' + i.code + '</span>' : '') +
                 ' <span class="autocomplete-meta">(' + i.qty + ' ' + i.unit + ' on hand)</span></div>';
@@ -296,11 +296,13 @@
           results.hidden = false;
         });
 
+        var qtyInput = form.querySelector('input[name="quantity"]');
         results.addEventListener('click', function (e) {
           var row = e.target.closest('.autocomplete-result');
           if (!row) return;
           hiddenId.value = row.getAttribute('data-id');
           search.value = row.getAttribute('data-name');
+          qtyInput.max = row.getAttribute('data-qty');
           closeResults();
         });
 

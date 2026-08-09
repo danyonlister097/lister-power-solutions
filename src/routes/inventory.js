@@ -173,6 +173,11 @@ router.post(
       return res.redirect(job ? `/jobs/${job.id}` : '/inventory');
     }
 
+    if (quantity > item.quantity_on_hand) {
+      setFlash(req, 'error', `Only ${item.quantity_on_hand} ${item.unit} of "${item.name}" available in stock.`);
+      return res.redirect(`/jobs/${job.id}`);
+    }
+
     await db
       .prepare(`UPDATE inventory_items SET quantity_on_hand = quantity_on_hand - ?, updated_at = datetime('now') WHERE id = ?`)
       .run(quantity, item.id);

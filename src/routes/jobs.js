@@ -840,7 +840,7 @@ const AIRCON_STOCK_BASE = [
   { code: 'CBL1.5SDIRD', qty: 3 }, // SDI 1.5MM RED/WHITE 100M
   { code: 'A-AEWC80',    qty: 1 }, // AIRCON DUCT WALL CAP 80MM
   { code: 'A-AECD80',    qty: 1 }, // AIRCON DUCT STRAIGHT 2MTR 80MM
-  { code: 'CDT9020MD',   qty: 4 }, // MD CONDUIT PVC RIGID 20MM GREY 4MTR
+  { code: 'CDT9020MD',   qty: 1 }, // MD CONDUIT PVC RIGID 20MM GREY 4MTR
 ];
 
 const AIRCON_STOCK_SMALL = [...AIRCON_STOCK_BASE, { code: 'A-APCB0609', qty: 3 }]; // PAIRCOIL 1/4IN-3/8IN
@@ -1321,6 +1321,7 @@ router.post(
       });
 
     await setAssignees(result.lastInsertRowid, []);
+    await autoAllocateAirconStock(result.lastInsertRowid, job.title, req.user.id);
 
     setFlash(req, 'success', 'Job duplicated into Unassigned shifts.');
     const returnTo = typeof req.body.returnTo === 'string' && req.body.returnTo.startsWith('/') ? req.body.returnTo : null;
