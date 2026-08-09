@@ -235,6 +235,8 @@ router.get(
 
     const items = await db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY id').all(invoice.id);
 
+    const myobClient = require('../lib/myobClient');
+    const myobConnected = await myobClient.isConnected();
     res.render('invoices/show', {
       title: invoice.invoice_number,
       invoice,
@@ -242,6 +244,7 @@ router.get(
       items,
       total: await totalFor(invoice.id),
       CATEGORIES,
+      myobConnected,
     });
   })
 );

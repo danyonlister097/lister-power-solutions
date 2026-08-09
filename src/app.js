@@ -328,6 +328,7 @@ app.use('/invoices', requirePermission('invoices'), require('./routes/invoices')
 app.use('/renewals', requirePermission('renewals'), require('./routes/renewals'));
 app.use('/milestones', requirePermission('dashboard'), require('./routes/milestones'));
 app.use('/feedback', requirePermission('feedback'), require('./routes/feedback'));
+app.use('/myob', requireRole('admin'), require('./routes/myob'));
 
 app.use((req, res) => {
   res.status(404).render('error', { message: 'Page not found.' });

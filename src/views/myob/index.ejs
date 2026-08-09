@@ -1,0 +1,61 @@
+<%- include('../partials/header', { title: 'MYOB Integration' }) %>
+<div class="page-header">
+  <h1>MYOB Integration</h1>
+</div>
+
+<% if (!clientConfigured) { %>
+  <div class="card" style="border-left:6px solid #dc3545;">
+    <h2>Setup required</h2>
+    <p>Before connecting, you need to:</p>
+    <ol style="margin:0.5rem 0 1rem 1.25rem;line-height:2;">
+      <li>Go to <strong>developer.myob.com</strong> and register a free developer app</li>
+      <li>Set your Redirect URI to: <code><%= locals.appUrl || 'https://yourapp.com' %>/myob/callback</code></li>
+      <li>Copy your <strong>API Key</strong> → set as <code>MYOB_CLIENT_ID</code> in your environment</li>
+      <li>Copy your <strong>API Secret</strong> → set as <code>MYOB_CLIENT_SECRET</code> in your environment</li>
+      <li>Set <code>MYOB_REDIRECT_URI</code> to match the redirect URI above</li>
+      <li>Restart the server, then return here to connect</li>
+    </ol>
+    <p class="text-muted" style="font-size:0.875rem;">
+      Optionally set <code>MYOB_DEFAULT_INCOME_ACCOUNT_UID</code> and <code>MYOB_DEFAULT_TAX_CODE_UID</code>
+      to the MYOB UIDs for your income account and GST tax code — needed when pushing invoices.
+      Find these in MYOB under Chart of Accounts / Tax Codes.
+    </p>
+  </div>
+<% } else if (connected) { %>
+  <div class="card" style="border-left:6px solid #059669;">
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+      <span class="badge badge-approved" style="font-size:1rem;padding:0.4rem 0.8rem;">Connected</span>
+      <% if (companyFileUri) { %>
+        <span class="text-muted" style="font-size:0.85rem;word-break:break-all;"><%= companyFileUri %></span>
+      <% } %>
+    </div>
+
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;">
+      <form method="post" action="/myob/sync-contacts">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-primary">Sync contacts from MYOB</button>
+      </form>
+      <form method="post" action="/myob/disconnect" data-confirm="Disconnect MYOB? You can reconnect at any time.">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-secondary">Disconnect</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>How it works</h2>
+    <ul style="line-height:2;margin:0 0 0 1.25rem;">
+      <li><strong>Sync contacts</strong> — pulls all active customers from MYOB and links them to your local customer list (or creates new ones)</li>
+      <li><strong>Push invoice</strong> — from any invoice's page, use the "Send via MYOB" button to push it to MYOB and optionally trigger MYOB to email it to the customer</li>
+      <li>Once pushed, the invoice is linked to MYOB and won't be pushed again</li>
+    </ul>
+  </div>
+<% } else { %>
+  <div class="card" style="border-left:6px solid #d97706;">
+    <h2>Not connected</h2>
+    <p>Connect your MYOB Business account to sync contacts and push invoices.</p>
+    <a href="/myob/connect" class="btn btn-primary">Connect to MYOB</a>
+  </div>
+<% } %>
+
+<%- include('../partials/footer') %>

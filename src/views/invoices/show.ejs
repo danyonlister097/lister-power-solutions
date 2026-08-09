@@ -62,6 +62,17 @@
         <button type="submit" class="btn btn-danger btn-sm">Delete</button>
       </form>
     <% } %>
+    <% if (myobConnected && currentUser.role === 'admin') { %>
+      <% if (invoice.myob_invoice_uid) { %>
+        <span class="badge badge-approved" style="font-size:0.8rem;">In MYOB<% if (invoice.myob_emailed_at) { %> &middot; Emailed<% } %></span>
+      <% } else { %>
+        <form method="post" action="/myob/push-invoice/<%= invoice.id %>" style="display:inline;">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="send_email" value="1">
+          <button type="submit" class="btn btn-secondary btn-sm">Send via MYOB</button>
+        </form>
+      <% } %>
+    <% } %>
   </div>
 </div>
 

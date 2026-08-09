@@ -652,6 +652,22 @@ CREATE TABLE IF NOT EXISTS bills (
 CREATE INDEX IF NOT EXISTS idx_bills_status ON bills(status);
 CREATE INDEX IF NOT EXISTS idx_bills_invoice_date ON bills(invoice_date);
 
+-- MYOB OAuth tokens - one row, updated in place on each token refresh.
+CREATE TABLE IF NOT EXISTS myob_tokens (
+  id SERIAL PRIMARY KEY,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  company_file_id TEXT,
+  company_file_uri TEXT,
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+-- Track which MYOB invoice UID corresponds to a local invoice after push.
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS myob_invoice_uid TEXT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS myob_emailed_at TEXT;
+
 -- Admin-managed category list for the Renewals tool.
 -- Seeded with defaults in db/index.js ensureSeedData(); admins can add/delete.
 CREATE TABLE IF NOT EXISTS renewal_categories (
