@@ -90,8 +90,8 @@
 
 <div class="card" style="border-left:6px solid #dc3545;">
   <div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
-    <h2 style="margin:0;">Upcoming Bills</h2>
-    <a href="/bills" class="btn btn-secondary btn-sm">View all</a>
+    <h2 style="margin:0;">Upcoming Bills (<%= upcomingBills.length %>)</h2>
+    <a href="/invoices?tab=bills" class="btn btn-secondary btn-sm">View all</a>
   </div>
   <% if (!upcomingBills.length) { %>
     <p class="text-muted" style="margin-top:0.75rem;">No unpaid bills due in the next 30 days.</p>
@@ -101,17 +101,16 @@
            const overdue = b.due_date < todayIso;
       %>
         <li>
-          <a href="/bills" class="list-item">
-            <span style="min-width:0;">
+          <a href="/invoices?tab=bills" class="list-item">
+            <span style="min-width:0;flex:1;">
               <span class="list-item-title"><%= b.supplier %></span><br>
               <span class="list-item-meta">
                 <% if (b.supplier_invoice_number) { %><%= b.supplier_invoice_number %> &middot; <% } %>
                 Due <%= formatAuDate(b.due_date) %>
+                <% if (overdue) { %> &middot; <span style="color:var(--color-danger);font-weight:600;">Overdue</span><% } %>
               </span>
             </span>
-            <span class="badge <%= overdue ? 'badge-cancelled' : 'badge-in_progress' %>">
-              <%= overdue ? 'Overdue' : 'Due soon' %> &middot; <%= formatMoney(b.total) %>
-            </span>
+            <span style="white-space:nowrap;font-weight:600;color:<%= overdue ? 'var(--color-danger)' : 'inherit' %>"><%= formatMoney(b.total) %></span>
           </a>
         </li>
       <% }) %>
@@ -221,50 +220,24 @@
   </div>
 </div>
 
-<div class="form-row form-row-2">
-  <div class="card" style="border-left:6px solid #7c5cff;">
-    <h2>Quick Tasks (<%= activeTasks.length %>)</h2>
-    <% if (!activeTasks.length) { %>
-      <p class="text-muted">No open tasks.</p>
-    <% } else { %>
-      <ul class="list list-scroll">
-        <% activeTasks.forEach(function(t) { %>
-          <li>
-            <a href="/tasks" class="list-item">
-              <span>
-                <span class="list-item-title"><%= t.title %></span><br>
-                <span class="list-item-meta"><%= t.assignee_name || 'Anyone' %> &middot; added by <%= t.creator_name %></span>
-              </span>
-            </a>
-          </li>
-        <% }) %>
-      </ul>
-    <% } %>
-  </div>
-
-  <div class="card" style="border-left:6px solid #d97706;">
-    <h2>Bug Reports &amp; Ideas (<%= openFeedback.length %>)</h2>
-    <% if (!openFeedback.length) { %>
-      <p class="text-muted">No open items.</p>
-    <% } else { %>
-      <ul class="list list-scroll">
-        <% openFeedback.forEach(function(f) { %>
-          <li>
-            <a href="/feedback" class="list-item">
-              <span>
-                <span class="list-item-title"><%= f.title %></span><br>
-                <span class="list-item-meta">By <%= f.submitter_name %></span>
-              </span>
-              <span style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;">
-                <span class="badge <%= f.type === 'bug' ? 'badge-cancelled' : 'badge-pending' %>"><%= f.type === 'bug' ? 'Bug' : 'Idea' %></span>
-                <span class="badge <%= f.status === 'in_progress' ? 'badge-active' : '' %>"><%= f.status === 'in_progress' ? 'In progress' : 'Open' %></span>
-              </span>
-            </a>
-          </li>
-        <% }) %>
-      </ul>
-    <% } %>
-  </div>
+<div class="card" style="border-left:6px solid #7c5cff;">
+  <h2>Quick Tasks (<%= activeTasks.length %>)</h2>
+  <% if (!activeTasks.length) { %>
+    <p class="text-muted">No open tasks.</p>
+  <% } else { %>
+    <ul class="list list-scroll">
+      <% activeTasks.forEach(function(t) { %>
+        <li>
+          <a href="/tasks" class="list-item">
+            <span>
+              <span class="list-item-title"><%= t.title %></span><br>
+              <span class="list-item-meta"><%= t.assignee_name || 'Anyone' %> &middot; added by <%= t.creator_name %></span>
+            </span>
+          </a>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
 </div>
 
 <div class="card" style="border-left:6px solid #0891b2;">
@@ -383,6 +356,29 @@
             </span>
             <span class="badge badge-<%= m.overdue ? 'cancelled' : 'scheduled' %>"><%= m.overdue ? 'overdue' : 'due soon' %></span>
           </span>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+<div class="card" style="border-left:6px solid #d97706;">
+  <h2>Bug Reports &amp; Ideas (<%= openFeedback.length %>)</h2>
+  <% if (!openFeedback.length) { %>
+    <p class="text-muted">No open items.</p>
+  <% } else { %>
+    <ul class="list list-scroll">
+      <% openFeedback.forEach(function(f) { %>
+        <li>
+          <a href="/feedback" class="list-item">
+            <span>
+              <span class="list-item-title"><%= f.title %></span><br>
+              <span class="list-item-meta">By <%= f.submitter_name %></span>
+            </span>
+            <span style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;">
+              <span class="badge <%= f.type === 'bug' ? 'badge-cancelled' : 'badge-pending' %>"><%= f.type === 'bug' ? 'Bug' : 'Idea' %></span>
+              <span class="badge <%= f.status === 'in_progress' ? 'badge-active' : '' %>"><%= f.status === 'in_progress' ? 'In progress' : 'Open' %></span>
+            </span>
+          </a>
         </li>
       <% }) %>
     </ul>
