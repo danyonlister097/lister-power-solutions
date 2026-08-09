@@ -35,10 +35,10 @@
 </div>
 
 <div class="filters">
-  <a href="?range=upcoming&status=<%= status %>&assignedTo=<%= assignedTo %>" class="<%= range === 'upcoming' ? 'active' : '' %>">Upcoming</a>
-  <a href="?range=today&status=<%= status %>&assignedTo=<%= assignedTo %>" class="<%= range === 'today' ? 'active' : '' %>">Today</a>
-  <a href="?range=week&status=<%= status %>&assignedTo=<%= assignedTo %>" class="<%= range === 'week' ? 'active' : '' %>">This week</a>
   <a href="?range=all&status=<%= status %>&assignedTo=<%= assignedTo %>" class="<%= range === 'all' ? 'active' : '' %>">All</a>
+  <a href="?range=today&status=<%= status %>&assignedTo=<%= assignedTo %>" class="<%= range === 'today' ? 'active' : '' %>">Day</a>
+  <a href="?range=week&status=<%= status %>&assignedTo=<%= assignedTo %>" class="<%= range === 'week' ? 'active' : '' %>">Week</a>
+  <a href="?range=upcoming&status=<%= status %>&assignedTo=<%= assignedTo %>" class="<%= range === 'upcoming' ? 'active' : '' %>">Upcoming</a>
 </div>
 
 <form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">

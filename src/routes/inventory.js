@@ -227,6 +227,41 @@ router.post(
   })
 );
 
+router.post(
+  '/allocations/:id/update',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const allocation = await db.prepare('SELECT * FROM job_stock_allocations WHERE id = ?').get(req.params.id);
+    if (!allocation) return res.status(404).render('error', { message: 'Allocation not found.' });
+
+    const newQty = parseFloat(req.body.quantity);
+    if (isNaN(newQty) || newQty <= 0) {
+      setFlash(req, 'error', 'Quantity must be greater than zero.');
+      return res.redirect(`/jobs/${allocation.job_id}`);
+    }
+
+    const diff = newQty - allocation.quantity;
+    if (diff !== 0) {
+      if (diff > 0) {
+        const item = await db.prepare('SELECT quantity_on_hand FROM inventory_items WHERE id = ?').get(allocation.item_id);
+        if (diff > item.quantity_on_hand) {
+          setFlash(req, 'error', `Only ${item.quantity_on_hand} units available in inventory.`);
+          return res.redirect(`/jobs/${allocation.job_id}`);
+        }
+      }
+      await db
+        .prepare(`UPDATE inventory_items SET quantity_on_hand = quantity_on_hand - ?, updated_at = datetime('now') WHERE id = ?`)
+        .run(diff, allocation.item_id);
+      await db.prepare('UPDATE job_stock_allocations SET quantity = ? WHERE id = ?').run(newQty, allocation.id);
+      if (allocation.cost_item_id) {
+        await db.prepare('UPDATE job_cost_items SET quantity = ? WHERE id = ?').run(newQty, allocation.cost_item_id);
+      }
+    }
+
+    res.redirect(`/jobs/${allocation.job_id}`);
+  })
+);
+
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {

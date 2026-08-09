@@ -188,17 +188,43 @@
         <li>
           <span class="list-item">
             <span class="list-item-title"><%= a.item_name %></span>
-            <span class="actions">
-              <span class="badge badge-scheduled"><%= a.quantity %> <%= a.item_unit %></span>
-              <form method="post" action="/inventory/allocations/<%= a.id %>/delete" data-confirm="Remove this stock allocation? The quantity will be returned to inventory." data-preserve-scroll>
+            <span class="actions" style="gap:0.5rem;align-items:center;flex-wrap:wrap;">
+              <form method="post" action="/inventory/allocations/<%= a.id %>/update" data-preserve-scroll
+                    style="display:flex;align-items:center;gap:0.25rem;margin:0;">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <button type="submit" class="btn-link">Remove</button>
+                <button type="button" class="qty-adj-btn" data-dir="-1" aria-label="Decrease"
+                        style="width:1.8rem;height:1.8rem;border:1px solid var(--color-border);border-radius:4px;background:var(--color-surface);cursor:pointer;font-size:1rem;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">−</button>
+                <input type="number" name="quantity" value="<%= a.quantity %>" step="any" min="0.01" required
+                       style="width:4rem;text-align:center;padding:0.2rem 0.3rem;-moz-appearance:textfield;"
+                       onwheel="this.blur()">
+                <button type="button" class="qty-adj-btn" data-dir="1" aria-label="Increase"
+                        style="width:1.8rem;height:1.8rem;border:1px solid var(--color-border);border-radius:4px;background:var(--color-surface);cursor:pointer;font-size:1rem;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">+</button>
+                <span class="text-muted" style="font-size:0.85rem;white-space:nowrap;"><%= a.item_unit %></span>
+                <button type="submit" style="display:none;" aria-hidden="true"></button>
+              </form>
+              <form method="post" action="/inventory/allocations/<%= a.id %>/delete" data-confirm="Remove this stock allocation? The quantity will be returned to inventory." data-preserve-scroll style="margin:0;">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="btn-link" style="color:var(--color-danger);">Remove</button>
               </form>
             </span>
           </span>
         </li>
       <% }) %>
     </ul>
+    <script>
+      (function () {
+        document.querySelectorAll('.qty-adj-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var form = btn.closest('form');
+            var input = form.querySelector('input[name="quantity"]');
+            var current = parseFloat(input.value) || 0;
+            var newVal = Math.max(parseFloat(input.min) || 0.01, current + parseFloat(btn.getAttribute('data-dir')));
+            input.value = parseFloat(newVal.toFixed(4));
+            form.requestSubmit ? form.requestSubmit() : form.submit();
+          });
+        });
+      })();
+    </script>
   <% } %>
   <% if (inventoryItems.length === 0) { %>
     <p class="text-muted">No inventory items set up yet. <a href="/inventory">Add some</a>.</p>

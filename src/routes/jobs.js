@@ -99,7 +99,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const isAdmin = req.user.role === 'admin';
     const status = req.query.status || '';
-    const range = req.query.range || 'upcoming';
+    const range = req.query.range || 'all';
     const assignedTo = isAdmin ? req.query.assignedTo || '' : String(req.user.id);
 
     const clauses = [];
