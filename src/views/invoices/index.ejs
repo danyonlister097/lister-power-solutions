@@ -259,7 +259,11 @@
     var ex = parseFloat(exGst.value) || 0;
     var g  = parseFloat(gst.value)   || 0;
     var t  = parseFloat(total.value) || 0;
-    if (changed === 'ex' || changed === 'gst') {
+    if (changed === 'ex') {
+      var calcGst = parseFloat((ex * 0.1).toFixed(2));
+      gst.value = calcGst;
+      total.value = (ex + calcGst).toFixed(2);
+    } else if (changed === 'gst') {
       total.value = (ex + g).toFixed(2);
     } else if (changed === 'total') {
       // back-calculate gst as 1/11 of total, ex as remainder
