@@ -988,7 +988,7 @@ router.get(
         .all(job.id);
     }
 
-    const inventoryItems = await db.prepare('SELECT id, name, unit, quantity_on_hand FROM inventory_items ORDER BY name ASC').all();
+    const inventoryItems = await db.prepare('SELECT id, name, supplier_code, unit, quantity_on_hand FROM inventory_items ORDER BY name ASC').all();
     const stockAllocations = await db
       .prepare(
         `SELECT job_stock_allocations.*, inventory_items.name AS item_name, inventory_items.unit AS item_unit
