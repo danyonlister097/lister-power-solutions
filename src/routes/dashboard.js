@@ -58,6 +58,19 @@ router.get(
       .all();
     const outstandingQuotesTotal = outstandingQuotes.reduce((sum, q) => sum + q.total, 0);
 
+    const billsCutoff = addDays(todayIso, 30);
+    const upcomingBills = await db
+      .prepare(
+        `SELECT id, supplier, supplier_invoice_number, due_date, total
+         FROM bills
+         WHERE status = 'unpaid' AND due_date IS NOT NULL AND (due_date)::date <= (?)::date
+         ORDER BY due_date ASC
+         LIMIT 15`
+      )
+      .all(billsCutoff);
+    const upcomingBillsTotal = upcomingBills.reduce((sum, b) => sum + b.total, 0);
+    const overdueBillsCount = upcomingBills.filter((b) => b.due_date < todayIso).length;
+
     const lowStockItems = await db
       .prepare(
         `SELECT id, name, quantity_on_hand, unit, reorder_threshold
@@ -295,6 +308,7 @@ router.get(
 
     res.render('dashboard/index', {
       title: 'Dashboard',
+      todayIso,
       jobsThisWeek,
       jobsToday,
       revenueThisMonth,
@@ -302,6 +316,9 @@ router.get(
       overdueTotal,
       outstandingQuotes,
       outstandingQuotesTotal,
+      upcomingBills,
+      upcomingBillsTotal,
+      overdueBillsCount,
       lowStockItems,
       pendingLeave,
       pendingTimesheets,

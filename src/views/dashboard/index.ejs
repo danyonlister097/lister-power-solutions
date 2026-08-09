@@ -28,6 +28,10 @@
     <span class="leave-stat-value"><%= upcomingMaintenance.length %></span>
     <span class="leave-stat-label">Vehicles &amp; equipment due for service</span>
   </div>
+  <div class="leave-stat <%= overdueBillsCount ? 'leave-stat-declined' : (upcomingBills.length ? 'leave-stat-pending' : '') %>">
+    <span class="leave-stat-value"><%= upcomingBills.length %></span>
+    <span class="leave-stat-label">Bills due soon (<%= formatMoney(upcomingBillsTotal) %>)</span>
+  </div>
 </div>
 
 <div class="card" style="border-left:6px solid #e2622b;">
@@ -81,6 +85,37 @@
         <% }) %>
       </ul>
     <% } %>
+  <% } %>
+</div>
+
+<div class="card" style="border-left:6px solid #dc3545;">
+  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+    <h2 style="margin:0;">Upcoming Bills</h2>
+    <a href="/bills" class="btn btn-secondary btn-sm">View all</a>
+  </div>
+  <% if (!upcomingBills.length) { %>
+    <p class="text-muted" style="margin-top:0.75rem;">No unpaid bills due in the next 30 days.</p>
+  <% } else { %>
+    <ul class="list list-scroll" style="margin-top:0.75rem;">
+      <% upcomingBills.forEach(b => {
+           const overdue = b.due_date < todayIso;
+      %>
+        <li>
+          <a href="/bills" class="list-item">
+            <span style="min-width:0;">
+              <span class="list-item-title"><%= b.supplier %></span><br>
+              <span class="list-item-meta">
+                <% if (b.supplier_invoice_number) { %><%= b.supplier_invoice_number %> &middot; <% } %>
+                Due <%= formatAuDate(b.due_date) %>
+              </span>
+            </span>
+            <span class="badge <%= overdue ? 'badge-cancelled' : 'badge-in_progress' %>">
+              <%= overdue ? 'Overdue' : 'Due soon' %> &middot; <%= formatMoney(b.total) %>
+            </span>
+          </a>
+        </li>
+      <% }) %>
+    </ul>
   <% } %>
 </div>
 
