@@ -640,6 +640,7 @@ form label.toggle-label {
 .flash-success { background: #e3f6e8; color: var(--color-success); }
 .flash-error { background: #fbeaea; color: var(--color-danger); }
 .flash-error a { display: block; margin-top: 0.35rem; font-weight: 600; }
+.flash-toast { margin-bottom: 0; border-radius: var(--radius); }
 
 .list { list-style: none; margin: 0; padding: 0; }
 

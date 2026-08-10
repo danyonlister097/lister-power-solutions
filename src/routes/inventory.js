@@ -97,8 +97,8 @@ router.post(
 
     await db
       .prepare(
-        `INSERT INTO inventory_items (name, category, unit, quantity_on_hand, reorder_threshold, unit_cost, unit_cost_inc_gst)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO inventory_items (name, category, unit, quantity_on_hand, reorder_threshold, minimum_stock, unit_cost, unit_cost_inc_gst)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         name,
@@ -106,6 +106,7 @@ router.post(
         (req.body.unit || 'each').trim(),
         Number.parseFloat(req.body.quantity_on_hand) || 0,
         req.body.reorder_threshold ? Number.parseFloat(req.body.reorder_threshold) : null,
+        req.body.minimum_stock ? Number.parseFloat(req.body.minimum_stock) : null,
         req.body.unit_cost ? Number.parseFloat(req.body.unit_cost) : null,
         req.body.unit_cost_inc_gst ? Number.parseFloat(req.body.unit_cost_inc_gst) : null
       );
@@ -339,7 +340,7 @@ router.post(
 
     await db
       .prepare(
-        `UPDATE inventory_items SET name = ?, category = ?, unit = ?, reorder_threshold = ?, unit_cost = ?, unit_cost_inc_gst = ?, supplier_code = ?, updated_at = datetime('now')
+        `UPDATE inventory_items SET name = ?, category = ?, unit = ?, reorder_threshold = ?, minimum_stock = ?, unit_cost = ?, unit_cost_inc_gst = ?, supplier_code = ?, updated_at = datetime('now')
          WHERE id = ?`
       )
       .run(
@@ -347,6 +348,7 @@ router.post(
         resolveCategory(req.body, await getCategories()),
         (req.body.unit || 'each').trim(),
         req.body.reorder_threshold ? Number.parseFloat(req.body.reorder_threshold) : null,
+        req.body.minimum_stock ? Number.parseFloat(req.body.minimum_stock) : null,
         req.body.unit_cost ? Number.parseFloat(req.body.unit_cost) : null,
         req.body.unit_cost_inc_gst ? Number.parseFloat(req.body.unit_cost_inc_gst) : null,
         (req.body.supplier_code || '').trim() || null,
@@ -366,17 +368,20 @@ router.post(
     const item = await db.prepare('SELECT * FROM inventory_items WHERE id = ?').get(req.params.id);
     if (!item) return res.status(404).render('error', { message: 'Item not found.' });
 
-    const delta = Number.parseFloat(req.body.delta);
-    if (!Number.isFinite(delta) || delta === 0) {
-      setFlash(req, 'error', 'Enter a non-zero quantity to adjust.');
+    const newQty = Number.parseFloat(req.body.new_quantity);
+    if (!Number.isFinite(newQty) || newQty < 0) {
+      setFlash(req, 'error', 'Enter a valid quantity.');
       return res.redirect(`/inventory/${item.id}`);
     }
 
-    await db
-      .prepare(`UPDATE inventory_items SET quantity_on_hand = quantity_on_hand + ?, updated_at = datetime('now') WHERE id = ?`)
-      .run(delta, item.id);
+    const delta = newQty - item.quantity_on_hand;
 
-    setFlash(req, 'success', `Stock ${delta > 0 ? 'increased' : 'decreased'} by ${Math.abs(delta)}.`);
+    await db
+      .prepare(`UPDATE inventory_items SET quantity_on_hand = ?, updated_at = datetime('now') WHERE id = ?`)
+      .run(newQty, item.id);
+
+    const changeDesc = delta === 0 ? 'unchanged' : (delta > 0 ? `increased by ${delta}` : `decreased by ${Math.abs(delta)}`);
+    setFlash(req, 'success', `Stock ${changeDesc}. Now: ${newQty} ${item.unit}.`);
     res.redirect(`/inventory/${item.id}`);
   })
 );

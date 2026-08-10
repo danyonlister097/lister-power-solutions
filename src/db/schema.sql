@@ -376,6 +376,13 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS idx_inventory_items_supplier_code ON inventory_items(supplier_code);
 
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'inventory_items' AND column_name = 'minimum_stock') THEN
+    ALTER TABLE inventory_items ADD COLUMN minimum_stock REAL;
+  END IF;
+END $$;
+
 -- One row per processed invoice email - used to prevent double-importing the
 -- same invoice and to give admins a visible audit trail of what came in.
 CREATE TABLE IF NOT EXISTS invoice_imports (

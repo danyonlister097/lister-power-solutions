@@ -57,7 +57,7 @@
 
   <% if (currentUser.role === 'admin') { %>
     <div class="actions">
-      <a class="btn btn-secondary btn-sm" href="/jobs/<%= job.id %>/edit">Edit job</a>
+      <a class="btn btn-secondary btn-sm" href="/jobs/<%= job.id %>/edit?returnTo=/jobs/<%= job.id %>">Edit job</a>
       <form method="post" action="/jobs/<%= job.id %>/duplicate">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <button type="submit" class="btn btn-secondary btn-sm">Duplicate</button>
@@ -462,7 +462,7 @@
       <p class="text-muted" style="font-size:0.85rem;margin:0 0 0.75rem;">&#9432; Record actual start and finish times above before marking as completed.</p>
     <% } %>
   <% } %>
-  <form method="post" action="/jobs/<%= job.id %>/status" class="form-row form-row-2" data-preserve-scroll>
+  <form method="post" action="/jobs/<%= job.id %>/status" class="form-row form-row-2">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <select name="status">
       <% STATUSES.forEach(s => { %>

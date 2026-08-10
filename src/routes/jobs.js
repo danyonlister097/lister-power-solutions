@@ -29,7 +29,7 @@ function parseJobColor(raw) {
 // Only ever redirect back to a same-site URL we generated ourselves - never
 // follow an arbitrary returnTo value (open-redirect guard).
 function safeReturnTo(raw) {
-  return typeof raw === 'string' && /^\/(dashboard|jobs(\/schedule)?)(\?[A-Za-z0-9=&_-]*)?$/.test(raw) ? raw : null;
+  return typeof raw === 'string' && /^\/(dashboard|jobs(\/schedule|\/\d+)?)(\?[A-Za-z0-9=&_-]*)?$/.test(raw) ? raw : null;
 }
 
 async function setAssignees(jobId, userIds) {
@@ -1095,10 +1095,17 @@ router.get(
     if (!job) return;
     const customers = await db.prepare('SELECT id, name FROM customers WHERE active = 1 ORDER BY name').all();
     const techs = await db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY sort_order, name').all();
+    // Load the job's current customer even if they're inactive, so the field
+    // is pre-filled when editing rather than appearing blank.
+    const currentCustomer = job.customer_id
+      ? (customers.find((c) => String(c.id) === String(job.customer_id)) ||
+         await db.prepare('SELECT id, name FROM customers WHERE id = ?').get(job.customer_id))
+      : null;
     res.render('jobs/form', {
       title: `Edit ${job.title}`,
       job: { ...job, ...deriveFormFields(job), assigneeIds: job.assignees.map((a) => a.id) },
       customers,
+      currentCustomer,
       techs,
       STATUSES,
       colors: JOB_COLORS,
@@ -1122,11 +1129,17 @@ router.post(
     const assigneeIds = parseAssigneeIds(b);
     const returnTo = safeReturnTo(b.returnTo);
 
+    const currentCustomer = b.customer_id
+      ? (customers.find((c) => String(c.id) === String(b.customer_id)) ||
+         await db.prepare('SELECT id, name FROM customers WHERE id = ?').get(b.customer_id))
+      : null;
+
     if (!b.title || !b.title.trim() || !b.customer_id) {
       return res.status(400).render('jobs/form', {
         title: `Edit ${job.title}`,
         job: { ...job, ...b, assigneeIds },
         customers,
+        currentCustomer,
         techs,
         STATUSES,
         colors: JOB_COLORS,
@@ -1192,7 +1205,7 @@ router.post(
     }
 
     setFlash(req, 'success', 'Job updated.');
-    res.redirect(returnTo || '/jobs');
+    res.redirect('/jobs');
   })
 );
 
@@ -1254,7 +1267,7 @@ router.post(
       .run({ id: job.id, status });
 
     setFlash(req, 'success', `Job marked ${status.replace('_', ' ')}.`);
-    res.redirect(homeRoute(req.user));
+    res.redirect('/jobs');
   })
 );
 

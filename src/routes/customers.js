@@ -34,6 +34,39 @@ router.get('/new', (req, res) => {
   res.render('customers/form', { title: 'New Customer', customer: {}, error: null });
 });
 
+// Quick-add via modal — returns JSON for the job form's inline customer creation
+router.post(
+  '/quick-add',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const b = req.body;
+    if (!b.name || !b.name.trim()) {
+      return res.status(400).json({ error: 'Customer name is required.' });
+    }
+
+    const result = await db
+      .prepare(
+        `INSERT INTO customers
+          (name, contact_name, phone, email, address_street, address_city, address_state, address_postcode, notes)
+         VALUES (@name, @contact_name, @phone, @email, @address_street, @address_city, @address_state, @address_postcode, @notes)
+         RETURNING id`
+      )
+      .run({
+        name: b.name.trim(),
+        contact_name: b.contact_name || null,
+        phone: b.phone || null,
+        email: b.email || null,
+        address_street: b.address_street || null,
+        address_city: b.address_city || null,
+        address_state: b.address_state || null,
+        address_postcode: b.address_postcode || null,
+        notes: b.notes || null,
+      });
+
+    res.json({ id: result.lastInsertRowid, name: b.name.trim() });
+  })
+);
+
 router.post(
   '/',
   verifyCsrf,

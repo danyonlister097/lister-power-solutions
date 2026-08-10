@@ -86,6 +86,7 @@
   document.addEventListener('submit', function (e) {
     var form = e.target;
     if (!(form instanceof HTMLFormElement)) return;
+    if (e.defaultPrevented) return; // validation blocked this submit — leave buttons active
     if (form.hasAttribute('data-confirm') && form.dataset.confirmed !== 'true') return;
 
     var buttons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
@@ -164,4 +165,39 @@
 
   window.addEventListener('scroll', function () { closeAll(null); }, true);
   window.addEventListener('resize', function () { closeAll(null); });
+})();
+
+// Convert inline flash messages to floating toasts so they're visible
+// regardless of scroll position (e.g. stock error while scrolled to bottom).
+(function () {
+  var flash = document.querySelector('.flash');
+  if (!flash) return;
+
+  var isError = flash.classList.contains('flash-error');
+
+  // Clone into a fixed-position toast
+  var toast = document.createElement('div');
+  toast.className = flash.className + ' flash-toast';
+  toast.textContent = flash.textContent;
+  toast.style.cssText = [
+    'position:fixed',
+    'bottom:1.25rem',
+    'right:1.25rem',
+    'z-index:9999',
+    'max-width:380px',
+    'box-shadow:0 4px 16px rgba(0,0,0,0.18)',
+    'cursor:pointer',
+    'padding:0.75rem 1rem',
+  ].join(';');
+
+  document.body.appendChild(toast);
+
+  function dismiss() {
+    toast.style.transition = 'opacity 0.3s';
+    toast.style.opacity = '0';
+    setTimeout(function () { toast.remove(); }, 320);
+  }
+
+  toast.addEventListener('click', dismiss);
+  setTimeout(dismiss, isError ? 8000 : 5000);
 })();

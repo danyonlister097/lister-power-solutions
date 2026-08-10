@@ -4,19 +4,20 @@
   <a class="btn btn-primary" href="/customers/new">+ New customer</a>
 </div>
 
-<form method="get" action="/customers" class="card">
+<div class="card">
   <label>
     Search by name
-    <input type="text" name="q" value="<%= q %>" placeholder="Start typing a customer name...">
+    <input type="text" id="customer-search" value="<%= q %>" placeholder="Start typing a customer name..." autocomplete="off">
   </label>
-</form>
+</div>
 
 <% if (customers.length === 0) { %>
-  <div class="empty-state">No customers found<%= q ? ` matching "${q}"` : '' %>.</div>
+  <div class="empty-state" id="customer-empty">No customers found.</div>
 <% } else { %>
-  <ul class="list">
+  <div class="empty-state" id="customer-empty" style="display:none;">No customers match your search.</div>
+  <ul class="list" id="customer-list">
     <% customers.forEach(c => { %>
-      <li>
+      <li data-name="<%= c.name.toLowerCase() %>">
         <a class="list-item" href="/customers/<%= c.id %>">
           <span>
             <span class="list-item-title"><%= c.name %></span><br>
@@ -28,4 +29,30 @@
     <% }) %>
   </ul>
 <% } %>
+
+<script>
+  (function () {
+    var input = document.getElementById('customer-search');
+    var list  = document.getElementById('customer-list');
+    var empty = document.getElementById('customer-empty');
+    if (!input || !list) return;
+
+    var items = Array.from(list.querySelectorAll('li'));
+
+    input.addEventListener('input', function () {
+      var q = input.value.toLowerCase().trim();
+      var visible = 0;
+      items.forEach(function (li) {
+        var match = !q || li.dataset.name.indexOf(q) !== -1;
+        li.style.display = match ? '' : 'none';
+        if (match) visible++;
+      });
+      empty.style.display = visible === 0 ? '' : 'none';
+      list.style.display  = visible === 0 ? 'none' : '';
+    });
+
+    // Pre-filter if page loaded with a ?q= value
+    if (input.value) input.dispatchEvent(new Event('input'));
+  })();
+</script>
 <%- include('../partials/footer') %>

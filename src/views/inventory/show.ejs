@@ -32,10 +32,14 @@
     <h2 class="leave-form-title">Adjust stock</h2>
     <form method="post" action="/inventory/<%= item.id %>/adjust">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <label>
-        Quantity change (use a negative number to remove stock)
-        <input type="number" name="delta" step="any" required placeholder="e.g. 50 or -5">
-      </label>
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;">
+        <button type="button" id="stock-minus" class="btn btn-secondary" style="width:2.5rem;font-size:1.25rem;line-height:1;padding:0.3rem 0;">−</button>
+        <input type="number" name="new_quantity" id="stock-qty"
+          value="<%= item.quantity_on_hand %>" step="any" min="0"
+          style="width:6rem;text-align:center;font-size:1.15rem;font-weight:600;">
+        <button type="button" id="stock-plus" class="btn btn-secondary" style="width:2.5rem;font-size:1.25rem;line-height:1;padding:0.3rem 0;">+</button>
+        <span class="text-muted" style="font-size:0.9rem;"><%= item.unit %></span>
+      </div>
       <div class="actions">
         <button type="submit" class="btn btn-primary">Apply</button>
       </div>
@@ -77,11 +81,15 @@
           <input type="number" name="reorder_threshold" value="<%= item.reorder_threshold !== null ? item.reorder_threshold : '' %>" step="any">
         </label>
         <label>
-          Unit cost, ex GST ($)
-          <input type="number" name="unit_cost" id="edit-item-unit-cost" value="<%= item.unit_cost !== null ? item.unit_cost : '' %>" step="0.01">
+          Minimum stock level
+          <input type="number" name="minimum_stock" value="<%= item.minimum_stock !== null ? item.minimum_stock : '' %>" step="any">
         </label>
       </div>
       <div class="form-row form-row-2">
+        <label>
+          Unit cost, ex GST ($)
+          <input type="number" name="unit_cost" id="edit-item-unit-cost" value="<%= item.unit_cost !== null ? item.unit_cost : '' %>" step="0.01">
+        </label>
         <label>
           Unit cost, inc GST ($)
           <input type="number" name="unit_cost_inc_gst" id="edit-item-unit-cost-inc" value="<%= item.unit_cost_inc_gst !== null ? item.unit_cost_inc_gst : '' %>" step="0.01">
@@ -105,6 +113,18 @@
         var isNew = select.value === '__new__';
         field.style.display = isNew ? '' : 'none';
         input.required = isNew;
+      });
+    })();
+
+    (function () {
+      var qty = document.getElementById('stock-qty');
+      document.getElementById('stock-minus').addEventListener('click', function () {
+        var v = parseFloat(qty.value) || 0;
+        qty.value = Math.max(0, Math.round((v - 1) * 10000) / 10000);
+      });
+      document.getElementById('stock-plus').addEventListener('click', function () {
+        var v = parseFloat(qty.value) || 0;
+        qty.value = Math.round((v + 1) * 10000) / 10000;
       });
     })();
   </script>
