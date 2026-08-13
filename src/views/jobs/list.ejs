@@ -87,7 +87,7 @@
             <%= j.customer_name %>
             <% if (j.all_day) { %> &middot; All day
             <% } else if (j.scheduled_start) { %> &middot; <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) %><% } %>
-            <% if (j.duration_minutes) { %> &middot; <%= j.duration_minutes < 60 ? j.duration_minutes + ' min' : (Math.round(j.duration_minutes / 6) / 10) + 'h' %><% } %>
+            <% if (j.duration_minutes) { %><span style="margin-left:0.5rem;">&middot; Estimated duration: <%= j.duration_minutes < 60 ? j.duration_minutes + ' min' : (Math.round(j.duration_minutes / 6) / 10) + 'h' %></span><% } %>
             <% if (j.assigneeNames) { %> &middot; <%= j.assigneeNames %><% } %>
           </span>
         </span>
