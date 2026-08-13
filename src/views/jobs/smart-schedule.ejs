@@ -52,6 +52,19 @@
     return m[cat] || cat;
   }
 
+  function fmtHours(minutes) {
+    var h = minutes / 60;
+    return (Math.round(h * 10) / 10) + 'h';
+  }
+
+  function fmtTime12(hhmm) {
+    var parts = hhmm.split(':');
+    var h = Number(parts[0]);
+    var suffix = h >= 12 ? 'pm' : 'am';
+    var h12 = h % 12 === 0 ? 12 : h % 12;
+    return h12 + ':' + parts[1] + suffix;
+  }
+
   function renderDay(day, index) {
     var card = document.createElement('div');
     card.className = 'card';
@@ -61,6 +74,7 @@
       + '<div>'
       + '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.4rem;">'
       + '<span class="badge badge-scheduled">' + day.jobs.length + ' job' + (day.jobs.length !== 1 ? 's' : '') + '</span>'
+      + '<span class="text-muted" style="font-size:0.85rem;">' + fmtHours(day.totalWorkMinutes) + ' work + ' + fmtHours(day.totalTravelMinutes) + ' travel</span>'
       + '<span class="text-muted" style="font-size:0.85rem;">~' + day.totalKm + ' km round trip</span>'
       + '</div>'
       + '<div style="display:flex;align-items:center;gap:0.5rem;">'
@@ -76,9 +90,14 @@
     day.jobs.forEach(function (j) {
       var addr = [j.address_street, j.address_city, j.address_state].filter(Boolean).join(', ');
       route += '<li style="padding:0.3rem 0;border-bottom:1px solid var(--color-border);">'
+        + (j.travelMinutesBefore > 0 ? '<div class="text-muted" style="font-size:0.78rem;margin-bottom:0.2rem;">🚗 ~' + j.travelMinutesBefore + ' min travel</div>' : '')
+        + '<div style="display:flex;align-items:baseline;gap:0.5rem;flex-wrap:wrap;">'
+        + '<strong>' + fmtTime12(j.startTime) + '–' + fmtTime12(j.endTime) + '</strong>'
         + '<strong>' + escHtml(j.title) + '</strong>'
         + ' <span class="text-muted">— ' + escHtml(j.customer_name) + '</span>'
-        + (addr ? '<br><span class="list-item-meta">' + escHtml(addr) + '</span>' : '')
+        + (j.durationEstimated ? '<span class="text-muted" style="font-size:0.75rem;">(duration not set — estimated)</span>' : '')
+        + '</div>'
+        + (addr ? '<span class="list-item-meta">' + escHtml(addr) + '</span>' : '')
         + '</li>';
     });
     route += '</ol>';
@@ -101,12 +120,12 @@
     if (!chosenDate) { alert('Please select a date before committing.'); return; }
     btn.disabled = true;
     btn.textContent = 'Committing…';
-    var jobIds = day.jobs.map(function (j) { return j.id; });
+    var jobs = day.jobs.map(function (j) { return { id: j.id, startTime: j.startTime, endTime: j.endTime }; });
 
     fetch('/jobs/smart-schedule/commit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ _csrf: csrf, date: chosenDate, jobIds: jobIds }),
+      body: JSON.stringify({ _csrf: csrf, date: chosenDate, jobs: jobs }),
     })
     .then(function (r) { return r.json(); })
     .then(function (data) {

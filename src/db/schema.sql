@@ -689,3 +689,8 @@ CREATE TABLE IF NOT EXISTS renewal_categories (
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
+
+-- Expected job length in minutes, set before a specific time slot is known -
+-- Smart Schedule uses this (falling back to a default) to size each job's
+-- slot and pack a day's work up to its 6-hour cap.
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS duration_minutes INTEGER;

@@ -1,6 +1,12 @@
 // Home base: 125 Fairway Drive, Kensington Grove QLD 4341
 const HOME_BASE = { lat: -27.6714, lng: 152.5753 };
-const CLUSTER_RADIUS_KM = 30;
+
+const WORK_DAY_START_MINUTES = 7 * 60 + 30; // 7:30am
+const MAX_WORK_MINUTES_PER_DAY = 6 * 60; // 6 hours of job work - travel rides on top of this, not counted against it
+const DEFAULT_JOB_DURATION_MINUTES = 60; // used when a job has no expected duration set
+const MAX_SCHEDULE_DAYS = 5; // Mon-Fri; anything left over is overflow for next week's run
+const TRAVEL_MINUTES_PER_KM = 1.5; // ~40km/h effective - accounts for roads not being a straight line
+const MIN_TRAVEL_MINUTES = 5; // floor for any two genuinely different addresses
 
 function haversineKm(a, b) {
   const R = 6371;
@@ -12,11 +18,13 @@ function haversineKm(a, b) {
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
-function centroid(jobs) {
-  return {
-    lat: jobs.reduce((s, j) => s + j.lat, 0) / jobs.length,
-    lng: jobs.reduce((s, j) => s + j.lng, 0) / jobs.length,
-  };
+// Straight-line distance scaled to a rough travel-time estimate. There's no
+// live Directions/Distance Matrix call here (a separate, billed Google API)
+// - just a flat speed assumption, rounded to a clean 5-minute increment.
+function travelMinutes(a, b) {
+  const km = haversineKm(a, b);
+  if (km < 0.1) return 0;
+  return Math.max(MIN_TRAVEL_MINUTES, Math.round((km * TRAVEL_MINUTES_PER_KM) / 5) * 5);
 }
 
 function nearestNeighborOrder(jobs) {
@@ -45,26 +53,10 @@ function routeKm(jobs) {
   return Math.round(total);
 }
 
-function radiusClusters(jobs) {
-  const pool = [...jobs];
-  const clusters = [];
-  while (pool.length) {
-    const seed = pool.shift();
-    const cluster = [seed];
-    let changed = true;
-    while (changed) {
-      changed = false;
-      const c = centroid(cluster);
-      for (let i = pool.length - 1; i >= 0; i--) {
-        if (haversineKm(c, pool[i]) <= CLUSTER_RADIUS_KM) {
-          cluster.push(...pool.splice(i, 1));
-          changed = true;
-        }
-      }
-    }
-    clusters.push(cluster);
-  }
-  return clusters;
+function minutesToClock(totalMinutes) {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 // Next Monday from today (or this Monday if today is Monday)
@@ -88,29 +80,92 @@ function dayLabel(iso) {
   });
 }
 
+// Greedily packs an already route-ordered list of jobs into day buckets, each
+// capped at MAX_WORK_MINUTES_PER_DAY of actual job duration - travel time
+// between consecutive jobs rides on top of the cap, it isn't counted against
+// it. A day always takes at least one job even if that job's own duration
+// alone exceeds the cap, since a single job can't be split across days.
+// Days beyond MAX_SCHEDULE_DAYS aren't opened - anything left over comes
+// back as overflow for the next run.
+function packIntoDays(orderedJobs, weekStartIso) {
+  const days = [];
+  const overflow = [];
+  let dayJobs = [];
+  let dayWorkMinutes = 0;
+  let clock = WORK_DAY_START_MINUTES;
+  let lastLocation = null;
+
+  function closeDay() {
+    if (!dayJobs.length) return;
+    const date = addDaysToIso(weekStartIso, days.length);
+    days.push({
+      date,
+      dayLabel: dayLabel(date),
+      jobs: dayJobs,
+      totalKm: routeKm(dayJobs),
+      totalWorkMinutes: dayWorkMinutes,
+      totalTravelMinutes: dayJobs.reduce((s, j) => s + j.travelMinutesBefore, 0),
+    });
+    dayJobs = [];
+    dayWorkMinutes = 0;
+    clock = WORK_DAY_START_MINUTES;
+    lastLocation = null;
+  }
+
+  for (const job of orderedJobs) {
+    if (days.length >= MAX_SCHEDULE_DAYS) {
+      overflow.push(job);
+      continue;
+    }
+
+    const duration = job.duration_minutes != null ? Number(job.duration_minutes) : DEFAULT_JOB_DURATION_MINUTES;
+
+    if (dayJobs.length && dayWorkMinutes + duration > MAX_WORK_MINUTES_PER_DAY) {
+      closeDay();
+      if (days.length >= MAX_SCHEDULE_DAYS) {
+        overflow.push(job);
+        continue;
+      }
+    }
+
+    const travel = dayJobs.length ? travelMinutes(lastLocation, job) : 0;
+    const start = dayJobs.length ? clock + travel : WORK_DAY_START_MINUTES;
+    const end = start + duration;
+
+    dayJobs.push({
+      ...job,
+      startTime: minutesToClock(start),
+      endTime: minutesToClock(end),
+      travelMinutesBefore: travel,
+      durationMinutes: duration,
+      durationEstimated: job.duration_minutes == null,
+    });
+    dayWorkMinutes += duration;
+    clock = end;
+    lastLocation = job;
+  }
+
+  closeDay();
+
+  return { days, overflow };
+}
+
 function generateSchedule(jobs, weekStartIso) {
   const located   = jobs.filter((j) => j.lat != null && j.lng != null);
   const unlocated = jobs.filter((j) => j.lat == null || j.lng == null);
 
-  // Sort clusters nearest-home-first so local jobs get the first days of the week
-  const clusters = radiusClusters(located).sort(
-    (a, b) => haversineKm(HOME_BASE, centroid(a)) - haversineKm(HOME_BASE, centroid(b))
-  );
+  const ordered = nearestNeighborOrder(located);
+  const { days, overflow } = packIntoDays(ordered, weekStartIso);
 
-  // Map up to 5 clusters → Mon-Fri; overflow stays unscheduled
-  const days = Array.from({ length: 5 }, (_, i) => addDaysToIso(weekStartIso, i));
-  const schedule = clusters.slice(0, 5).map((cluster, i) => {
-    const ordered = nearestNeighborOrder(cluster);
-    return {
-      date: days[i],
-      dayLabel: dayLabel(days[i]),
-      jobs: ordered,
-      totalKm: routeKm(ordered),
-    };
-  });
-
-  const overflow = clusters.slice(5).flat();
-  return { schedule, unlocated, overflow };
+  return { schedule: days, unlocated, overflow };
 }
 
-module.exports = { generateSchedule, nextMondayIso, addDaysToIso, HOME_BASE, haversineKm };
+module.exports = {
+  generateSchedule,
+  nextMondayIso,
+  addDaysToIso,
+  HOME_BASE,
+  haversineKm,
+  MAX_WORK_MINUTES_PER_DAY,
+  WORK_DAY_START_MINUTES,
+};

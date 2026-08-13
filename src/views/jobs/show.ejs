@@ -36,6 +36,10 @@
         <span class="text-muted" style="font-size:0.78rem;display:block;margin-top:0.15rem;">Set by admin</span>
       <% } %>
     </dd>
+    <% if (job.duration_minutes) { %>
+      <dt>Expected duration</dt>
+      <dd><%= job.duration_minutes < 60 ? job.duration_minutes + ' minutes' : (Math.round(job.duration_minutes / 6) / 10) + ' hours' %></dd>
+    <% } %>
     <dt>Job site</dt>
     <dd>
       <% const site = [job.site_address_street, job.site_address_city, job.site_address_state, job.site_address_postcode].filter(Boolean).join(', '); %>

@@ -583,11 +583,19 @@ router.post(
   })
 );
 
+const DURATION_OPTIONS_MINUTES = new Set([15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480]);
+
+function parseDurationMinutes(raw) {
+  const n = Number.parseInt(raw, 10);
+  return DURATION_OPTIONS_MINUTES.has(n) ? n : null;
+}
+
 function buildSchedule(b) {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(b.date || '') ? b.date : null;
   const allDay = b.all_day === 'on' || b.all_day === '1' || b.all_day === 'true';
+  const duration_minutes = parseDurationMinutes(b.duration_minutes);
 
-  if (!date) return { scheduled_start: null, scheduled_end: null, all_day: 0 };
+  if (!date) return { scheduled_start: null, scheduled_end: null, all_day: 0, duration_minutes };
 
   const defaultStart = allDay ? '07:00' : '09:00';
   const startTime = /^\d{2}:\d{2}$/.test(b.start_time || '') ? b.start_time : defaultStart;
@@ -597,6 +605,7 @@ function buildSchedule(b) {
     scheduled_start: `${date}T${startTime}`,
     scheduled_end: endTime ? `${date}T${endTime}` : null,
     all_day: allDay ? 1 : 0,
+    duration_minutes,
   };
 }
 
@@ -750,7 +759,7 @@ router.post(
     // Fetch all unscheduled jobs with their customer address + existing coords
     const jobs = await db
       .prepare(
-        `SELECT jobs.id, jobs.title, jobs.description,
+        `SELECT jobs.id, jobs.title, jobs.description, jobs.duration_minutes,
                 customers.id AS customer_id, customers.name AS customer_name,
                 customers.address_street, customers.address_city,
                 customers.address_state, customers.address_postcode,
@@ -786,24 +795,27 @@ router.post(
   })
 );
 
-// POST /jobs/smart-schedule/commit — assign a day's jobs to a scheduled_start date
+// POST /jobs/smart-schedule/commit — assign a day's jobs to a date, each at
+// its own algorithm-computed start/end time (not one flat block for the day)
 router.post(
   '/smart-schedule/commit',
   requireRole('admin'),
   verifyCsrf,
   asyncHandler(async (req, res) => {
-    const { date, jobIds } = req.body;
-    if (!date || !Array.isArray(jobIds) || !jobIds.length) {
-      return res.status(400).json({ ok: false, error: 'date and jobIds required' });
+    const { date, jobs } = req.body;
+    const isTime = (t) => /^\d{2}:\d{2}$/.test(t || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !Array.isArray(jobs) || !jobs.length || jobs.some((j) => !j.id || !isTime(j.startTime))) {
+      return res.status(400).json({ ok: false, error: 'date and jobs (with id + startTime) required' });
     }
-    const scheduledStart = `${date}T08:00:00`;
-    for (const id of jobIds) {
+    for (const j of jobs) {
+      const scheduledStart = `${date}T${j.startTime}:00`;
+      const scheduledEnd = isTime(j.endTime) ? `${date}T${j.endTime}:00` : null;
       await db
-        .prepare(`UPDATE jobs SET scheduled_start = ?, status = 'scheduled', updated_at = datetime('now') WHERE id = ? AND status = 'unscheduled'`)
-        .run(scheduledStart, Number(id));
-      await db.prepare('DELETE FROM job_assignees WHERE job_id = ?').run(Number(id));
+        .prepare(`UPDATE jobs SET scheduled_start = ?, scheduled_end = ?, status = 'scheduled', updated_at = datetime('now') WHERE id = ? AND status = 'unscheduled'`)
+        .run(scheduledStart, scheduledEnd, Number(j.id));
+      await db.prepare('DELETE FROM job_assignees WHERE job_id = ?').run(Number(j.id));
     }
-    res.json({ ok: true, committed: jobIds.length });
+    res.json({ ok: true, committed: jobs.length });
   })
 );
 
@@ -893,10 +905,10 @@ router.post(
     const result = await db
       .prepare(
         `INSERT INTO jobs
-          (customer_id, title, description, status, scheduled_start, scheduled_end, all_day, color,
+          (customer_id, title, description, status, scheduled_start, scheduled_end, all_day, duration_minutes, color,
            site_address_street, site_address_city, site_address_state, site_address_postcode, notes, created_by)
          VALUES
-          (@customer_id, @title, @description, @status, @scheduled_start, @scheduled_end, @all_day, @color,
+          (@customer_id, @title, @description, @status, @scheduled_start, @scheduled_end, @all_day, @duration_minutes, @color,
            @site_address_street, @site_address_city, @site_address_state, @site_address_postcode, @notes, @created_by)
          RETURNING id`
       )
@@ -908,6 +920,7 @@ router.post(
         scheduled_start: schedule.scheduled_start,
         scheduled_end: schedule.scheduled_end,
         all_day: schedule.all_day,
+        duration_minutes: schedule.duration_minutes,
         color: parseJobColor(b.color),
         site_address_street: b.site_address_street || customer.address_street || null,
         site_address_city: b.site_address_city || customer.address_city || null,
@@ -1150,7 +1163,14 @@ router.post(
 
     const schedule = buildSchedule(b);
 
-    const newStatus = b.status || job.status;
+    // A cleared date always wins over a stale "scheduled" status left over
+    // from before - otherwise ticking Unscheduled without also touching the
+    // status dropdown would silently leave the job looking scheduled with
+    // no date. Explicit terminal statuses (completed/cancelled) still apply
+    // even without a date - a job can be cancelled before it's ever scheduled.
+    let newStatus = b.status || job.status;
+    if (!schedule.scheduled_start && newStatus === 'scheduled') newStatus = 'unscheduled';
+
     if (newStatus === 'completed' && job.status !== 'completed') {
       const err = await checkCompletionRequirements(job.id);
       if (err) {
@@ -1163,7 +1183,8 @@ router.post(
       .prepare(
         `UPDATE jobs SET
            customer_id = @customer_id, title = @title, description = @description, status = @status,
-           scheduled_start = @scheduled_start, scheduled_end = @scheduled_end, all_day = @all_day, color = @color,
+           scheduled_start = @scheduled_start, scheduled_end = @scheduled_end, all_day = @all_day,
+           duration_minutes = @duration_minutes, color = @color,
            site_address_street = @site_address_street, site_address_city = @site_address_city,
            site_address_state = @site_address_state, site_address_postcode = @site_address_postcode,
            notes = @notes,
@@ -1180,6 +1201,7 @@ router.post(
         scheduled_start: schedule.scheduled_start,
         scheduled_end: schedule.scheduled_end,
         all_day: schedule.all_day,
+        duration_minutes: schedule.duration_minutes,
         color: parseJobColor(b.color),
         site_address_street: b.site_address_street || null,
         site_address_city: b.site_address_city || null,
@@ -1309,10 +1331,10 @@ router.post(
     const result = await db
       .prepare(
         `INSERT INTO jobs
-          (customer_id, title, description, status, scheduled_start, scheduled_end, all_day, color,
+          (customer_id, title, description, status, scheduled_start, scheduled_end, all_day, duration_minutes, color,
            site_address_street, site_address_city, site_address_state, site_address_postcode, notes, created_by)
          VALUES
-          (@customer_id, @title, @description, @status, @scheduled_start, @scheduled_end, @all_day, @color,
+          (@customer_id, @title, @description, @status, @scheduled_start, @scheduled_end, @all_day, @duration_minutes, @color,
            @site_address_street, @site_address_city, @site_address_state, @site_address_postcode, @notes, @created_by)
          RETURNING id`
       )
@@ -1324,6 +1346,7 @@ router.post(
         scheduled_start: job.scheduled_start,
         scheduled_end: job.scheduled_end,
         all_day: job.all_day,
+        duration_minutes: job.duration_minutes,
         color: job.color,
         site_address_street: job.site_address_street,
         site_address_city: job.site_address_city,

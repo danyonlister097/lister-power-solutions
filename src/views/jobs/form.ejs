@@ -122,40 +122,56 @@
   <% } %>
 
   <div class="section-heading">Schedule</div>
-  <div class="form-row form-row-2">
-    <label>
-      Date
-      <input type="date" name="date" id="job-date" value="<%= job.date || '' %>">
-      <script>
-        (function () {
-          var d = document.getElementById('job-date');
-          if (!d.value) {
-            var t = new Date();
-            d.value = t.getFullYear() + '-' +
-              String(t.getMonth() + 1).padStart(2, '0') + '-' +
-              String(t.getDate()).padStart(2, '0');
-          }
-        })();
-      </script>
-    </label>
-    <label class="toggle-label">
-      <span>All day</span>
-      <span class="toggle-switch">
-        <input type="checkbox" name="all_day" id="job-all-day" value="on" <%= job.all_day ? 'checked' : '' %>>
-        <span class="toggle-slider"></span>
-      </span>
-    </label>
+  <label class="toggle-label">
+    <span>Unscheduled <span style="font-weight:400;">(no date yet — leave for Smart Schedule to assign later)</span></span>
+    <span class="toggle-switch">
+      <input type="checkbox" id="job-unscheduled" <%= (job.id && !job.scheduled_start) ? 'checked' : '' %>>
+      <span class="toggle-slider"></span>
+    </span>
+  </label>
+  <div id="job-dated-fields">
+    <div class="form-row form-row-2">
+      <label>
+        Date
+        <input type="date" name="date" id="job-date" value="<%= job.date || '' %>">
+      </label>
+      <label class="toggle-label">
+        <span>All day</span>
+        <span class="toggle-switch">
+          <input type="checkbox" name="all_day" id="job-all-day" value="on" <%= job.all_day ? 'checked' : '' %>>
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
+    </div>
+    <div class="form-row form-row-2" id="job-time-row">
+      <label>
+        Start time
+        <input type="time" name="start_time" id="job-start-time" value="<%= job.start_time || '' %>">
+      </label>
+      <label>
+        Finish time
+        <input type="time" name="end_time" id="job-end-time" value="<%= job.end_time || '' %>">
+      </label>
+    </div>
   </div>
-  <div class="form-row form-row-2" id="job-time-row">
-    <label>
-      Start time
-      <input type="time" name="start_time" id="job-start-time" value="<%= job.start_time || '' %>">
-    </label>
-    <label>
-      Finish time
-      <input type="time" name="end_time" id="job-end-time" value="<%= job.end_time || '' %>">
-    </label>
-  </div>
+  <label>
+    Expected duration <span style="font-weight:400;">(helps Smart Schedule size the job before a specific time slot is set)</span>
+    <select name="duration_minutes" id="job-duration">
+      <option value="" <%= !job.duration_minutes ? 'selected' : '' %>>Not set</option>
+      <option value="15" <%= Number(job.duration_minutes) === 15 ? 'selected' : '' %>>15 minutes</option>
+      <option value="30" <%= Number(job.duration_minutes) === 30 ? 'selected' : '' %>>30 minutes</option>
+      <option value="45" <%= Number(job.duration_minutes) === 45 ? 'selected' : '' %>>45 minutes</option>
+      <option value="60" <%= Number(job.duration_minutes) === 60 ? 'selected' : '' %>>1 hour</option>
+      <option value="90" <%= Number(job.duration_minutes) === 90 ? 'selected' : '' %>>1.5 hours</option>
+      <option value="120" <%= Number(job.duration_minutes) === 120 ? 'selected' : '' %>>2 hours</option>
+      <option value="150" <%= Number(job.duration_minutes) === 150 ? 'selected' : '' %>>2.5 hours</option>
+      <option value="180" <%= Number(job.duration_minutes) === 180 ? 'selected' : '' %>>3 hours</option>
+      <option value="240" <%= Number(job.duration_minutes) === 240 ? 'selected' : '' %>>4 hours</option>
+      <option value="300" <%= Number(job.duration_minutes) === 300 ? 'selected' : '' %>>5 hours</option>
+      <option value="360" <%= Number(job.duration_minutes) === 360 ? 'selected' : '' %>>6 hours</option>
+      <option value="480" <%= Number(job.duration_minutes) === 480 ? 'selected' : '' %>>8 hours (full day)</option>
+    </select>
+  </label>
 
   <div class="section-heading">Job site address (defaults to customer address if left blank)</div>
   <label>
@@ -199,6 +215,31 @@
         endTime.value = '15:00';
       }
     });
+
+    // Unscheduled: hides/disables the date+time fields so they submit empty
+    // (the server already treats a blank date as unscheduled) instead of
+    // deleting their values outright, so unticking restores what was there.
+    var unscheduled = document.getElementById('job-unscheduled');
+    var datedFields = document.getElementById('job-dated-fields');
+    var dateInput = document.getElementById('job-date');
+
+    function applyUnscheduled() {
+      var isUnscheduled = unscheduled.checked;
+      datedFields.hidden = isUnscheduled;
+      dateInput.disabled = isUnscheduled;
+      allDay.disabled = isUnscheduled;
+      startTime.disabled = isUnscheduled;
+      endTime.disabled = isUnscheduled;
+      if (!isUnscheduled && !dateInput.value) {
+        var t = new Date();
+        dateInput.value = t.getFullYear() + '-' +
+          String(t.getMonth() + 1).padStart(2, '0') + '-' +
+          String(t.getDate()).padStart(2, '0');
+      }
+    }
+
+    unscheduled.addEventListener('change', applyUnscheduled);
+    applyUnscheduled();
 
     var colorInput = document.getElementById('job-color-input');
     var swatches = document.querySelectorAll('.color-swatch');
