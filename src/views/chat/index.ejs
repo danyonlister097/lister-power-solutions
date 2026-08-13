@@ -8,8 +8,25 @@
 
   <div class="chat-main">
     <div class="chat-main-header">
-      <h2 class="chat-channel-title">#<%= channel.name %></h2>
-      <form class="chat-date-filter" method="get" action="/chat/c/<%= channel.id %>">
+      <h2 class="chat-channel-title">
+        #<%= channel.name %>
+        <% if (channel.locked) { %><span class="chat-channel-badge chat-channel-badge-locked" title="Channel is locked">🔒</span><% } %>
+        <% if (channel.admin_only) { %><span class="chat-channel-badge chat-channel-badge-admin" title="Admin only">👁</span><% } %>
+      </h2>
+      <% if (currentUser.role === 'admin') { %>
+        <div class="chat-channel-menu" style="position:relative;margin-left:0.5rem;">
+          <button type="button" id="channel-menu-btn" class="btn-link" style="font-size:1.2rem;line-height:1;padding:0.25rem 0.4rem;" title="Channel settings">⋮</button>
+          <div id="channel-menu-dropdown" style="display:none;position:absolute;left:0;top:100%;background:var(--card-bg,#fff);border:1px solid var(--border,#ddd);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);min-width:180px;z-index:200;overflow:hidden;">
+            <button type="button" class="channel-menu-item" data-action="lock" style="display:block;width:100%;text-align:left;padding:0.6rem 1rem;background:none;border:none;cursor:pointer;font-size:0.95rem;">
+              <%= channel.locked ? '🔓 Unlock channel' : '🔒 Lock channel' %>
+            </button>
+            <button type="button" class="channel-menu-item" data-action="admin-only" style="display:block;width:100%;text-align:left;padding:0.6rem 1rem;background:none;border:none;cursor:pointer;font-size:0.95rem;border-top:1px solid var(--border,#eee);">
+              <%= channel.admin_only ? '👥 Make public' : '👁 Admin only' %>
+            </button>
+          </div>
+        </div>
+      <% } %>
+      <form class="chat-date-filter" method="get" action="/chat/c/<%= channel.id %>" style="margin-left:auto;">
         <input type="date" name="from" value="<%= from %>">
         <span class="chat-date-filter-sep">&ndash;</span>
         <input type="date" name="to" value="<%= to %>">
@@ -34,16 +51,37 @@
         <% messages.forEach(m => { %>
           <div class="chat-message <%= m.user_id === currentUser.id ? 'chat-message-own' : '' %>">
             <div class="chat-message-meta"><%= m.user_name %> &middot; <%= new Date(m.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) %></div>
-            <div class="chat-message-body"><%= m.body %></div>
+            <% if (m.body) { %><div class="chat-message-body"><%= m.body %></div><% } %>
+            <% if (m.attachment_url) { %>
+              <div class="chat-message-attachment">
+                <% var _isImg = /\.(jpe?g|png|webp|heic|heif)$/i.test(m.attachment_name || ''); %>
+                <% if (_isImg) { %>
+                  <a href="<%= m.attachment_url %>" target="_blank" rel="noopener">
+                    <img src="<%= m.attachment_url %>" alt="<%= m.attachment_name || 'attachment' %>" style="max-width:300px;max-height:220px;border-radius:6px;display:block;margin-top:0.25rem;">
+                  </a>
+                <% } else { %>
+                  <a href="<%= m.attachment_url %>" target="_blank" rel="noopener" class="chat-attachment-link">📄 <%= m.attachment_name || 'File' %></a>
+                <% } %>
+              </div>
+            <% } %>
           </div>
         <% }) %>
       </div>
       <% if (from || to) { %>
         <div class="chat-filtered-notice">Viewing a filtered date range &mdash; <a href="/chat/c/<%= channel.id %>">clear the filter</a> to send a message.</div>
+      <% } else if (channel.locked && currentUser.role !== 'admin') { %>
+        <div class="chat-filtered-notice">🔒 This channel is locked — only admins can post.</div>
       <% } else { %>
-        <form id="chat-form" class="chat-form" method="post" action="/chat/c/<%= channel.id %>">
+        <form id="chat-form" class="chat-form" method="post" action="/chat/c/<%= channel.id %>" enctype="multipart/form-data">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <input type="text" name="body" id="chat-input" placeholder="Message #<%= channel.name %>..." autocomplete="off" required maxlength="2000">
+          <input type="file" id="chat-file-input" name="attachment" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none;">
+          <div style="flex:1;display:flex;flex-direction:column;gap:0.2rem;min-width:0;">
+            <div id="chat-file-preview" style="display:none;font-size:0.8rem;padding:0.2rem 0.5rem;background:var(--hover-bg,#f3f4f6);border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+            <input type="text" name="body" id="chat-input" placeholder="Message #<%= channel.name %>..." autocomplete="off" maxlength="2000">
+          </div>
+          <button type="button" id="chat-attach-btn" title="Attach file" style="flex-shrink:0;background:none;border:none;cursor:pointer;padding:0.3rem 0.4rem;color:var(--text-muted,#6b7280);display:flex;align-items:center;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+          </button>
           <button type="submit" class="btn btn-primary">Send</button>
         </form>
       <% } %>
@@ -52,4 +90,36 @@
 </div>
 
 <script src="/js/chat.js"></script>
+<% if (currentUser.role === 'admin') { %>
+<script>
+(function () {
+  var btn = document.getElementById('channel-menu-btn');
+  var dropdown = document.getElementById('channel-menu-dropdown');
+  if (!btn) return;
+
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+  });
+  document.addEventListener('click', function () { dropdown.style.display = 'none'; });
+
+  dropdown.querySelectorAll('.channel-menu-item').forEach(function (item) {
+    item.addEventListener('mouseenter', function () { item.style.background = 'var(--hover-bg,#f3f4f6)'; });
+    item.addEventListener('mouseleave', function () { item.style.background = ''; });
+    item.addEventListener('click', function () {
+      var action = item.getAttribute('data-action');
+      var csrf = '<%= csrfToken %>';
+      dropdown.style.display = 'none';
+      fetch('/chat/channels/<%= channel.id %>/' + action, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '_csrf=' + encodeURIComponent(csrf),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) { if (data.ok) window.location.reload(); });
+    });
+  });
+})();
+</script>
+<% } %>
 <%- include('../partials/footer') %>

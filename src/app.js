@@ -15,6 +15,7 @@ const { generateWeeklyTimesheets } = require('./lib/timesheetGen');
 const { getUnreadSupplierEmails, getEmailAttachments, markAsRead } = require('./lib/graph');
 const { parseCnwDocument } = require('./lib/cnwParser');
 const { sendFollowUpEmail } = require('./lib/email');
+const chatRouter = require('./routes/chat');
 
 const app = express();
 
@@ -73,6 +74,15 @@ app.use((req, res, next) => {
   res.locals.homeUrl = homeRoute(req.user);
   next();
 });
+app.use(
+  asyncHandler(async (req, res, next) => {
+    if (req.user && req.user.permissions && req.user.permissions.includes('chat')) {
+      const row = await chatRouter.getUnreadTotal(req.user);
+      res.locals.chatUnreadTotal = Number(row.total) || 0;
+    }
+    next();
+  })
+);
 
 // Vercel Cron hits this on a schedule (see vercel.json) - it's a machine
 // call, not a browser session, so it's checked against CRON_SECRET instead
@@ -318,7 +328,7 @@ app.use('/timeclock', requirePermission('timeclock'), require('./routes/timecloc
 app.use('/leave', requirePermission('leave'), require('./routes/leave'));
 app.use('/tasks', requirePermission('tasks'), require('./routes/tasks'));
 app.use('/chat/folders', requirePermission('chat'), require('./routes/photoFolders'));
-app.use('/chat', requirePermission('chat'), require('./routes/chat'));
+app.use('/chat', requirePermission('chat'), chatRouter);
 app.use('/forms', requirePermission('forms'), require('./routes/forms'));
 app.use('/inventory', requirePermission('inventory'), require('./routes/inventory'));
 app.use('/assets', requirePermission('assets'), require('./routes/businessAssets'));

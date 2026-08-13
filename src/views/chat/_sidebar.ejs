@@ -41,6 +41,9 @@
         <button type="button" class="chat-channel-pin<%= c.pinned ? ' chat-channel-pin-active' : '' %>" data-channel-id="<%= c.id %>" title="<%= c.pinned ? 'Unpin channel' : 'Pin channel' %>">
           <%- pinSvg %>
         </button>
+        <% if (currentUser.role === 'admin') { %>
+          <button type="button" class="chat-channel-menu-btn" data-channel-id="<%= c.id %>" data-channel-name="<%= c.name %>" title="Channel options" aria-label="Channel options">&#8942;</button>
+        <% } %>
         <% if (c.unread_count > 0) { %><span class="chat-unread-badge"><%= c.unread_count %></span><% } %>
       </a>
   <%
@@ -60,4 +63,27 @@
   <nav class="chat-channel-list" data-section="channels">
     <% unpinned.forEach(renderChannelRow) %>
   </nav>
+
+  <% if (currentUser.role === 'admin') { %>
+    <div id="chat-channel-menu" class="context-menu" hidden>
+      <button type="button" class="context-menu-item" data-action="rename">Rename</button>
+      <button type="button" class="context-menu-item context-menu-danger" data-action="delete">Delete</button>
+    </div>
+
+    <div id="chat-rename-modal" class="modal-backdrop" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="chat-rename-modal-title">
+        <button type="button" class="modal-close" id="chat-rename-close" aria-label="Close">&times;</button>
+        <h2 id="chat-rename-modal-title">Rename channel</h2>
+        <form id="chat-rename-form">
+          <label>
+            Channel name
+            <input type="text" name="name" id="chat-rename-input" required maxlength="60">
+          </label>
+          <div class="actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  <% } %>
 </aside>

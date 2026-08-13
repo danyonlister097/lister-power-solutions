@@ -48,7 +48,7 @@
     if (allowed('timeclock')) sideItems.push({ href: '/timeclock', label: 'Time Clock', icon: 'clock', active: starts('/timeclock') });
     if (allowed('leave')) sideItems.push({ href: '/leave', label: 'Request Leave', icon: 'plane', active: starts('/leave') });
     if (allowed('tasks')) sideItems.push({ href: '/tasks', label: 'Quick Task', icon: 'checklist', active: starts('/tasks') });
-    if (allowed('chat')) sideItems.push({ href: '/chat', label: 'Chat', icon: 'chat', active: starts('/chat') });
+    if (allowed('chat')) sideItems.push({ href: '/chat', label: 'Chat', icon: 'chat', active: starts('/chat'), badge: typeof chatUnreadTotal !== 'undefined' ? chatUnreadTotal : 0 });
     if (allowed('forms')) sideItems.push({ href: '/forms', label: 'Forms', icon: 'forms', active: starts('/forms') });
     if (allowed('inventory')) sideItems.push({ href: '/inventory', label: 'Inventory', icon: 'box', active: starts('/inventory') });
     if (allowed('assets')) sideItems.push({ href: '/assets', label: 'Asset Register', icon: 'toolbox', active: starts('/assets') });
@@ -140,7 +140,10 @@
       <nav class="sidebar-nav">
         <% sideItems.forEach(function (item) { %>
           <a class="sidebar-link<%= item.active ? ' sidebar-link-active' : '' %>" href="<%= item.href %>" title="<%= item.label %>">
-            <span class="sidebar-icon"><%- icons[item.icon] %></span>
+            <span class="sidebar-icon">
+              <%- icons[item.icon] %>
+              <% if (item.badge) { %><span class="sidebar-badge"><%= item.badge > 99 ? '99+' : item.badge %></span><% } %>
+            </span>
             <span class="sidebar-label"><%= item.label %></span>
           </a>
         <% }) %>

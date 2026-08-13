@@ -3,6 +3,7 @@ const db = require('../db');
 const { verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
+const { chatUpload, putFile } = require('../lib/uploads');
 
 const router = express.Router();
 
@@ -15,6 +16,8 @@ function serialize(row) {
     userId: row.user_id,
     userName: row.user_name,
     createdAt: row.created_at,
+    attachmentUrl: row.attachment_url || null,
+    attachmentName: row.attachment_name || null,
   };
 }
 
@@ -38,8 +41,12 @@ async function markRead(userId, channelId) {
 }
 
 // Pin status and manual ordering are per-user (chat_channel_prefs). A channel
-// with no pref row yet is unpinned and sorts by its own id.
-function channelsWithUnread(userId) {
+// with no pref row yet is unpinned and sorts by its own id. Pinned channels
+// keep manual drag order; unpinned channels auto-sort by most recent
+// message (Slack-style) so active conversations float to the top.
+function channelsWithUnread(user) {
+  const userId = user.id;
+  const adminFilter = user.role === 'admin' ? '' : 'AND c.admin_only = 0';
   return db
     .prepare(
       `SELECT
@@ -49,12 +56,36 @@ function channelsWithUnread(userId) {
          (SELECT COUNT(*) FROM chat_messages m
             WHERE m.channel_id = c.id
               AND m.id > COALESCE((SELECT last_read_message_id FROM chat_reads WHERE chat_reads.channel_id = c.id AND chat_reads.user_id = ?), 0)
-         ) AS unread_count
+         ) AS unread_count,
+         (SELECT MAX(id) FROM chat_messages WHERE channel_id = c.id) AS last_message_id
        FROM chat_channels c
        LEFT JOIN chat_channel_prefs cp ON cp.channel_id = c.id AND cp.user_id = ?
-       ORDER BY effective_sort_order ASC`
+       WHERE 1=1 ${adminFilter}
+       ORDER BY
+         COALESCE(cp.pinned, 0) DESC,
+         CASE WHEN COALESCE(cp.pinned, 0) = 1 THEN COALESCE(cp.sort_order, c.id) END ASC,
+         CASE WHEN COALESCE(cp.pinned, 0) = 0 THEN COALESCE((SELECT MAX(id) FROM chat_messages WHERE channel_id = c.id), 0) END DESC,
+         c.id ASC`
     )
     .all(userId, userId);
+}
+
+// Total unread messages across every channel visible to this user - powers
+// the badge on the Chat icon in the sidebar nav.
+function getUnreadTotal(user) {
+  const adminFilter = user.role === 'admin' ? '' : 'AND c.admin_only = 0';
+  return db
+    .prepare(
+      `SELECT COALESCE(SUM(
+         (SELECT COUNT(*) FROM chat_messages m
+            WHERE m.channel_id = c.id
+              AND m.id > COALESCE((SELECT last_read_message_id FROM chat_reads WHERE chat_reads.channel_id = c.id AND chat_reads.user_id = ?), 0)
+         )
+       ), 0) AS total
+       FROM chat_channels c
+       WHERE 1=1 ${adminFilter}`
+    )
+    .get(user.id);
 }
 
 router.get(
@@ -178,7 +209,7 @@ router.get(
       from,
       to,
       results,
-      channels: await channelsWithUnread(req.user.id),
+      channels: await channelsWithUnread(req.user),
     });
   })
 );
@@ -188,6 +219,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const channel = await db.prepare('SELECT * FROM chat_channels WHERE id = ?').get(req.params.id);
     if (!channel) return res.status(404).render('error', { message: 'Channel not found.' });
+    if (channel.admin_only && req.user.role !== 'admin') return res.status(403).render('error', { message: 'This channel is admin-only.' });
 
     const from = isValidDate(req.query.from) ? req.query.from : '';
     const to = isValidDate(req.query.to) ? req.query.to : '';
@@ -230,7 +262,7 @@ router.get(
     res.render('chat/index', {
       title: `#${channel.name}`,
       channel,
-      channels: await channelsWithUnread(req.user.id),
+      channels: await channelsWithUnread(req.user),
       unreadOnly: req.query.unreadOnly === '1',
       messages,
       from,
@@ -261,23 +293,102 @@ router.get(
 );
 
 router.post(
-  '/c/:id',
+  '/channels/:id/lock',
   verifyCsrf,
   asyncHandler(async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden.' });
+    const channel = await db.prepare('SELECT id, locked FROM chat_channels WHERE id = ?').get(req.params.id);
+    if (!channel) return res.status(404).json({ error: 'Channel not found.' });
+    const next = channel.locked ? 0 : 1;
+    await db.prepare('UPDATE chat_channels SET locked = ? WHERE id = ?').run(next, channel.id);
+    res.json({ ok: true, locked: Boolean(next) });
+  })
+);
+
+router.post(
+  '/channels/:id/admin-only',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden.' });
+    const channel = await db.prepare('SELECT id, admin_only FROM chat_channels WHERE id = ?').get(req.params.id);
+    if (!channel) return res.status(404).json({ error: 'Channel not found.' });
+    const next = channel.admin_only ? 0 : 1;
+    await db.prepare('UPDATE chat_channels SET admin_only = ? WHERE id = ?').run(next, channel.id);
+    res.json({ ok: true, adminOnly: Boolean(next) });
+  })
+);
+
+router.post(
+  '/channels/:id/rename',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden.' });
     const channel = await db.prepare('SELECT id FROM chat_channels WHERE id = ?').get(req.params.id);
     if (!channel) return res.status(404).json({ error: 'Channel not found.' });
+
+    const name = (req.body.name || '').trim().slice(0, 60);
+    if (!name) return res.status(400).json({ error: 'Channel name is required.' });
+
+    await db.prepare('UPDATE chat_channels SET name = ? WHERE id = ?').run(name, channel.id);
+    res.json({ ok: true, name });
+  })
+);
+
+router.post(
+  '/channels/:id/delete',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden.' });
+    const channel = await db.prepare('SELECT id FROM chat_channels WHERE id = ?').get(req.params.id);
+    if (!channel) return res.status(404).json({ error: 'Channel not found.' });
+
+    await db.prepare('DELETE FROM chat_messages WHERE channel_id = ?').run(channel.id);
+    await db.prepare('DELETE FROM chat_channel_prefs WHERE channel_id = ?').run(channel.id);
+    await db.prepare('DELETE FROM chat_reads WHERE channel_id = ?').run(channel.id);
+    await db.prepare('DELETE FROM chat_channels WHERE id = ?').run(channel.id);
+
+    res.json({ ok: true });
+  })
+);
+
+router.post(
+  '/c/:id',
+  (req, res, next) => chatUpload.single('attachment')(req, res, (err) => {
+    if (err) {
+      const wantsJson = req.get('Accept') === 'application/json';
+      if (wantsJson) return res.status(400).json({ error: err.message });
+      return res.redirect(`/chat/c/${req.params.id}`);
+    }
+    next();
+  }),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const channel = await db.prepare('SELECT id, locked FROM chat_channels WHERE id = ?').get(req.params.id);
+    if (!channel) return res.status(404).json({ error: 'Channel not found.' });
+    if (channel.locked && req.user.role !== 'admin') {
+      const wantsJson = req.get('Accept') === 'application/json';
+      if (wantsJson) return res.status(403).json({ error: 'Channel is locked.' });
+      return res.redirect(`/chat/c/${channel.id}`);
+    }
 
     const body = (req.body.body || '').trim().slice(0, 2000);
     const wantsJson = req.get('Accept') === 'application/json';
 
-    if (!body) {
-      if (wantsJson) return res.status(400).json({ error: 'Message required.' });
+    let attachmentUrl = null;
+    let attachmentName = null;
+    if (req.file) {
+      attachmentUrl = await putFile(req.file);
+      attachmentName = req.file.originalname;
+    }
+
+    if (!body && !attachmentUrl) {
+      if (wantsJson) return res.status(400).json({ error: 'Message or attachment required.' });
       return res.redirect(`/chat/c/${channel.id}`);
     }
 
     const result = await db
-      .prepare('INSERT INTO chat_messages (channel_id, user_id, body) VALUES (?, ?, ?) RETURNING id')
-      .run(channel.id, req.user.id, body);
+      .prepare('INSERT INTO chat_messages (channel_id, user_id, body, attachment_url, attachment_name) VALUES (?, ?, ?, ?, ?) RETURNING id')
+      .run(channel.id, req.user.id, body || null, attachmentUrl, attachmentName);
     const row = await db
       .prepare(
         `SELECT chat_messages.*, users.name AS user_name
@@ -293,4 +404,5 @@ router.post(
   })
 );
 
+router.getUnreadTotal = getUnreadTotal;
 module.exports = router;

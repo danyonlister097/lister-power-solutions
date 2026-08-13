@@ -675,6 +675,11 @@ CREATE TABLE IF NOT EXISTS myob_tokens (
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS myob_invoice_uid TEXT;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS myob_emailed_at TEXT;
 
+ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS locked INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE chat_channels ADD COLUMN IF NOT EXISTS admin_only INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_url TEXT;
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_name TEXT;
+
 -- Admin-managed category list for the Renewals tool.
 -- Seeded with defaults in db/index.js ensureSeedData(); admins can add/delete.
 CREATE TABLE IF NOT EXISTS renewal_categories (
