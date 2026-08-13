@@ -3,6 +3,7 @@
   if (panel) {
     var csrf = panel.getAttribute('data-csrf');
     var currentUserId = panel.getAttribute('data-current-user-id');
+    var isAdmin = panel.getAttribute('data-is-admin') === '1';
     var channelId = panel.getAttribute('data-channel-id');
     var isLive = panel.getAttribute('data-live') === '1';
     var lastId = Number.parseInt(panel.getAttribute('data-last-id'), 10) || 0;
@@ -20,11 +21,22 @@
 
       var div = document.createElement('div');
       div.className = 'chat-message' + (String(m.userId) === String(currentUserId) ? ' chat-message-own' : '');
+      div.setAttribute('data-message-id', m.id);
 
       var meta = document.createElement('div');
       meta.className = 'chat-message-meta';
       var time = new Date(m.createdAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-      meta.textContent = m.userName + ' · ' + time;
+      meta.appendChild(document.createTextNode(m.userName + ' · ' + time));
+      if (isAdmin) {
+        var delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'chat-message-delete';
+        delBtn.setAttribute('data-message-id', m.id);
+        delBtn.title = 'Delete message';
+        delBtn.setAttribute('aria-label', 'Delete message');
+        delBtn.textContent = '×';
+        meta.appendChild(delBtn);
+      }
       div.appendChild(meta);
 
       if (m.body) {
@@ -66,6 +78,30 @@
     }
 
     scrollToBottom();
+
+    if (isAdmin) {
+      messagesEl.addEventListener('click', function (e) {
+        var btn = e.target.closest('.chat-message-delete');
+        if (!btn) return;
+        var messageId = btn.getAttribute('data-message-id');
+        var messageEl = btn.closest('.chat-message');
+
+        window.showConfirm('Delete message?', 'Delete this message? This cannot be undone.', function () {
+          fetch('/chat/messages/' + messageId + '/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: '_csrf=' + encodeURIComponent(csrf),
+          })
+            .then(function (res) {
+              if (!res.ok) throw new Error('Delete failed');
+              if (messageEl) messageEl.remove();
+            })
+            .catch(function () {
+              alert('Could not delete that message. Please try again.');
+            });
+        });
+      });
+    }
 
     var fileInput = document.getElementById('chat-file-input');
     var filePreview = document.getElementById('chat-file-preview');
@@ -120,7 +156,16 @@
     }
 
     if (isLive) {
-      (function poll() {
+      // Polling this endpoint marks new messages as read server-side, so a
+      // background/unfocused tab must not keep calling it - otherwise a
+      // channel you're not actually looking at silently gets marked read
+      // and never shows as unread. Pause while hidden, catch up the moment
+      // the tab is visible again.
+      var pollPending = false;
+
+      function poll() {
+        if (document.hidden) return;
+        pollPending = false;
         fetch('/chat/c/' + channelId + '/messages?after=' + lastId)
           .then(function (res) {
             if (!res.ok) throw new Error('Poll failed');
@@ -134,9 +179,17 @@
           })
           .catch(function () {})
           .finally(function () {
+            if (document.hidden) return;
+            pollPending = true;
             setTimeout(poll, 4000);
           });
-      })();
+      }
+
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && !pollPending) poll();
+      });
+
+      poll();
     }
   }
 
@@ -337,5 +390,70 @@
           alert('Could not rename that channel. Please try again.');
         });
     });
+  }
+
+  // --- Sidebar: live unread badges while inside the chat tool ---
+  // Server-rendered badges only reflect unread state as of page load - if a
+  // message lands in a channel you're not viewing while you're sitting on
+  // this page, nothing updates it without this. Polls faster than the
+  // sitewide nav-badge poll in app.js since you're actively in the tool.
+
+  var chatSidebar = document.querySelector('.chat-sidebar');
+  if (chatSidebar) {
+    var navChatIcon = document.querySelector('.sidebar-link[href="/chat"] .sidebar-icon');
+
+    var applyUnread = function (data) {
+      data.channels.forEach(function (c) {
+        var link = chatSidebar.querySelector('.chat-channel-link[data-channel-id="' + c.id + '"]');
+        if (!link) return;
+        var badge = link.querySelector('.chat-unread-badge');
+        if (c.unread > 0) {
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'chat-unread-badge';
+            link.appendChild(badge);
+          }
+          badge.textContent = c.unread;
+        } else if (badge) {
+          badge.remove();
+        }
+      });
+
+      if (navChatIcon) {
+        var navBadge = navChatIcon.querySelector('.sidebar-badge');
+        if (data.total > 0) {
+          if (!navBadge) {
+            navBadge = document.createElement('span');
+            navBadge.className = 'sidebar-badge';
+            navChatIcon.appendChild(navBadge);
+          }
+          navBadge.textContent = data.total > 99 ? '99+' : data.total;
+        } else if (navBadge) {
+          navBadge.remove();
+        }
+      }
+    };
+
+    var unreadPollPending = false;
+
+    function pollUnread() {
+      if (document.hidden) return;
+      unreadPollPending = false;
+      fetch('/chat/channels/unread-counts')
+        .then(function (res) { if (!res.ok) throw new Error('poll failed'); return res.json(); })
+        .then(applyUnread)
+        .catch(function () {})
+        .finally(function () {
+          if (document.hidden) return;
+          unreadPollPending = true;
+          setTimeout(pollUnread, 5000);
+        });
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && !unreadPollPending) pollUnread();
+    });
+
+    pollUnread();
   }
 })();

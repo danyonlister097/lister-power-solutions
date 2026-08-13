@@ -40,6 +40,7 @@
       id="chat-panel"
       data-csrf="<%= csrfToken %>"
       data-current-user-id="<%= currentUser.id %>"
+      data-is-admin="<%= currentUser.role === 'admin' ? '1' : '0' %>"
       data-channel-id="<%= channel.id %>"
       data-last-id="<%= messages.length ? messages[messages.length - 1].id : 0 %>"
       data-live="<%= (from || to) ? '0' : '1' %>"
@@ -49,8 +50,13 @@
           <p class="text-muted chat-empty">No messages<%= (from || to) ? ' in this date range.' : ' yet — say hello.' %></p>
         <% } %>
         <% messages.forEach(m => { %>
-          <div class="chat-message <%= m.user_id === currentUser.id ? 'chat-message-own' : '' %>">
-            <div class="chat-message-meta"><%= m.user_name %> &middot; <%= new Date(m.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) %></div>
+          <div class="chat-message <%= m.user_id === currentUser.id ? 'chat-message-own' : '' %>" data-message-id="<%= m.id %>">
+            <div class="chat-message-meta">
+              <%= m.user_name %> &middot; <%= new Date(m.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) %>
+              <% if (currentUser.role === 'admin') { %>
+                <button type="button" class="chat-message-delete" data-message-id="<%= m.id %>" title="Delete message" aria-label="Delete message">&times;</button>
+              <% } %>
+            </div>
             <% if (m.body) { %><div class="chat-message-body"><%= m.body %></div><% } %>
             <% if (m.attachment_url) { %>
               <div class="chat-message-attachment">

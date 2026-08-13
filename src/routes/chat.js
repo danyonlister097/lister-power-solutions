@@ -40,6 +40,15 @@ async function markRead(userId, channelId) {
     .run(userId, channelId, latest.id);
 }
 
+// Correlated subquery counting a channel's messages this user hasn't read
+// yet - shared by every place that needs an unread count, so the
+// definition of "unread" only lives in one place. Needs the user's id bound
+// as the next `?` wherever it's inlined.
+const UNREAD_COUNT_SQL = `(SELECT COUNT(*) FROM chat_messages m
+   WHERE m.channel_id = c.id
+     AND m.id > COALESCE((SELECT last_read_message_id FROM chat_reads WHERE chat_reads.channel_id = c.id AND chat_reads.user_id = ?), 0)
+)`;
+
 // Pin status and manual ordering are per-user (chat_channel_prefs). A channel
 // with no pref row yet is unpinned and sorts by its own id. Pinned channels
 // keep manual drag order; unpinned channels auto-sort by most recent
@@ -53,10 +62,7 @@ function channelsWithUnread(user) {
          c.*,
          COALESCE(cp.pinned, 0) AS pinned,
          COALESCE(cp.sort_order, c.id) AS effective_sort_order,
-         (SELECT COUNT(*) FROM chat_messages m
-            WHERE m.channel_id = c.id
-              AND m.id > COALESCE((SELECT last_read_message_id FROM chat_reads WHERE chat_reads.channel_id = c.id AND chat_reads.user_id = ?), 0)
-         ) AS unread_count,
+         ${UNREAD_COUNT_SQL} AS unread_count,
          (SELECT MAX(id) FROM chat_messages WHERE channel_id = c.id) AS last_message_id
        FROM chat_channels c
        LEFT JOIN chat_channel_prefs cp ON cp.channel_id = c.id AND cp.user_id = ?
@@ -76,17 +82,25 @@ function getUnreadTotal(user) {
   const adminFilter = user.role === 'admin' ? '' : 'AND c.admin_only = 0';
   return db
     .prepare(
-      `SELECT COALESCE(SUM(
-         (SELECT COUNT(*) FROM chat_messages m
-            WHERE m.channel_id = c.id
-              AND m.id > COALESCE((SELECT last_read_message_id FROM chat_reads WHERE chat_reads.channel_id = c.id AND chat_reads.user_id = ?), 0)
-         )
-       ), 0) AS total
+      `SELECT COALESCE(SUM(${UNREAD_COUNT_SQL}), 0) AS total
        FROM chat_channels c
        WHERE 1=1 ${adminFilter}`
     )
     .get(user.id);
 }
+
+// Polled from the browser (both sitewide, for the nav icon badge, and more
+// frequently while inside the chat tool, for per-channel badges) so unread
+// state updates without a page reload/navigation.
+router.get(
+  '/channels/unread-counts',
+  asyncHandler(async (req, res) => {
+    const channels = await channelsWithUnread(req.user);
+    const counts = channels.map((c) => ({ id: c.id, unread: Number(c.unread_count) }));
+    const total = counts.reduce((sum, c) => sum + c.unread, 0);
+    res.json({ total, channels: counts });
+  })
+);
 
 router.get(
   '/',
@@ -289,6 +303,19 @@ router.get(
     if (messages.length) await markRead(req.user.id, channel.id);
 
     res.json({ messages: messages.map(serialize) });
+  })
+);
+
+router.post(
+  '/messages/:id/delete',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden.' });
+    const message = await db.prepare('SELECT id FROM chat_messages WHERE id = ?').get(req.params.id);
+    if (!message) return res.status(404).json({ error: 'Message not found.' });
+
+    await db.prepare('DELETE FROM chat_messages WHERE id = ?').run(message.id);
+    res.json({ ok: true });
   })
 );
 

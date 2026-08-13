@@ -201,3 +201,48 @@
   toast.addEventListener('click', dismiss);
   setTimeout(dismiss, isError ? 8000 : 5000);
 })();
+
+// Sitewide: keep the Chat icon's unread badge live on every page, not just
+// inside the chat tool - otherwise a message that arrives while you're on
+// (say) the Dashboard shows as "read" until you happen to reload.
+(function () {
+  var chatLink = document.querySelector('.sidebar-link[href="/chat"]');
+  var chatIcon = chatLink && chatLink.querySelector('.sidebar-icon');
+  if (!chatIcon) return;
+
+  function apply(total) {
+    var badge = chatIcon.querySelector('.sidebar-badge');
+    if (total > 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'sidebar-badge';
+        chatIcon.appendChild(badge);
+      }
+      badge.textContent = total > 99 ? '99+' : total;
+    } else if (badge) {
+      badge.remove();
+    }
+  }
+
+  var pollPending = false;
+
+  function poll() {
+    if (document.hidden) return;
+    pollPending = false;
+    fetch('/chat/channels/unread-counts')
+      .then(function (res) { if (!res.ok) throw new Error('poll failed'); return res.json(); })
+      .then(function (data) { apply(data.total); })
+      .catch(function () {})
+      .finally(function () {
+        if (document.hidden) return;
+        pollPending = true;
+        setTimeout(poll, 20000);
+      });
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && !pollPending) poll();
+  });
+
+  poll();
+})();
