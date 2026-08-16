@@ -11,7 +11,7 @@ const PERMISSIONS = [
   { key: 'invoices',   label: 'Invoices',              group: 1 },
   { key: 'employees',  label: 'Employees',             group: 1 },
   { key: 'assets',     label: 'Asset Register',        group: 1 },
-  { key: 'renewals',   label: 'Renewals',              group: 1 },
+  { key: 'renewals',   label: 'Renewals/Documents',    group: 1 },
   { key: 'schedule',   label: 'Team Schedule',         group: 2 },
   { key: 'timeclock',  label: 'Time Clock',            group: 2 },
   { key: 'leave',      label: 'Request Leave',         group: 2 },

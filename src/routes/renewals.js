@@ -4,6 +4,7 @@ const { asyncHandler } = require('../lib/asyncHandler');
 const { verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { brisbaneTodayIso } = require('../lib/timesheetCalc');
+const { licenseUpload, putFile, fetchFile, deleteFile } = require('../lib/uploads');
 
 const router = express.Router();
 
@@ -18,8 +19,30 @@ async function loadCategories() {
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const cat = req.query.category || '';
+    const tab = req.query.tab === 'documents' ? 'documents' : 'renewals';
     const todayIso = brisbaneTodayIso();
+    const users = await db.prepare("SELECT id, name FROM users WHERE active = 1 ORDER BY name").all();
+
+    if (tab === 'documents') {
+      const documents = await db
+        .prepare(
+          `SELECT d.*, u.name AS user_name
+           FROM license_documents d
+           LEFT JOIN users u ON u.id = d.user_id
+           ORDER BY (d.expiry_date IS NULL), d.expiry_date ASC, d.title ASC`
+        )
+        .all();
+      return res.render('renewals/index', {
+        title: 'Documents/Licensing',
+        tab,
+        documents,
+        users,
+        todayIso,
+        isAdmin: req.user.role === 'admin',
+      });
+    }
+
+    const cat = req.query.category || '';
     const CATEGORIES = await loadCategories();
 
     const params = [];
@@ -75,15 +98,13 @@ router.get(
       return da < db_ ? -1 : da > db_ ? 1 : 0;
     });
 
-    const users = await db
-      .prepare("SELECT id, name FROM users WHERE active = 1 ORDER BY name")
-      .all();
     const assets = await db
       .prepare("SELECT id, name FROM business_assets WHERE status = 'active' ORDER BY name")
       .all();
 
     res.render('renewals/index', {
       title: 'Renewals',
+      tab,
       items: allItems,
       category: cat,
       CATEGORIES,
@@ -165,6 +186,124 @@ router.post(
     await db.prepare('DELETE FROM renewal_categories WHERE id = ?').run(req.params.catid);
     setFlash(req, 'success', 'Category deleted.');
     res.redirect('/renewals');
+  })
+);
+
+// ── Documents/Licensing (must also be before /:id routes) ───────────────────
+
+router.post(
+  '/documents',
+  (req, res, next) => licenseUpload.single('attachment')(req, res, (err) => {
+    if (err) {
+      setFlash(req, 'error', err.message);
+      return res.redirect('/renewals?tab=documents');
+    }
+    next();
+  }),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const b = req.body;
+    if (!b.title || !b.title.trim()) {
+      setFlash(req, 'error', 'Title is required.');
+      return res.redirect('/renewals?tab=documents');
+    }
+
+    let fileUrl = null;
+    let fileName = null;
+    if (req.file) {
+      fileUrl = await putFile(req.file);
+      fileName = req.file.originalname;
+    }
+
+    await db
+      .prepare(
+        `INSERT INTO license_documents (title, license_number, user_id, expiry_date, notes, file_url, file_name, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        b.title.trim(),
+        (b.license_number || '').trim() || null,
+        b.user_id ? Number(b.user_id) : null,
+        b.expiry_date || null,
+        (b.notes || '').trim() || null,
+        fileUrl,
+        fileName,
+        req.user.id
+      );
+    setFlash(req, 'success', 'Document added.');
+    res.redirect('/renewals?tab=documents');
+  })
+);
+
+router.get(
+  '/documents/:id/file',
+  asyncHandler(async (req, res) => {
+    const doc = await db.prepare('SELECT * FROM license_documents WHERE id = ?').get(req.params.id);
+    if (!doc || !doc.file_url) return res.status(404).render('error', { message: 'No file attached.' });
+    const stream = await fetchFile(doc.file_url);
+    if (!stream) return res.status(404).render('error', { message: 'File not found.' });
+    if (doc.file_name) {
+      const isPdf = doc.file_name.toLowerCase().endsWith('.pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${doc.file_name}"`);
+      if (isPdf) res.setHeader('Content-Type', 'application/pdf');
+    }
+    stream.pipe(res);
+  })
+);
+
+router.post(
+  '/documents/:id',
+  (req, res, next) => licenseUpload.single('attachment')(req, res, (err) => {
+    if (err) {
+      setFlash(req, 'error', err.message);
+      return res.redirect('/renewals?tab=documents');
+    }
+    next();
+  }),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const doc = await db.prepare('SELECT * FROM license_documents WHERE id = ?').get(req.params.id);
+    if (!doc) return res.status(404).render('error', { message: 'Document not found.' });
+    const b = req.body;
+
+    let fileUrl = doc.file_url;
+    let fileName = doc.file_name;
+    if (req.file) {
+      await deleteFile(doc.file_url);
+      fileUrl = await putFile(req.file);
+      fileName = req.file.originalname;
+    }
+
+    await db
+      .prepare(
+        `UPDATE license_documents SET title = ?, license_number = ?, user_id = ?, expiry_date = ?, notes = ?,
+           file_url = ?, file_name = ?, updated_at = datetime('now') WHERE id = ?`
+      )
+      .run(
+        (b.title || '').trim() || doc.title,
+        (b.license_number || '').trim() || null,
+        b.user_id ? Number(b.user_id) : null,
+        b.expiry_date || null,
+        (b.notes || '').trim() || null,
+        fileUrl,
+        fileName,
+        doc.id
+      );
+    setFlash(req, 'success', 'Document updated.');
+    res.redirect('/renewals?tab=documents');
+  })
+);
+
+router.post(
+  '/documents/:id/delete',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).render('error', { message: 'Forbidden.' });
+    const doc = await db.prepare('SELECT file_url FROM license_documents WHERE id = ?').get(req.params.id);
+    if (doc) await deleteFile(doc.file_url);
+    await db.prepare('DELETE FROM license_documents WHERE id = ?').run(req.params.id);
+    setFlash(req, 'success', 'Document deleted.');
+    res.redirect('/renewals?tab=documents');
   })
 );
 

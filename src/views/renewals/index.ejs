@@ -1,4 +1,4 @@
-<%- include('../partials/header', { title: 'Renewals' }) %>
+<%- include('../partials/header', { title: title }) %>
 <%
   function expiryClass(dateStr, today) {
     if (!dateStr) return 'badge-pending';
@@ -30,12 +30,20 @@
   }
 %>
 <div class="page-header">
-  <h1>Renewals</h1>
-  <% if (isAdmin) { %>
+  <h1>Renewals/Documents</h1>
+  <% if (isAdmin && tab !== 'documents') { %>
     <button type="button" class="btn btn-primary" id="renewal-add-open">+ Add Renewal</button>
+  <% } else if (isAdmin) { %>
+    <button type="button" class="btn btn-primary" id="document-add-open">+ Add Document</button>
   <% } %>
 </div>
 
+<div class="sched-view-tabs">
+  <a href="/renewals" class="<%= tab !== 'documents' ? 'active' : '' %>">Renewals</a>
+  <a href="/renewals?tab=documents" class="<%= tab === 'documents' ? 'active' : '' %>">Documents/Licensing</a>
+</div>
+
+<% if (tab !== 'documents') { %>
 <div class="filters">
   <a class="<%= category === '' ? 'active' : '' %>" href="/renewals">All</a>
   <% CATEGORIES.forEach(c => { %>
@@ -267,4 +275,164 @@
 })();
 </script>
 <% } %>
+<% } %>
+
+<% if (tab === 'documents') { %>
+  <%
+    function docExpiryClass(dateStr, today) {
+      if (!dateStr) return 'badge-pending';
+      return expiryClass(dateStr, today);
+    }
+    function docExpiryLabel(dateStr, today) {
+      if (!dateStr) return 'No expiry';
+      return expiryLabel(dateStr, today);
+    }
+  %>
+  <% if (!documents.length) { %>
+    <div class="empty-state">No documents or licenses on file yet.</div>
+  <% } else { %>
+    <ul class="list">
+      <% documents.forEach(doc => { %>
+        <li>
+          <div class="list-item row-menu-hover-target" style="padding:0;gap:0;">
+            <span style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1rem;gap:0.5rem;min-width:0;">
+              <span style="min-width:0;">
+                <span class="list-item-title"><%= doc.title %></span><br>
+                <span class="list-item-meta">
+                  <% if (doc.license_number) { %><%= doc.license_number %><% } %>
+                  <% if (doc.user_name) { %> &middot; <%= doc.user_name %><% } %>
+                  <% if (doc.expiry_date) { %> &middot; Expires <%= formatAuDate(doc.expiry_date) %><% } %>
+                  <% if (doc.notes) { %> &middot; <em><%= doc.notes %></em><% } %>
+                  <% if (doc.file_url) { %> &middot; <a href="/renewals/documents/<%= doc.id %>/file" target="_blank" rel="noopener">📎 View file</a><% } %>
+                </span>
+              </span>
+              <span class="badge <%= docExpiryClass(doc.expiry_date, todayIso) %>"><%= docExpiryLabel(doc.expiry_date, todayIso) %></span>
+            </span>
+            <% if (isAdmin) { %>
+            <div class="row-menu-cell" style="padding-right:0.5rem;position:relative;">
+              <button class="row-menu-btn" aria-label="More actions" aria-expanded="false">⋮</button>
+              <div class="context-menu" hidden>
+                <button type="button" class="context-menu-item document-edit-btn"
+                  data-id="<%= doc.id %>"
+                  data-title="<%= doc.title %>"
+                  data-license_number="<%= doc.license_number || '' %>"
+                  data-user_id="<%= doc.user_id || '' %>"
+                  data-expiry_date="<%= doc.expiry_date || '' %>"
+                  data-notes="<%= doc.notes || '' %>">Edit</button>
+                <form method="post" action="/renewals/documents/<%= doc.id %>/delete"
+                      data-confirm="Delete this document? This cannot be undone." style="margin:0;">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="context-menu-item context-menu-danger">Delete</button>
+                </form>
+              </div>
+            </div>
+            <% } %>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+
+  <% if (isAdmin) { %>
+  <!-- Add / Edit Document Modal -->
+  <div id="document-add-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="document-modal-title">
+      <button type="button" class="modal-close" id="document-modal-close" aria-label="Close">&times;</button>
+      <h2 id="document-modal-title">Add Document</h2>
+      <form method="post" id="document-form" action="/renewals/documents" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label>
+          Title *
+          <input type="text" name="title" required placeholder="e.g. Electrical Contractor Licence">
+        </label>
+        <div class="form-row form-row-2">
+          <label>
+            Licence / Reference number <span style="font-weight:400;">(optional)</span>
+            <input type="text" name="license_number">
+          </label>
+          <label>
+            Expiry Date <span style="font-weight:400;">(optional)</span>
+            <input type="date" name="expiry_date">
+          </label>
+        </div>
+        <label>
+          Linked Staff Member <span style="font-weight:400;">(optional)</span>
+          <select name="user_id">
+            <option value="">None</option>
+            <% users.forEach(u => { %>
+              <option value="<%= u.id %>"><%= u.name %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label>
+          Notes <span style="font-weight:400;">(optional)</span>
+          <textarea name="notes" rows="2"></textarea>
+        </label>
+        <label>
+          Photo / file <span style="font-weight:400;">(image or PDF, max 20 MB)</span>
+          <input type="file" name="attachment" accept="image/*,.pdf">
+          <span id="document-current-file" class="text-muted" style="font-size:0.8rem;display:none;"></span>
+        </label>
+        <div class="actions">
+          <button type="submit" class="btn btn-primary" id="document-submit-btn">Add Document</button>
+          <button type="button" class="btn btn-secondary" id="document-modal-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var modal = document.getElementById('document-add-modal');
+    var form = document.getElementById('document-form');
+    var titleEl = document.getElementById('document-modal-title');
+    var submitBtn = document.getElementById('document-submit-btn');
+    var openBtn = document.getElementById('document-add-open');
+    var closeBtn = document.getElementById('document-modal-close');
+    var cancelBtn = document.getElementById('document-modal-cancel');
+    var currentFileEl = document.getElementById('document-current-file');
+
+    function openAdd() {
+      titleEl.textContent = 'Add Document';
+      submitBtn.textContent = 'Add Document';
+      form.action = '/renewals/documents';
+      form.reset();
+      currentFileEl.style.display = 'none';
+      modal.hidden = false;
+    }
+
+    function openEdit(btn) {
+      titleEl.textContent = 'Edit Document';
+      submitBtn.textContent = 'Save Changes';
+      var id = btn.getAttribute('data-id');
+      form.action = '/renewals/documents/' + id;
+      form.querySelector('[name="title"]').value = btn.getAttribute('data-title') || '';
+      form.querySelector('[name="license_number"]').value = btn.getAttribute('data-license_number') || '';
+      form.querySelector('[name="user_id"]').value = btn.getAttribute('data-user_id') || '';
+      form.querySelector('[name="expiry_date"]').value = btn.getAttribute('data-expiry_date') || '';
+      form.querySelector('[name="notes"]').value = btn.getAttribute('data-notes') || '';
+      currentFileEl.style.display = 'none';
+      modal.hidden = false;
+    }
+
+    function closeModal() { modal.hidden = true; }
+
+    if (openBtn) openBtn.addEventListener('click', openAdd);
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !modal.hidden) closeModal();
+    });
+
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('.document-edit-btn');
+      if (!btn) return;
+      openEdit(btn);
+    });
+  })();
+  </script>
+  <% } %>
+<% } %>
+
 <%- include('../partials/footer') %>

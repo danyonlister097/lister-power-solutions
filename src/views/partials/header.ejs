@@ -53,7 +53,7 @@
     if (allowed('inventory')) sideItems.push({ href: '/inventory', label: 'Inventory', icon: 'box', active: starts('/inventory') });
     if (allowed('assets')) sideItems.push({ href: '/assets', label: 'Asset Register', icon: 'toolbox', active: starts('/assets') });
     if (allowed('tools')) sideItems.push({ href: '/tools', label: 'Tools', icon: 'calculator', active: starts('/tools') });
-    if (allowed('renewals')) sideItems.push({ href: '/renewals', label: 'Renewals', icon: 'renewals', active: starts('/renewals') });
+    if (allowed('renewals')) sideItems.push({ href: '/renewals', label: 'Renewals/Documents', icon: 'renewals', active: starts('/renewals') });
   }
 %>
 <% if (currentUser) { %>
@@ -144,7 +144,7 @@
               <%- icons[item.icon] %>
               <% if (item.badge) { %><span class="sidebar-badge"><%= item.badge > 99 ? '99+' : item.badge %></span><% } %>
             </span>
-            <span class="sidebar-label"><%= item.label %></span>
+            <span class="sidebar-label"><%- item.label.split('/').join('<br>') %></span>
           </a>
         <% }) %>
       </nav>

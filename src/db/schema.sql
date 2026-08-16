@@ -694,3 +694,23 @@ CREATE TABLE IF NOT EXISTS renewal_categories (
 -- Smart Schedule uses this (falling back to a default) to size each job's
 -- slot and pack a day's work up to its 6-hour cap.
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS duration_minutes INTEGER;
+
+-- Documents/Licensing tab on the Renewals page - a filing cabinet for the
+-- actual license/compliance document (photo or PDF), separate from the
+-- expiry-reminder list in `renewals`. expiry_date is optional here since
+-- not every filed document expires.
+CREATE TABLE IF NOT EXISTS license_documents (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  license_number TEXT,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  expiry_date TEXT,
+  notes TEXT,
+  file_url TEXT,
+  file_name TEXT,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  updated_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+CREATE INDEX IF NOT EXISTS idx_license_documents_expiry_date ON license_documents(expiry_date);
