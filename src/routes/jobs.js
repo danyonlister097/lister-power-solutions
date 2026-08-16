@@ -200,8 +200,15 @@ function formatHoursLabel(minutes) {
 }
 
 async function renderGridView(req, res, numDays) {
-  const requestedStart = req.query.start ? new Date(`${req.query.start}T00:00:00`) : new Date();
-  const anchor = isNaN(requestedStart) ? new Date() : requestedStart;
+  // Falling back to a bare `new Date()` here reads the server's local clock
+  // - fine on a machine set to Australian time, but Vercel's serverless
+  // functions run in UTC, where "today" can already have rolled over to
+  // tomorrow (or not yet rolled over from yesterday) relative to Brisbane
+  // for a chunk of each day, silently landing the default view on the
+  // wrong week. Anchoring on brisbaneTodayIso() keeps it correct everywhere.
+  const todayIso = brisbaneTodayIso();
+  const requestedStart = req.query.start ? new Date(`${req.query.start}T00:00:00`) : new Date(`${todayIso}T00:00:00`);
+  const anchor = isNaN(requestedStart) ? new Date(`${todayIso}T00:00:00`) : requestedStart;
   const rangeStart = numDays === 7 ? mondayOf(anchor) : new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
 
   const days = Array.from({ length: numDays }, (_, i) => {
@@ -317,9 +324,9 @@ async function renderGridView(req, res, numDays) {
 }
 
 async function renderMonthView(req, res) {
-  const now = new Date();
-  let year = now.getFullYear();
-  let month = now.getMonth();
+  const todayIso = brisbaneTodayIso();
+  let year = Number(todayIso.slice(0, 4));
+  let month = Number(todayIso.slice(5, 7)) - 1;
   if (/^\d{4}-\d{2}$/.test(req.query.month || '')) {
     const [y, m] = req.query.month.split('-').map(Number);
     year = y;
@@ -422,8 +429,9 @@ function formatHourLabel(h) {
 }
 
 async function renderDayView(req, res) {
-  const requestedDay = req.query.start ? new Date(`${req.query.start}T00:00:00`) : new Date();
-  const day = isNaN(requestedDay) ? new Date() : requestedDay;
+  const todayIso = brisbaneTodayIso();
+  const requestedDay = req.query.start ? new Date(`${req.query.start}T00:00:00`) : new Date(`${todayIso}T00:00:00`);
+  const day = isNaN(requestedDay) ? new Date(`${todayIso}T00:00:00`) : requestedDay;
   const dayIso = toIsoDate(day);
 
   const prevDay = new Date(day);

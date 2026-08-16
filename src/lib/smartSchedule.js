@@ -1,3 +1,5 @@
+const { brisbaneTodayIso, toIsoDate } = require('./timesheetCalc');
+
 // Home base: 125 Fairway Drive, Kensington Grove QLD 4341
 const HOME_BASE = { lat: -27.6714, lng: 152.5753 };
 
@@ -59,13 +61,17 @@ function minutesToClock(totalMinutes) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-// Next Monday from today (or this Monday if today is Monday)
+// Next Monday from today (or this Monday if today is Monday). Anchored on
+// brisbaneTodayIso() rather than a bare `new Date()` - Vercel's serverless
+// functions run in UTC, where "today" can be a different calendar day than
+// Brisbane for part of each day, which silently pushed this to the wrong
+// week (the same bug fixed in routes/jobs.js's schedule views).
 function nextMondayIso() {
-  const d = new Date();
+  const d = new Date(`${brisbaneTodayIso()}T00:00:00`);
   const day = d.getDay(); // 0=Sun
   const offset = day === 1 ? 7 : ((8 - day) % 7 || 7);
   d.setDate(d.getDate() + offset);
-  return d.toISOString().slice(0, 10);
+  return toIsoDate(d);
 }
 
 function addDaysToIso(iso, n) {
