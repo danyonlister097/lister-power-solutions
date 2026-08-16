@@ -34,6 +34,9 @@
   </div>
 </div>
 
+<div class="dashboard-widgets">
+<div class="dashboard-widget" data-widget="pending_approvals" style="order:<%= widgetOrder.indexOf('pending_approvals') %>;">
+  <% if (isAdmin) { %><div class="dashboard-widget-handle" title="Drag to reorder">⠿ Drag to reorder</div><% } %>
 <div class="card" style="border-left:6px solid #e2622b;">
   <h2>Pending Approvals</h2>
   <% var hasPending = pendingLeave.length || pendingTimesheets.length || lowStockItems.length; %>
@@ -87,7 +90,10 @@
     <% } %>
   <% } %>
 </div>
+</div>
 
+<div class="dashboard-widget" data-widget="upcoming_bills" style="order:<%= widgetOrder.indexOf('upcoming_bills') %>;">
+  <% if (isAdmin) { %><div class="dashboard-widget-handle" title="Drag to reorder">⠿ Drag to reorder</div><% } %>
 <div class="card" style="border-left:6px solid #dc3545;">
   <div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
     <h2 style="margin:0;">Upcoming Bills (<%= upcomingBills.length %>)</h2>
@@ -117,7 +123,10 @@
     </ul>
   <% } %>
 </div>
+</div>
 
+<div class="dashboard-widget" data-widget="job_pipeline" style="order:<%= widgetOrder.indexOf('job_pipeline') %>;">
+  <% if (isAdmin) { %><div class="dashboard-widget-handle" title="Drag to reorder">⠿ Drag to reorder</div><% } %>
 <div class="card" style="border-left:6px solid #12b8a0;">
   <h2>Job pipeline</h2>
   <div class="job-board">
@@ -175,8 +184,10 @@
     </div>
   </div>
 </div>
+</div>
 
-<div class="form-row form-row-2">
+<div class="dashboard-widget" data-widget="overdue_invoices" style="order:<%= widgetOrder.indexOf('overdue_invoices') %>;">
+  <% if (isAdmin) { %><div class="dashboard-widget-handle" title="Drag to reorder">⠿ Drag to reorder</div><% } %>
   <div class="card" style="border-left:6px solid #dc2626;">
     <h2>Overdue invoices</h2>
     <% if (!overdueInvoices.length) { %>
@@ -197,7 +208,10 @@
       </ul>
     <% } %>
   </div>
+</div>
 
+<div class="dashboard-widget" data-widget="outstanding_quotes" style="order:<%= widgetOrder.indexOf('outstanding_quotes') %>;">
+  <% if (isAdmin) { %><div class="dashboard-widget-handle" title="Drag to reorder">⠿ Drag to reorder</div><% } %>
   <div class="card" style="border-left:6px solid #1d5fae;">
     <h2>Outstanding quotes</h2>
     <% if (!outstandingQuotes.length) { %>
@@ -220,6 +234,8 @@
   </div>
 </div>
 
+<div class="dashboard-widget" data-widget="quick_tasks" style="order:<%= widgetOrder.indexOf('quick_tasks') %>;">
+  <% if (isAdmin) { %><div class="dashboard-widget-handle" title="Drag to reorder">⠿ Drag to reorder</div><% } %>
 <div class="card" style="border-left:6px solid #7c5cff;">
   <h2>Quick Tasks (<%= activeTasks.length %>)</h2>
   <% if (!activeTasks.length) { %>
@@ -239,7 +255,10 @@
     </ul>
   <% } %>
 </div>
+</div>
 
+<div class="dashboard-widget" data-widget="utilisation" style="order:<%= widgetOrder.indexOf('utilisation') %>;">
+  <% if (isAdmin) { %><div class="dashboard-widget-handle" title="Drag to reorder">⠿ Drag to reorder</div><% } %>
 <div class="card" style="border-left:6px solid #0891b2;">
   <h2>Technician utilisation (this week)</h2>
   <% if (!utilisation.length) { %>
@@ -257,8 +276,10 @@
     </ul>
   <% } %>
 </div>
+</div>
 
-<div class="form-row form-row-2">
+<div class="dashboard-widget" data-widget="upcoming_renewals" style="order:<%= widgetOrder.indexOf('upcoming_renewals') %>;">
+  <% if (isAdmin) { %><div class="dashboard-widget-handle" title="Drag to reorder">⠿ Drag to reorder</div><% } %>
   <div class="card" style="border-left:6px solid #059669;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:0.75rem;">
       <h2 style="margin:0;">Upcoming Renewals</h2>
@@ -294,7 +315,10 @@
       </ul>
     <% } %>
   </div>
+</div>
 
+<div class="dashboard-widget" data-widget="business_milestones" style="order:<%= widgetOrder.indexOf('business_milestones') %>;">
+  <% if (isAdmin) { %><div class="dashboard-widget-handle" title="Drag to reorder">⠿ Drag to reorder</div><% } %>
   <div class="card" style="border-left:6px solid #7c5cff;cursor:pointer;" onclick="window.location='/milestones'">
     <h2>Business Milestones</h2>
     <%
@@ -337,6 +361,8 @@
   </div>
 </div>
 
+<div class="dashboard-widget" data-widget="upcoming_maintenance" style="order:<%= widgetOrder.indexOf('upcoming_maintenance') %>;">
+  <% if (isAdmin) { %><div class="dashboard-widget-handle" title="Drag to reorder">⠿ Drag to reorder</div><% } %>
 <div class="card" style="border-left:6px solid #e2622b;">
   <h2>Vehicles &amp; equipment &mdash; upcoming maintenance</h2>
   <% if (!upcomingMaintenance.length) { %>
@@ -361,6 +387,10 @@
     </ul>
   <% } %>
 </div>
+</div>
+
+<div class="dashboard-widget" data-widget="bug_reports" style="order:<%= widgetOrder.indexOf('bug_reports') %>;">
+  <% if (isAdmin) { %><div class="dashboard-widget-handle" title="Drag to reorder">⠿ Drag to reorder</div><% } %>
 <div class="card" style="border-left:6px solid #d97706;">
   <h2>Bug Reports &amp; Ideas (<%= openFeedback.length %>)</h2>
   <% if (!openFeedback.length) { %>
@@ -384,4 +414,78 @@
     </ul>
   <% } %>
 </div>
+</div>
+</div>
+
+<% if (isAdmin) { %>
+<script>
+(function () {
+  var container = document.querySelector('.dashboard-widgets');
+  if (!container) return;
+  var csrf = '<%= csrfToken %>';
+  var dragging = null;
+
+  function widgetsByOrder() {
+    return Array.prototype.slice.call(container.querySelectorAll('.dashboard-widget'))
+      .sort(function (a, b) { return Number(a.style.order) - Number(b.style.order); });
+  }
+
+  function persist() {
+    var order = widgetsByOrder().map(function (el) { return el.getAttribute('data-widget'); });
+    fetch('/dashboard/layout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ _csrf: csrf, order: order }),
+    }).catch(function () {});
+  }
+
+  container.querySelectorAll('.dashboard-widget-handle').forEach(function (handle) {
+    handle.setAttribute('draggable', 'true');
+
+    handle.addEventListener('dragstart', function (e) {
+      dragging = handle.closest('.dashboard-widget');
+      dragging.classList.add('dashboard-widget-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', dragging.getAttribute('data-widget'));
+    });
+
+    handle.addEventListener('dragend', function () {
+      if (dragging) dragging.classList.remove('dashboard-widget-dragging');
+      container.querySelectorAll('.dashboard-widget-dragover').forEach(function (el) {
+        el.classList.remove('dashboard-widget-dragover');
+      });
+      dragging = null;
+    });
+  });
+
+  container.querySelectorAll('.dashboard-widget').forEach(function (widget) {
+    widget.addEventListener('dragover', function (e) {
+      if (!dragging || dragging === widget) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      widget.classList.add('dashboard-widget-dragover');
+    });
+
+    widget.addEventListener('dragleave', function () {
+      widget.classList.remove('dashboard-widget-dragover');
+    });
+
+    widget.addEventListener('drop', function (e) {
+      if (!dragging || dragging === widget) return;
+      e.preventDefault();
+      widget.classList.remove('dashboard-widget-dragover');
+
+      var all = widgetsByOrder().filter(function (el) { return el !== dragging; });
+      var targetIdx = all.indexOf(widget);
+      var rect = widget.getBoundingClientRect();
+      var before = (e.clientY - rect.top) < rect.height / 2;
+      all.splice(before ? targetIdx : targetIdx + 1, 0, dragging);
+
+      all.forEach(function (el, i) { el.style.order = i; });
+      persist();
+    });
+  });
+})();
+</script>
+<% } %>
 <%- include('../partials/footer') %>

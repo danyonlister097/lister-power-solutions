@@ -1,15 +1,64 @@
 const express = require('express');
 const db = require('../db');
 const { asyncHandler } = require('../lib/asyncHandler');
+const { verifyCsrf } = require('../middleware/auth');
 const { formatHours, addDays, mondayOf, brisbaneTodayIso } = require('../lib/timesheetCalc');
 
 const router = express.Router();
+
+// Source of truth for both the drag-to-reorder UI and the saved layout's
+// validity - a widget key that isn't in here (removed feature, typo, tamper)
+// is dropped rather than rendered.
+const DEFAULT_WIDGET_ORDER = [
+  'pending_approvals',
+  'upcoming_bills',
+  'job_pipeline',
+  'overdue_invoices',
+  'outstanding_quotes',
+  'quick_tasks',
+  'utilisation',
+  'upcoming_renewals',
+  'business_milestones',
+  'upcoming_maintenance',
+  'bug_reports',
+];
+
+// Merges a user's saved order with the default: known keys keep the saved
+// position, anything new (a widget added after the user last customised
+// their layout) or never-customised is appended in default order.
+function resolveWidgetOrder(savedJson) {
+  let saved = [];
+  if (savedJson) {
+    try {
+      const parsed = JSON.parse(savedJson);
+      if (Array.isArray(parsed)) saved = parsed;
+    } catch {
+      saved = [];
+    }
+  }
+  const known = new Set(DEFAULT_WIDGET_ORDER);
+  const ordered = saved.filter((k) => known.has(k));
+  const missing = DEFAULT_WIDGET_ORDER.filter((k) => !ordered.includes(k));
+  return [...ordered, ...missing];
+}
 
 router.get(
   '/',
   // Gated at the mount point in app.js by the "dashboard" permission
   // instead of a hardcoded role.
   asyncHandler(async (req, res) => {
+    const isAdmin = req.user.role === 'admin';
+    // Only admins get a customisable layout - see the message that started
+    // this feature: "each admin may have a different preference". Everyone
+    // else always sees the default order.
+    // loadUser's SELECT is an explicit column list that doesn't include
+    // this, so it's fetched here rather than widening that shared query.
+    let widgetOrder = DEFAULT_WIDGET_ORDER;
+    if (isAdmin) {
+      const row = await db.prepare('SELECT dashboard_layout FROM users WHERE id = ?').get(req.user.id);
+      widgetOrder = resolveWidgetOrder(row && row.dashboard_layout);
+    }
+
     const todayIso = brisbaneTodayIso();
     const weekStartIso = mondayOf(todayIso);
     const weekEndIso = addDays(weekStartIso, 6);
@@ -308,6 +357,8 @@ router.get(
 
     res.render('dashboard/index', {
       title: 'Dashboard',
+      isAdmin,
+      widgetOrder,
       todayIso,
       jobsThisWeek,
       jobsToday,
@@ -334,6 +385,21 @@ router.get(
       jobMilestone,
       formatHours,
     });
+  })
+);
+
+router.post(
+  '/layout',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden.' });
+    const order = req.body.order;
+    if (!Array.isArray(order)) return res.status(400).json({ error: 'order must be an array.' });
+
+    const known = new Set(DEFAULT_WIDGET_ORDER);
+    const cleaned = order.filter((k) => typeof k === 'string' && known.has(k));
+    await db.prepare('UPDATE users SET dashboard_layout = ? WHERE id = ?').run(JSON.stringify(cleaned), req.user.id);
+    res.json({ ok: true });
   })
 );
 

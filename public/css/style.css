@@ -325,6 +325,32 @@ a { color: var(--color-primary); }
 
 .card-narrow { max-width: 380px; margin: 2rem auto; }
 
+.dashboard-widgets { display: flex; flex-direction: column; }
+.dashboard-widget { display: flex; flex-direction: column; }
+.dashboard-widget .card { flex: 1; }
+
+.dashboard-widget-handle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  padding: 0.25rem 0.6rem;
+  margin-bottom: 0.35rem;
+  border: 1px solid var(--color-border);
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--color-bg);
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: grab;
+  user-select: none;
+}
+.dashboard-widget-handle:active { cursor: grabbing; }
+
+.dashboard-widget-dragging { opacity: 0.4; }
+.dashboard-widget-dragover .card { outline: 2px dashed var(--color-primary); outline-offset: 3px; }
+
 h1 { font-size: 1.4rem; margin-top: 0; }
 h2 { font-size: 1.15rem; }
 

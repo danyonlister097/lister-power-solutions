@@ -714,3 +714,8 @@ CREATE TABLE IF NOT EXISTS license_documents (
 );
 
 CREATE INDEX IF NOT EXISTS idx_license_documents_expiry_date ON license_documents(expiry_date);
+
+-- Per-admin preferred order of dashboard widgets, as a JSON array of widget
+-- keys (see DEFAULT_WIDGET_ORDER in routes/dashboard.js). NULL means "use
+-- the default order" - nothing to migrate for users who never touch it.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS dashboard_layout TEXT;
