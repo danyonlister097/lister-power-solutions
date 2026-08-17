@@ -32,6 +32,14 @@ function safeReturnTo(raw) {
   return typeof raw === 'string' && /^\/(dashboard|jobs(\/schedule|\/\d+)?)(\?[A-Za-z0-9=&_-]*)?$/.test(raw) ? raw : null;
 }
 
+// Appends an already-validated returnTo as a query param, for handlers that
+// redirect back to a fixed path (e.g. the job's own show page) but still
+// need to carry the visitor's original origin (e.g. Schedule) forward so
+// *that* page's own close/edit links keep pointing the right way.
+function withReturnTo(path, returnTo) {
+  return returnTo ? `${path}?returnTo=${encodeURIComponent(returnTo)}` : path;
+}
+
 async function setAssignees(jobId, userIds) {
   await db.prepare('DELETE FROM job_assignees WHERE job_id = ?').run(jobId);
   const insert = db.prepare('INSERT INTO job_assignees (job_id, user_id) VALUES (?, ?)');
@@ -304,6 +312,7 @@ async function renderGridView(req, res, numDays) {
 
   res.render('jobs/schedule', {
     title: 'Schedule',
+    currentUrl: req.originalUrl,
     view: isDay ? 'day' : 'week',
     capacityHours: 38,
     days,
@@ -400,6 +409,7 @@ async function renderMonthView(req, res) {
 
   res.render('jobs/schedule-month', {
     title: 'Schedule',
+    currentUrl: req.originalUrl,
     view: 'month',
     weeks,
     monthLabel: firstOfMonth.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }),
@@ -541,6 +551,7 @@ async function renderDayView(req, res) {
 
   res.render('jobs/schedule-day', {
     title: 'Schedule',
+    currentUrl: req.originalUrl,
     view: 'day',
     capacityHours: 8,
     dayIso,
@@ -844,6 +855,7 @@ router.get(
       STATUSES,
       colors: JOB_COLORS,
       error: null,
+      returnTo: safeReturnTo(req.query.returnTo),
     });
   })
 );
@@ -893,6 +905,7 @@ router.post(
     const customers = await db.prepare('SELECT id, name FROM customers WHERE active = 1 ORDER BY name').all();
     const techs = await db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY sort_order, name').all();
     const assigneeIds = parseAssigneeIds(b);
+    const returnTo = safeReturnTo(b.returnTo);
 
     if (!b.title || !b.title.trim() || !b.customer_id) {
       return res.status(400).render('jobs/form', {
@@ -903,6 +916,7 @@ router.post(
         STATUSES,
         colors: JOB_COLORS,
         error: 'Job title and customer are required.',
+        returnTo,
       });
     }
 
@@ -942,7 +956,7 @@ router.post(
     await autoAllocateAirconStock(result.lastInsertRowid, b.title.trim(), req.user.id);
 
     setFlash(req, 'success', `Job "${b.title.trim()}" created.`);
-    res.redirect(`/jobs/${result.lastInsertRowid}`);
+    res.redirect(withReturnTo(`/jobs/${result.lastInsertRowid}`, returnTo));
   })
 );
 
@@ -1059,7 +1073,7 @@ router.post(
       .run(job.id, Number.isFinite(quotedAmount) ? quotedAmount : null);
 
     setFlash(req, 'success', 'Quoted amount updated.');
-    res.redirect(`/jobs/${job.id}`);
+    res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
 );
 
@@ -1078,7 +1092,7 @@ router.post(
 
     if (!description || !Number.isFinite(quantity) || !Number.isFinite(unitCost)) {
       setFlash(req, 'error', 'Please provide a description, quantity, and cost.');
-      return res.redirect(`/jobs/${job.id}`);
+      return res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
     }
 
     await db
@@ -1086,7 +1100,7 @@ router.post(
       .run(job.id, category, description, quantity, unitCost, req.user.id);
 
     setFlash(req, 'success', 'Cost item added.');
-    res.redirect(`/jobs/${job.id}`);
+    res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
 );
 
@@ -1104,7 +1118,7 @@ router.post(
     await db.prepare('DELETE FROM job_cost_items WHERE id = ?').run(item.id);
 
     setFlash(req, 'success', 'Cost item removed.');
-    res.redirect(`/jobs/${req.params.id}`);
+    res.redirect(withReturnTo(`/jobs/${req.params.id}`, safeReturnTo(req.body.returnTo)));
   })
 );
 
@@ -1183,7 +1197,7 @@ router.post(
       const err = await checkCompletionRequirements(job.id);
       if (err) {
         setFlash(req, 'error', err);
-        return res.redirect(`/jobs/${job.id}/edit`);
+        return res.redirect(withReturnTo(`/jobs/${job.id}/edit`, returnTo));
       }
     }
 
@@ -1235,7 +1249,7 @@ router.post(
     }
 
     setFlash(req, 'success', 'Job updated.');
-    res.redirect('/jobs');
+    res.redirect(returnTo || `/jobs/${job.id}`);
   })
 );
 
@@ -1249,7 +1263,7 @@ router.post(
     const actualStart = toIso(req.body.actual_start);
     await db.prepare(`UPDATE jobs SET actual_start = @actualStart, updated_at = datetime('now') WHERE id = @id`).run({ id: job.id, actualStart });
     setFlash(req, 'success', 'Start time saved.');
-    res.redirect(`/jobs/${job.id}`);
+    res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
 );
 
@@ -1263,7 +1277,7 @@ router.post(
     const actualEnd = toIso(req.body.actual_end);
     await db.prepare(`UPDATE jobs SET actual_end = @actualEnd, updated_at = datetime('now') WHERE id = @id`).run({ id: job.id, actualEnd });
     setFlash(req, 'success', 'Finish time saved.');
-    res.redirect(`/jobs/${job.id}`);
+    res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
 );
 
@@ -1275,6 +1289,7 @@ router.post(
     if (!job) return;
 
     const status = req.body.status;
+    const returnTo = safeReturnTo(req.body.returnTo);
     if (!STATUSES.includes(status)) {
       return res.status(400).render('error', { message: 'Invalid status.' });
     }
@@ -1283,7 +1298,7 @@ router.post(
       const err = await checkCompletionRequirements(job.id);
       if (err) {
         setFlash(req, 'error', err);
-        return res.redirect(`/jobs/${job.id}`);
+        return res.redirect(withReturnTo(`/jobs/${job.id}`, returnTo));
       }
     }
 
@@ -1297,7 +1312,7 @@ router.post(
       .run({ id: job.id, status });
 
     setFlash(req, 'success', `Job marked ${status.replace('_', ' ')}.`);
-    res.redirect('/jobs');
+    res.redirect(withReturnTo(`/jobs/${job.id}`, returnTo));
   })
 );
 
@@ -1310,7 +1325,7 @@ router.post(
     await db
       .prepare(`UPDATE jobs SET photos_na = ?, stock_na = ?, updated_at = now_utc_text() WHERE id = ?`)
       .run(req.body.photos_na === '1' ? 1 : 0, req.body.stock_na === '1' ? 1 : 0, job.id);
-    res.redirect(`/jobs/${job.id}`);
+    res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
 );
 
@@ -1368,8 +1383,7 @@ router.post(
     await autoAllocateAirconStock(result.lastInsertRowid, job.title, req.user.id);
 
     setFlash(req, 'success', 'Job duplicated into Unassigned shifts.');
-    const returnTo = typeof req.body.returnTo === 'string' && req.body.returnTo.startsWith('/') ? req.body.returnTo : null;
-    res.redirect(returnTo || homeRoute(req.user));
+    res.redirect(safeReturnTo(req.body.returnTo) || homeRoute(req.user));
   })
 );
 
@@ -1389,8 +1403,7 @@ router.post(
     await db.prepare('DELETE FROM jobs WHERE id = ?').run(job.id);
 
     setFlash(req, 'success', `Job "${job.title}" deleted.`);
-    const returnTo = typeof req.body.returnTo === 'string' && req.body.returnTo.startsWith('/') ? req.body.returnTo : null;
-    res.redirect(returnTo || '/jobs');
+    res.redirect(safeReturnTo(req.body.returnTo) || '/jobs');
   })
 );
 
@@ -1428,7 +1441,7 @@ router.post(
     }
 
     setFlash(req, 'success', files.length ? `${files.length} photo${files.length > 1 ? 's' : ''} uploaded.` : 'No photos selected.');
-    res.redirect(`/jobs/${req.job.id}`);
+    res.redirect(withReturnTo(`/jobs/${req.job.id}`, safeReturnTo(req.body.returnTo)));
   })
 );
 
@@ -1462,7 +1475,7 @@ router.post(
     await db.prepare('DELETE FROM job_attachments WHERE id = ?').run(attachment.id);
 
     setFlash(req, 'success', 'Photo removed.');
-    res.redirect(`/jobs/${req.job.id}`);
+    res.redirect(withReturnTo(`/jobs/${req.job.id}`, safeReturnTo(req.body.returnTo)));
   })
 );
 

@@ -1,9 +1,10 @@
 <%- include('../partials/header', { title: 'Schedule', wide: true }) %>
+<% var _returnTo = encodeURIComponent(currentUrl); %>
 <div class="page-header sched-page-header">
   <h1>Schedule</h1>
   <div class="actions">
     <% if (isAdmin) { %><a class="btn btn-secondary btn-sm" href="/jobs">List view</a><% } %>
-    <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new?date=<%= dayIso %>">+ New job</a><% } %>
+    <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new?date=<%= dayIso %>&returnTo=<%= _returnTo %>">+ New job</a><% } %>
   </div>
 </div>
 
@@ -21,7 +22,7 @@
         <a class="mobile-view-btn" href="?view=week&start=<%= dayIso %>">List</a>
         <span class="mobile-view-btn active">Day</span>
       </div>
-      <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new?date=<%= dayIso %>">+ New</a><% } %>
+      <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new?date=<%= dayIso %>&returnTo=<%= _returnTo %>">+ New</a><% } %>
     </div>
   </div>
 
@@ -47,7 +48,7 @@
       <p class="mobile-no-jobs-center">No jobs scheduled for this day</p>
     <% } else { %>
       <% mobileDayJobs.forEach(function(j) { %>
-        <a href="/jobs/<%= j.id %>"
+        <a href="/jobs/<%= j.id %>?returnTo=<%= _returnTo %>"
            class="mobile-job-card shift-<%= j.status %><%= j.color ? ' has-color' : '' %>"
            <% if (j.color) { %>style="background-color: <%= j.color %>;"<% } %>>
           <div class="mobile-job-time">

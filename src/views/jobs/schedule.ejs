@@ -1,10 +1,11 @@
 <%- include('../partials/header', { title: 'Schedule', wide: true }) %>
+<% var _returnTo = encodeURIComponent(currentUrl); %>
 <div class="page-header sched-page-header">
   <h1>Schedule</h1>
   <div class="actions">
     <% if (isAdmin) { %><a class="btn btn-secondary btn-sm" href="/jobs">List view</a><% } %>
     <% if (isAdmin) { %><a class="btn btn-secondary btn-sm" href="/jobs/smart-schedule">Smart Schedule</a><% } %>
-    <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new">+ New job</a><% } %>
+    <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new?returnTo=<%= _returnTo %>">+ New job</a><% } %>
   </div>
 </div>
 
@@ -38,7 +39,7 @@
         <span class="mobile-view-btn active">List</span>
         <a class="mobile-view-btn" href="?view=day&start=<%= todayIso %>">Day</a>
       </div>
-      <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new">+ New</a><% } %>
+      <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new?returnTo=<%= _returnTo %>">+ New</a><% } %>
     </div>
     <div class="mobile-week-nav">
       <a class="mobile-day-nav-btn" href="?view=week&start=<%= prevStartIso %>">‹</a>
@@ -75,13 +76,13 @@
           <span class="mobile-day-label<%= d.iso === todayIso ? ' is-today' : '' %>">
             <%= d.date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' }) %>
           </span>
-          <% if (isAdmin) { %><a class="mobile-add-btn" href="/jobs/new?date=<%= d.iso %>" title="Add job">+</a><% } %>
+          <% if (isAdmin) { %><a class="mobile-add-btn" href="/jobs/new?date=<%= d.iso %>&returnTo=<%= _returnTo %>" title="Add job">+</a><% } %>
         </div>
         <% if (!d.jobs.length) { %>
           <p class="mobile-no-jobs">No jobs scheduled</p>
         <% } else { %>
           <% d.jobs.forEach(function(j) { %>
-            <a href="/jobs/<%= j.id %>"
+            <a href="/jobs/<%= j.id %>?returnTo=<%= _returnTo %>"
                class="mobile-job-card shift-<%= j.status %><%= j.color ? ' has-color' : '' %>"
                <% if (j.color) { %>style="background-color: <%= j.color %>;"<% } %>>
               <div class="mobile-job-time">
@@ -135,7 +136,7 @@ document.getElementById('desktop-week-picker').addEventListener('change', functi
   <div class="sched-grid" id="sched-grid" data-csrf="<%= csrfToken %>" data-is-admin="<%= isAdmin ? '1' : '0' %>">
     <div class="sched-cell sched-corner">Trades</div>
     <% days.forEach(d => { %>
-      <a class="sched-cell sched-day-header" href="/jobs/new?date=<%= d.iso %>" title="Add job on <%= d.label %>">
+      <a class="sched-cell sched-day-header" href="/jobs/new?date=<%= d.iso %>&returnTo=<%= _returnTo %>" title="Add job on <%= d.label %>">
         <span class="sched-day-label"><%= d.label %></span>
         <span class="sched-day-plus" aria-hidden="true">+</span>
       </a>

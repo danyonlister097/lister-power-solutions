@@ -75,7 +75,7 @@
       setOptionalField('job-modal-description-label', 'job-modal-description', d.description);
       setOptionalField('job-modal-notes-label', 'job-modal-notes', d.notes);
 
-      document.getElementById('job-modal-open').setAttribute('href', '/jobs/' + d.jobId);
+      document.getElementById('job-modal-open').setAttribute('href', '/jobs/' + d.jobId + '?returnTo=' + encodeURIComponent(currentScheduleUrl()));
       document.getElementById('job-modal-edit').setAttribute('href', '/jobs/' + d.jobId + '/edit?returnTo=' + encodeURIComponent(currentScheduleUrl()));
 
       modal.hidden = false;

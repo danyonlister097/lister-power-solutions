@@ -1,9 +1,10 @@
 <%- include('../partials/header', { title: 'Schedule', wide: true }) %>
+<% var _returnTo = encodeURIComponent(currentUrl); %>
 <div class="page-header">
   <h1>Schedule</h1>
   <div class="actions">
     <% if (isAdmin) { %><a class="btn btn-secondary btn-sm" href="/jobs">List view</a><% } %>
-    <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new">+ New job</a><% } %>
+    <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new?returnTo=<%= _returnTo %>">+ New job</a><% } %>
   </div>
 </div>
 

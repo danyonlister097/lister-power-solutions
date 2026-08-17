@@ -61,13 +61,15 @@
 
   <% if (currentUser.role === 'admin') { %>
     <div class="actions">
-      <a class="btn btn-secondary btn-sm" href="/jobs/<%= job.id %>/edit?returnTo=/jobs/<%= job.id %>">Edit job</a>
+      <a class="btn btn-secondary btn-sm" href="/jobs/<%= job.id %>/edit?returnTo=<%= encodeURIComponent(closeUrl) %>">Edit job</a>
       <form method="post" action="/jobs/<%= job.id %>/duplicate">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="returnTo" value="<%= closeUrl %>">
         <button type="submit" class="btn btn-secondary btn-sm">Duplicate</button>
       </form>
       <form method="post" action="/jobs/<%= job.id %>/delete" data-confirm="Delete this job? This cannot be undone.">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="returnTo" value="<%= closeUrl %>">
         <button type="submit" class="btn btn-danger btn-sm">Delete</button>
       </form>
     </div>
@@ -93,6 +95,7 @@
   <% } %>
   <form method="post" action="/jobs/<%= job.id %>/actual-start" class="form-row" data-preserve-scroll>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="returnTo" value="<%= closeUrl %>">
     <label>
       <%= job.actual_start ? 'Update' : 'Start time' %>
       <input type="datetime-local" name="actual_start" value="<%= toLocalInput(job.actual_start) %>">
@@ -117,6 +120,7 @@
           <form method="post" action="/jobs/<%= job.id %>/attachments/<%= a.id %>/delete"
                 data-confirm="Remove this photo?" data-preserve-scroll>
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="returnTo" value="<%= closeUrl %>">
             <button type="submit" class="attachment-delete" aria-label="Remove photo">&times;</button>
           </form>
         </div>
@@ -126,6 +130,7 @@
 
   <form method="post" action="/jobs/<%= job.id %>/attachments" enctype="multipart/form-data" class="attachment-upload-form" data-preserve-scroll>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="returnTo" value="<%= closeUrl %>">
     <label>
       Add photos
       <input type="file" name="photos" accept="image/*" capture="environment" multiple>
@@ -134,6 +139,7 @@
   </form>
   <form method="post" action="/jobs/<%= job.id %>/na-flags" data-preserve-scroll style="margin-top:0.75rem;">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="returnTo" value="<%= closeUrl %>">
     <input type="hidden" name="stock_na" value="<%= job.stock_na ? '1' : '0' %>">
     <label class="toggle-label">
       <span class="text-muted" style="font-size:0.85rem;">N/A — no photos required</span>
@@ -252,6 +258,7 @@
     </form>
     <form method="post" action="/jobs/<%= job.id %>/na-flags" data-preserve-scroll style="margin-top:0.75rem;">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="returnTo" value="<%= closeUrl %>">
       <input type="hidden" name="photos_na" value="<%= job.photos_na ? '1' : '0' %>">
       <label class="toggle-label">
         <span class="text-muted" style="font-size:0.85rem;">N/A — no stock used on this job</span>
@@ -353,6 +360,7 @@
 
     <form method="post" action="/jobs/<%= job.id %>/costing/quote" class="form-row form-row-2" data-preserve-scroll>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="returnTo" value="<%= closeUrl %>">
       <label>
         Quoted amount ($) &mdash; ex GST
         <input type="number" name="quoted_amount" id="job-quoted-amount" step="0.01" value="<%= costing.quotedAmount !== null ? costing.quotedAmount : '' %>">
@@ -389,6 +397,7 @@
               </span>
               <form method="post" action="/jobs/<%= job.id %>/costing/items/<%= i.id %>/delete" data-confirm="Remove this cost item?" data-preserve-scroll>
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="returnTo" value="<%= closeUrl %>">
                 <button type="submit" class="btn-link">Remove</button>
               </form>
             </span>
@@ -399,6 +408,7 @@
 
     <form method="post" action="/jobs/<%= job.id %>/costing/items" class="form-row form-row-2" data-preserve-scroll>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="returnTo" value="<%= closeUrl %>">
       <label>
         Category
         <select name="category">
@@ -465,6 +475,7 @@
   <% } %>
   <form method="post" action="/jobs/<%= job.id %>/actual-end" class="form-row" data-preserve-scroll>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="returnTo" value="<%= closeUrl %>">
     <label>
       <%= job.actual_end ? 'Update' : 'Finish time' %>
       <input type="datetime-local" name="actual_end" value="<%= toLocalInput(job.actual_end) %>">
@@ -485,6 +496,7 @@
   <% } %>
   <form method="post" action="/jobs/<%= job.id %>/status" class="form-row form-row-2">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="returnTo" value="<%= closeUrl %>">
     <select name="status">
       <% STATUSES.forEach(s => { %>
         <option value="<%= s %>" <%= job.status === s ? 'selected' : '' %>><%= s.replace('_', ' ') %></option>
