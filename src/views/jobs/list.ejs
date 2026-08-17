@@ -66,53 +66,157 @@
   <button type="submit" class="btn btn-secondary">Filter</button>
 </form>
 
+
 <% if (jobs.length === 0) { %>
   <div class="empty-state">No jobs match these filters.</div>
-<% } else {
-  let lastDay = null;
-  jobs.forEach(j => {
-    const day = j.scheduled_start
-      ? new Date(j.scheduled_start).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-      : 'Not scheduled';
-    if (day !== lastDay) { lastDay = day; %>
-      <div class="section-heading"><%= day %></div>
-    <% }
-%>
-    <div class="list-item row-menu-hover-target" style="padding:0;gap:0;">
-      <% if (isAdmin) { %><label style="padding:0 0 0 1rem;display:flex;align-items:center;cursor:pointer;" aria-label="Select job"><input type="checkbox" class="job-select" value="<%= j.id %>"></label><% } %>
-      <a href="/jobs/<%= j.id %>" style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1rem;gap:0.5rem;text-decoration:none;color:inherit;min-width:0;">
-        <span style="min-width:0;">
-          <span class="list-item-title"><%= j.title %></span><br>
-          <span class="list-item-meta">
-            <%= j.customer_name %>
-            <% if (j.all_day) { %> &middot; All day
-            <% } else if (j.scheduled_start) { %> &middot; <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) %><% } %>
-            <% if (j.duration_minutes) { %><span style="margin-left:0.5rem;">&middot; Estimated duration: <%= j.duration_minutes < 60 ? j.duration_minutes + ' min' : (Math.round(j.duration_minutes / 6) / 10) + 'h' %></span><% } %>
-            <% if (j.assigneeNames) { %> &middot; <%= j.assigneeNames %><% } %>
-          </span>
-        </span>
-        <span class="badge badge-<%= j.status %>"><%= j.status.replace('_', ' ') %></span>
-      </a>
-      <% if (isAdmin) { %>
-      <div class="row-menu-cell" style="padding-right:0.5rem;position:relative;">
-        <button class="row-menu-btn" aria-label="More actions" aria-expanded="false">⋮</button>
-        <div class="context-menu" hidden>
-          <a class="context-menu-item" href="/jobs/<%= j.id %>/edit?returnTo=<%= encodeURIComponent('/jobs?range=' + range + '&status=' + status + '&assignedTo=' + (assignedTo || '')) %>">Edit</a>
-          <form method="post" action="/jobs/<%= j.id %>/duplicate" style="margin:0;">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <input type="hidden" name="returnTo" value="/jobs?range=<%= range %>&status=<%= status %>&assignedTo=<%= assignedTo %>">
-            <button type="submit" class="context-menu-item">Duplicate</button>
-          </form>
-          <form method="post" action="/jobs/<%= j.id %>/delete" data-confirm="Delete this job? This cannot be undone." style="margin:0;">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <input type="hidden" name="returnTo" value="/jobs?range=<%= range %>&status=<%= status %>&assignedTo=<%= assignedTo %>">
-            <button type="submit" class="context-menu-item context-menu-danger">Delete</button>
-          </form>
+<% } else { %>
+  <% var _returnTo = '/jobs?range=' + range + '&status=' + status + '&assignedTo=' + (assignedTo || ''); %>
+  <div id="jobs-list-root">
+    <%
+      let lastDay = null;
+      let openGroup = false;
+      jobs.forEach(j => {
+        const day = j.scheduled_start
+          ? new Date(j.scheduled_start).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+          : 'Not scheduled';
+        if (day !== lastDay) {
+          lastDay = day;
+          if (openGroup) { %></div><% }
+          openGroup = true;
+    %>
+      <div class="jobs-day-group">
+        <div class="section-heading"><%= day %></div>
+    <% } %>
+        <div class="list-item row-menu-hover-target jobs-row" style="padding:0;gap:0;">
+          <% if (isAdmin) { %><label style="padding:0 0 0 1rem;display:flex;align-items:center;cursor:pointer;" aria-label="Select job"><input type="checkbox" class="job-select" value="<%= j.id %>"></label><% } %>
+          <a href="/jobs/<%= j.id %>?returnTo=<%= encodeURIComponent(_returnTo) %>" style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1rem;gap:0.5rem;text-decoration:none;color:inherit;min-width:0;">
+            <span style="min-width:0;">
+              <span class="list-item-title"><%= j.title %></span><br>
+              <span class="list-item-meta">
+                <%= j.customer_name %>
+                <% if (j.all_day) { %> &middot; All day
+                <% } else if (j.scheduled_start) { %> &middot; <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) %><% } %>
+                <% if (j.duration_minutes) { %><span style="margin-left:0.5rem;">&middot; Estimated duration: <%= j.duration_minutes < 60 ? j.duration_minutes + ' min' : (Math.round(j.duration_minutes / 6) / 10) + 'h' %></span><% } %>
+                <% if (j.assigneeNames) { %> &middot; <%= j.assigneeNames %><% } %>
+              </span>
+            </span>
+            <span class="badge badge-<%= j.status %>"><%= j.status.replace('_', ' ') %></span>
+          </a>
+          <% if (isAdmin) { %>
+          <div class="row-menu-cell" style="padding-right:0.5rem;position:relative;">
+            <button class="row-menu-btn" aria-label="More actions" aria-expanded="false">⋮</button>
+            <div class="context-menu" hidden>
+              <a class="context-menu-item" href="/jobs/<%= j.id %>/edit?returnTo=<%= encodeURIComponent(_returnTo) %>">Edit</a>
+              <form method="post" action="/jobs/<%= j.id %>/duplicate" style="margin:0;">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="returnTo" value="<%= _returnTo %>">
+                <button type="submit" class="context-menu-item">Duplicate</button>
+              </form>
+              <form method="post" action="/jobs/<%= j.id %>/delete" data-confirm="Delete this job? This cannot be undone." style="margin:0;">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="returnTo" value="<%= _returnTo %>">
+                <button type="submit" class="context-menu-item context-menu-danger">Delete</button>
+              </form>
+            </div>
+          </div>
+          <% } %>
         </div>
-      </div>
-      <% } %>
+    <% }) %>
     </div>
-<% }) } %>
+  </div>
+
+  <div class="filters" style="justify-content:flex-end;align-items:center;gap:1rem;border:none;padding:0.5rem 0;">
+    <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--color-muted);">
+      Per page
+      <select id="jobs-page-size" style="width:auto;">
+        <option value="20">20</option>
+        <option value="40">40</option>
+        <option value="60">60</option>
+      </select>
+    </label>
+  </div>
+  <div class="inventory-pagination" id="jobs-pagination" hidden>
+    <button type="button" class="btn btn-secondary btn-sm" id="jobs-prev-page">&larr; Previous</button>
+    <span id="jobs-page-info" class="text-muted"></span>
+    <button type="button" class="btn btn-secondary btn-sm" id="jobs-next-page">Next &rarr;</button>
+  </div>
+
+  <script>
+  (function () {
+    var pageSizeSelect = document.getElementById('jobs-page-size');
+    var prevBtn = document.getElementById('jobs-prev-page');
+    var nextBtn = document.getElementById('jobs-next-page');
+    var pageInfo = document.getElementById('jobs-page-info');
+    var pager = document.getElementById('jobs-pagination');
+    var groups = Array.prototype.slice.call(document.querySelectorAll('.jobs-day-group'));
+    var rows = Array.prototype.slice.call(document.querySelectorAll('.jobs-row'));
+    if (!rows.length) return;
+
+    var currentPage = 1;
+    // Keyed by the filter querystring so paging/scroll is remembered
+    // per filter combination, not shared across "All"/"Day"/"Week"/etc.
+    var STATE_KEY = 'jobsListState:' + window.location.search;
+
+    function render() {
+      var pageSize = Number.parseInt(pageSizeSelect.value, 10) || 20;
+      var totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+
+      var start = (currentPage - 1) * pageSize;
+      var visible = new Set(rows.slice(start, start + pageSize));
+
+      rows.forEach(function (row) { row.hidden = !visible.has(row); });
+      groups.forEach(function (group) {
+        var anyVisible = Array.prototype.some.call(group.querySelectorAll('.jobs-row'), function (r) { return !r.hidden; });
+        group.hidden = !anyVisible;
+      });
+
+      pageInfo.textContent = 'Page ' + currentPage + ' of ' + totalPages;
+      prevBtn.disabled = currentPage <= 1;
+      nextBtn.disabled = currentPage >= totalPages;
+      pager.hidden = totalPages <= 1;
+    }
+
+    // Restore page/page-size/scroll from the last visit to this exact
+    // filtered list - e.g. returning via a job's Close button - so a long
+    // list doesn't jump back to page 1, top of page, every time.
+    var restoredScroll = null;
+    try {
+      var saved = JSON.parse(sessionStorage.getItem(STATE_KEY) || 'null');
+      if (saved) {
+        if (saved.pageSize) pageSizeSelect.value = saved.pageSize;
+        if (saved.page) currentPage = saved.page;
+        if (typeof saved.scroll === 'number') restoredScroll = saved.scroll;
+      }
+    } catch (e) {}
+
+    render();
+    if (restoredScroll !== null) window.scrollTo(0, restoredScroll);
+
+    function resetToTop() {
+      currentPage = 1;
+      render();
+      window.scrollTo(0, 0);
+    }
+
+    pageSizeSelect.addEventListener('change', resetToTop);
+    prevBtn.addEventListener('click', function () { currentPage--; render(); window.scrollTo(0, 0); });
+    nextBtn.addEventListener('click', function () { currentPage++; render(); window.scrollTo(0, 0); });
+
+    // Saved right before navigating away (e.g. clicking into a job), not on
+    // every interaction, so the state always reflects where the user was
+    // the moment they left.
+    window.addEventListener('pagehide', function () {
+      sessionStorage.setItem(STATE_KEY, JSON.stringify({
+        pageSize: pageSizeSelect.value,
+        page: currentPage,
+        scroll: window.scrollY,
+      }));
+    });
+  })();
+  </script>
+<% } %>
 
 <% if (isAdmin) { %>
 <form id="bulk-delete-form" method="post" action="/jobs/bulk-delete" style="display:none;">
