@@ -1312,7 +1312,7 @@ router.post(
       .run({ id: job.id, status });
 
     setFlash(req, 'success', `Job marked ${status.replace('_', ' ')}.`);
-    res.redirect(withReturnTo(`/jobs/${job.id}`, returnTo));
+    res.redirect(returnTo || `/jobs/${job.id}`);
   })
 );
 
