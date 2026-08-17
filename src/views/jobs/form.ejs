@@ -166,20 +166,21 @@
   </div>
   <label>
     Expected duration <span style="font-weight:400;">(helps Smart Schedule size the job before a specific time slot is set)</span>
+    <%
+      function durationOptionLabel(mins) {
+        if (mins < 60) return mins + ' minutes';
+        var h = mins / 60;
+        var label = (h % 1 === 0 ? h : h.toFixed(1)) + (h === 1 ? ' hour' : ' hours');
+        return mins === 480 ? label + ' (full day)' : label;
+      }
+      var durationOptions = [15, 30, 45];
+      for (var _durMin = 60; _durMin <= 480; _durMin += 30) durationOptions.push(_durMin);
+    %>
     <select name="duration_minutes" id="job-duration">
       <option value="" <%= !job.duration_minutes ? 'selected' : '' %>>Not set</option>
-      <option value="15" <%= Number(job.duration_minutes) === 15 ? 'selected' : '' %>>15 minutes</option>
-      <option value="30" <%= Number(job.duration_minutes) === 30 ? 'selected' : '' %>>30 minutes</option>
-      <option value="45" <%= Number(job.duration_minutes) === 45 ? 'selected' : '' %>>45 minutes</option>
-      <option value="60" <%= Number(job.duration_minutes) === 60 ? 'selected' : '' %>>1 hour</option>
-      <option value="90" <%= Number(job.duration_minutes) === 90 ? 'selected' : '' %>>1.5 hours</option>
-      <option value="120" <%= Number(job.duration_minutes) === 120 ? 'selected' : '' %>>2 hours</option>
-      <option value="150" <%= Number(job.duration_minutes) === 150 ? 'selected' : '' %>>2.5 hours</option>
-      <option value="180" <%= Number(job.duration_minutes) === 180 ? 'selected' : '' %>>3 hours</option>
-      <option value="240" <%= Number(job.duration_minutes) === 240 ? 'selected' : '' %>>4 hours</option>
-      <option value="300" <%= Number(job.duration_minutes) === 300 ? 'selected' : '' %>>5 hours</option>
-      <option value="360" <%= Number(job.duration_minutes) === 360 ? 'selected' : '' %>>6 hours</option>
-      <option value="480" <%= Number(job.duration_minutes) === 480 ? 'selected' : '' %>>8 hours (full day)</option>
+      <% durationOptions.forEach(function (m) { %>
+        <option value="<%= m %>" <%= Number(job.duration_minutes) === m ? 'selected' : '' %>><%= durationOptionLabel(m) %></option>
+      <% }) %>
     </select>
   </label>
 

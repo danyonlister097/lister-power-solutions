@@ -631,7 +631,8 @@ router.post(
   })
 );
 
-const DURATION_OPTIONS_MINUTES = new Set([15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480]);
+// 15/30/45 minutes, then half-hour increments from 1 hour up to 8 hours (480 minutes).
+const DURATION_OPTIONS_MINUTES = new Set([15, 30, 45, ...Array.from({ length: 15 }, (_, i) => 60 + i * 30)]);
 
 function parseDurationMinutes(raw) {
   const n = Number.parseInt(raw, 10);
