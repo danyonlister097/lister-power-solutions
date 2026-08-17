@@ -49,6 +49,52 @@ function withReturnTo(path, returnTo) {
   return returnTo ? `${path}?returnTo=${encodeURIComponent(returnTo)}` : path;
 }
 
+// job_costs/job_cost_items/job_stock_allocations/job_assets/job_forms/quotes
+// all reference jobs(id) with no ON DELETE CASCADE, so a plain
+// `DELETE FROM jobs` fails with an opaque foreign-key-violation exception
+// (a generic error page) the moment a job has any costing, stock, linked
+// asset, form, or quote against it - which most real jobs do. This unwinds
+// all of it first. Invoices are financial records and are never silently
+// deleted here - callers must check hasInvoices() and block the delete
+// instead of calling this.
+async function hasInvoices(jobIds) {
+  const placeholders = jobIds.map(() => '?').join(',');
+  const row = await db.prepare(`SELECT COUNT(*) AS n FROM invoices WHERE job_id IN (${placeholders})`).get(...jobIds);
+  return Number(row.n) > 0;
+}
+
+async function deleteJobsCascade(jobIds) {
+  const placeholders = jobIds.map(() => '?').join(',');
+
+  const attachments = await db.prepare(`SELECT filename FROM job_attachments WHERE job_id IN (${placeholders})`).all(...jobIds);
+  await Promise.all(attachments.map((a) => deleteFile(a.filename)));
+  await db.prepare(`DELETE FROM job_attachments WHERE job_id IN (${placeholders})`).run(...jobIds);
+
+  const forms = await db.prepare(`SELECT filename FROM job_forms WHERE job_id IN (${placeholders})`).all(...jobIds);
+  await Promise.all(forms.map((f) => deleteFile(f.filename)));
+  await db.prepare(`DELETE FROM job_forms WHERE job_id IN (${placeholders})`).run(...jobIds);
+
+  // Stock taken off a deleted job still needs to go back on the shelf.
+  const allocations = await db.prepare(`SELECT item_id, quantity FROM job_stock_allocations WHERE job_id IN (${placeholders})`).all(...jobIds);
+  for (const a of allocations) {
+    await db
+      .prepare(`UPDATE inventory_items SET quantity_on_hand = quantity_on_hand + ?, updated_at = datetime('now') WHERE id = ?`)
+      .run(a.quantity, a.item_id);
+  }
+  // Allocations reference job_cost_items, so they must go first.
+  await db.prepare(`DELETE FROM job_stock_allocations WHERE job_id IN (${placeholders})`).run(...jobIds);
+  await db.prepare(`DELETE FROM job_cost_items WHERE job_id IN (${placeholders})`).run(...jobIds);
+  await db.prepare(`DELETE FROM job_costs WHERE job_id IN (${placeholders})`).run(...jobIds);
+  await db.prepare(`DELETE FROM job_assets WHERE job_id IN (${placeholders})`).run(...jobIds);
+
+  // A quote that created this job is a sales record worth keeping - just
+  // unlink it rather than deleting it.
+  await db.prepare(`UPDATE quotes SET job_id = NULL WHERE job_id IN (${placeholders})`).run(...jobIds);
+
+  await db.prepare(`DELETE FROM job_assignees WHERE job_id IN (${placeholders})`).run(...jobIds);
+  await db.prepare(`DELETE FROM jobs WHERE id IN (${placeholders})`).run(...jobIds);
+}
+
 async function setAssignees(jobId, userIds) {
   await db.prepare('DELETE FROM job_assignees WHERE job_id = ?').run(jobId);
   const insert = db.prepare('INSERT INTO job_assignees (job_id, user_id) VALUES (?, ?)');
@@ -740,14 +786,12 @@ router.post(
       return res.redirect('/jobs');
     }
 
-    const placeholders = ids.map(() => '?').join(',');
-    const attachments = await db
-      .prepare(`SELECT filename FROM job_attachments WHERE job_id IN (${placeholders})`)
-      .all(...ids);
-    await Promise.all(attachments.map((a) => deleteFile(a.filename)));
-    await db.prepare(`DELETE FROM job_attachments WHERE job_id IN (${placeholders})`).run(...ids);
-    await db.prepare(`DELETE FROM job_assignees WHERE job_id IN (${placeholders})`).run(...ids);
-    await db.prepare(`DELETE FROM jobs WHERE id IN (${placeholders})`).run(...ids);
+    if (await hasInvoices(ids)) {
+      setFlash(req, 'error', "One or more selected jobs have an invoice raised against them and can't be deleted. Delete those invoices first.");
+      return res.redirect('/jobs');
+    }
+
+    await deleteJobsCascade(ids);
 
     setFlash(req, 'success', `${ids.length} job${ids.length === 1 ? '' : 's'} deleted.`);
     res.redirect('/jobs');
@@ -1432,12 +1476,12 @@ router.post(
     const job = await db.prepare('SELECT id, title FROM jobs WHERE id = ?').get(req.params.id);
     if (!job) return res.status(404).render('error', { message: 'Job not found.' });
 
-    const attachments = await db.prepare('SELECT filename FROM job_attachments WHERE job_id = ?').all(job.id);
-    await Promise.all(attachments.map((a) => deleteFile(a.filename)));
+    if (await hasInvoices([job.id])) {
+      setFlash(req, 'error', `"${job.title}" has an invoice raised against it and can't be deleted. Delete the invoice first.`);
+      return res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
+    }
 
-    await db.prepare('DELETE FROM job_attachments WHERE job_id = ?').run(job.id);
-    await db.prepare('DELETE FROM job_assignees WHERE job_id = ?').run(job.id);
-    await db.prepare('DELETE FROM jobs WHERE id = ?').run(job.id);
+    await deleteJobsCascade([job.id]);
 
     setFlash(req, 'success', `Job "${job.title}" deleted.`);
     res.redirect(safeReturnTo(req.body.returnTo) || '/jobs');
