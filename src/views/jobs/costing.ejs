@@ -13,7 +13,8 @@
         <tr>
           <th>Job</th>
           <th>Customer</th>
-          <th>Quoted</th>
+          <th>Quoted (ex GST)</th>
+          <th>Quoted (inc GST)</th>
           <th>Cost</th>
           <th>Profit</th>
           <th>Margin</th>
@@ -25,6 +26,7 @@
             <td><a href="/jobs/<%= r.id %>"><%= r.title %></a></td>
             <td><%= r.customer_name %></td>
             <td><%= formatMoney(r.quoted_amount) %></td>
+            <td><%= formatMoney(r.quoted_amount !== null ? r.quoted_amount * 1.1 : null) %></td>
             <td><%= formatMoney(r.total_cost) %></td>
             <td class="<%= r.profit !== null && r.profit < 0 ? 'timesheet-overtime' : '' %>">
               <%= formatMoney(r.profit) %>

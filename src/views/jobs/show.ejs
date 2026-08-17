@@ -335,7 +335,11 @@
     <div class="leave-stats">
       <div class="leave-stat leave-stat-pending">
         <span class="leave-stat-value"><%= formatMoney(costing.quotedAmount) %></span>
-        <span class="leave-stat-label">Quoted</span>
+        <span class="leave-stat-label">Quoted (ex GST)</span>
+      </div>
+      <div class="leave-stat leave-stat-pending">
+        <span class="leave-stat-value"><%= formatMoney(costing.quotedAmount !== null ? costing.quotedAmount * 1.1 : null) %></span>
+        <span class="leave-stat-label">Quoted (inc GST)</span>
       </div>
       <div class="leave-stat leave-stat-declined">
         <span class="leave-stat-value"><%= formatMoney(costing.totalCost) %></span>
@@ -350,13 +354,26 @@
     <form method="post" action="/jobs/<%= job.id %>/costing/quote" class="form-row form-row-2" data-preserve-scroll>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <label>
-        Quoted amount ($)
-        <input type="number" name="quoted_amount" step="0.01" value="<%= costing.quotedAmount !== null ? costing.quotedAmount : '' %>">
+        Quoted amount ($) &mdash; ex GST
+        <input type="number" name="quoted_amount" id="job-quoted-amount" step="0.01" value="<%= costing.quotedAmount !== null ? costing.quotedAmount : '' %>">
+        <span id="job-quoted-amount-incgst" class="text-muted" style="font-size:0.8rem;display:block;margin-top:0.25rem;"></span>
       </label>
       <div class="actions">
         <button type="submit" class="btn btn-secondary btn-sm">Save quote</button>
       </div>
     </form>
+    <script>
+      (function () {
+        var input = document.getElementById('job-quoted-amount');
+        var hint = document.getElementById('job-quoted-amount-incgst');
+        function updateHint() {
+          var v = parseFloat(input.value);
+          hint.textContent = Number.isFinite(v) ? '= $' + (v * 1.1).toFixed(2) + ' inc GST' : '';
+        }
+        input.addEventListener('input', updateHint);
+        updateHint();
+      })();
+    </script>
 
     <div class="section-heading">Cost items</div>
     <% if (!costing.costItems.length) { %>

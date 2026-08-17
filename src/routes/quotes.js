@@ -179,7 +179,11 @@ router.post(
 
 // Accepting a quote creates the job it was for, carrying the quote's total
 // across as the job's quoted amount so Job Costing's profit figure lines up
-// with what was actually quoted to the customer.
+// with what was actually quoted to the customer. job_costs.quoted_amount is
+// ex-GST (matching job_cost_items.unit_cost, which is also ex-GST - see
+// inventory_items.unit_cost), so the quote's GST-inclusive total is divided
+// down here; quote_items.unit_price itself is stored inc-GST (see the print
+// view's subtotal/gst split).
 router.post(
   '/:id/accept',
   verifyCsrf,
@@ -214,7 +218,7 @@ router.post(
         req.user.id
       );
 
-    await db.prepare('INSERT INTO job_costs (job_id, quoted_amount) VALUES (?, ?)').run(result.lastInsertRowid, total);
+    await db.prepare('INSERT INTO job_costs (job_id, quoted_amount) VALUES (?, ?)').run(result.lastInsertRowid, total / 1.1);
 
     await db
       .prepare("UPDATE quotes SET status = 'accepted', job_id = ?, decided_at = datetime('now'), updated_at = datetime('now') WHERE id = ?")
