@@ -727,6 +727,10 @@ a.list-item:hover { border-color: var(--color-primary); }
   white-space: nowrap;
 }
 
+/* A <button class="badge"> (e.g. the clickable renewal-status chip) needs
+   the browser's default button chrome stripped back off. */
+button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
+
 .badge-scheduled { background: var(--color-primary-tint); color: var(--color-primary); }
 .badge-in_progress { background: #fff4e0; color: #9a6300; }
 .badge-completed { background: #e3f6e8; color: var(--color-success); }

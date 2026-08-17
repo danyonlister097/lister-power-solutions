@@ -724,3 +724,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS dashboard_layout TEXT;
 -- job creation - lets the Jobs list be filtered by kind of work, separate
 -- from status/date range. See JOB_CATEGORIES in routes/jobs.js.
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category TEXT;
+
+-- When set, this document is also surfaced on the Renewals tab as an
+-- expiry-tracked item (live-joined in GET /renewals, not copied) - so a
+-- licence/document only has to be entered once instead of twice.
+ALTER TABLE license_documents ADD COLUMN IF NOT EXISTS create_renewal INTEGER NOT NULL DEFAULT 0;

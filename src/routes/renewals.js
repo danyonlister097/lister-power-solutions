@@ -89,9 +89,40 @@ router.get(
       source: 'asset',
     }));
 
+    // Documents/Licensing items with "create a renewal" ticked - live-joined
+    // (not copied) so there's nothing to keep in sync: ticking/unticking the
+    // box on the document is the only thing that controls whether it shows
+    // up here.
+    let flaggedDocuments = [];
+    if (!cat || cat === 'license_document') {
+      flaggedDocuments = await db
+        .prepare(
+          `SELECT ld.id, ld.title, ld.expiry_date, ld.notes, ld.file_url, u.name AS user_name
+           FROM license_documents ld
+           LEFT JOIN users u ON u.id = ld.user_id
+           WHERE ld.create_renewal = 1 AND ld.expiry_date IS NOT NULL
+           ORDER BY ld.expiry_date ASC`
+        )
+        .all();
+    }
+
+    const documentItems = flaggedDocuments.map((d) => ({
+      id: null,
+      document_id: d.id,
+      title: d.title,
+      category: 'license_document',
+      expiry_date: d.expiry_date,
+      user_name: d.user_name,
+      asset_name: null,
+      notes: d.notes,
+      file_url: d.file_url,
+      source: 'document',
+    }));
+
     const allItems = [
       ...renewals.map((r) => ({ ...r, source: 'renewal' })),
       ...assetItems,
+      ...documentItems,
     ].sort((a, b) => {
       const da = a.expiry_date || '9999-99-99';
       const db_ = b.expiry_date || '9999-99-99';
@@ -217,8 +248,8 @@ router.post(
 
     await db
       .prepare(
-        `INSERT INTO license_documents (title, license_number, user_id, expiry_date, notes, file_url, file_name, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO license_documents (title, license_number, user_id, expiry_date, notes, file_url, file_name, create_renewal, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         b.title.trim(),
@@ -228,6 +259,7 @@ router.post(
         (b.notes || '').trim() || null,
         fileUrl,
         fileName,
+        b.create_renewal ? 1 : 0,
         req.user.id
       );
     setFlash(req, 'success', 'Document added.');
@@ -277,7 +309,7 @@ router.post(
     await db
       .prepare(
         `UPDATE license_documents SET title = ?, license_number = ?, user_id = ?, expiry_date = ?, notes = ?,
-           file_url = ?, file_name = ?, updated_at = datetime('now') WHERE id = ?`
+           file_url = ?, file_name = ?, create_renewal = ?, updated_at = datetime('now') WHERE id = ?`
       )
       .run(
         (b.title || '').trim() || doc.title,
@@ -287,6 +319,7 @@ router.post(
         (b.notes || '').trim() || null,
         fileUrl,
         fileName,
+        b.create_renewal ? 1 : 0,
         doc.id
       );
     setFlash(req, 'success', 'Document updated.');
