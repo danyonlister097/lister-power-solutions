@@ -13,6 +13,11 @@ const { generateSchedule, nextMondayIso, addDaysToIso } = require('../lib/smartS
 const router = express.Router();
 
 const STATUSES = ['unscheduled', 'scheduled', 'in_progress', 'completed', 'cancelled'];
+// Hyphenated rather than "Air Conditioning" with a space - these values ride
+// through the returnTo query string (see safeReturnTo below), whose guard
+// only allows a strict charset with no spaces. Views display them via
+// c.replace(/-/g, ' ') (same trick STATUSES uses with underscores).
+const JOB_CATEGORIES = ['Electrical', 'Air-Conditioning', 'Solar', 'Handyman'];
 
 // The business runs out of Queensland, which doesn't observe daylight
 // saving - so this fixed IANA zone gives the same "today"/"this week"
@@ -24,6 +29,10 @@ const BUSINESS_TZ = 'Australia/Brisbane';
 
 function parseJobColor(raw) {
   return raw && JOB_COLOR_VALUES.has(raw) ? raw : null;
+}
+
+function parseJobCategory(raw) {
+  return raw && JOB_CATEGORIES.includes(raw) ? raw : null;
 }
 
 // Only ever redirect back to a same-site URL we generated ourselves - never
@@ -107,6 +116,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const isAdmin = req.user.role === 'admin';
     const status = req.query.status || '';
+    const category = req.query.category || '';
     const range = req.query.range || 'all';
     const assignedTo = isAdmin ? req.query.assignedTo || '' : String(req.user.id);
 
@@ -124,6 +134,11 @@ router.get(
     if (status) {
       clauses.push('jobs.status = @status');
       params.status = status;
+    }
+
+    if (category) {
+      clauses.push('jobs.category = @category');
+      params.category = category;
     }
 
     if (range === 'today') {
@@ -158,18 +173,32 @@ router.get(
 
     const techs = isAdmin ? await db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY sort_order, name').all() : [];
 
-    // Status counters — scoped to the same assignee filter but across all time/status
+    // Status counters — scoped to the same assignee/category filter but across all time/status
+    const countCategoryClause = category ? 'WHERE jobs.category = @category' : '';
     const countRows = isAdmin && !assignedTo
-      ? await db.prepare('SELECT status, COUNT(*) AS n FROM jobs GROUP BY status').all()
+      ? await db.prepare(`SELECT status, COUNT(*) AS n FROM jobs ${countCategoryClause} GROUP BY status`).all({ category })
       : await db.prepare(
           `SELECT jobs.status, COUNT(*) AS n FROM jobs
            JOIN job_assignees ja ON ja.job_id = jobs.id AND ja.user_id = @uid
+           ${countCategoryClause}
            GROUP BY jobs.status`
-        ).all({ uid: isAdmin ? Number(assignedTo) : req.user.id });
+        ).all({ uid: isAdmin ? Number(assignedTo) : req.user.id, category });
     const statusCounts = Object.fromEntries(STATUSES.map((s) => [s, 0]));
     for (const row of countRows) if (statusCounts[row.status] !== undefined) statusCounts[row.status] = Number(row.n);
 
-    res.render('jobs/list', { title: 'Jobs', jobs, techs, status, range, assignedTo, isAdmin, STATUSES, statusCounts });
+    res.render('jobs/list', {
+      title: 'Jobs',
+      jobs,
+      techs,
+      status,
+      category,
+      range,
+      assignedTo,
+      isAdmin,
+      STATUSES,
+      JOB_CATEGORIES,
+      statusCounts,
+    });
   })
 );
 
@@ -849,11 +878,12 @@ router.get(
     const randomColor = JOB_COLORS[Math.floor(Math.random() * JOB_COLORS.length)].value;
     res.render('jobs/form', {
       title: 'New Job',
-      job: { customer_id: preselectedCustomerId, date: preselectedDate, start_time: '', end_time: '', all_day: false, assigneeIds: [], color: randomColor },
+      job: { customer_id: preselectedCustomerId, date: preselectedDate, start_time: '', end_time: '', all_day: false, assigneeIds: [], color: randomColor, category: null },
       customers,
       techs,
       STATUSES,
       colors: JOB_COLORS,
+      categories: JOB_CATEGORIES,
       error: null,
       returnTo: safeReturnTo(req.query.returnTo),
     });
@@ -915,6 +945,7 @@ router.post(
         techs,
         STATUSES,
         colors: JOB_COLORS,
+        categories: JOB_CATEGORIES,
         error: 'Job title and customer are required.',
         returnTo,
       });
@@ -927,10 +958,10 @@ router.post(
     const result = await db
       .prepare(
         `INSERT INTO jobs
-          (customer_id, title, description, status, scheduled_start, scheduled_end, all_day, duration_minutes, color,
+          (customer_id, title, description, status, scheduled_start, scheduled_end, all_day, duration_minutes, color, category,
            site_address_street, site_address_city, site_address_state, site_address_postcode, notes, created_by)
          VALUES
-          (@customer_id, @title, @description, @status, @scheduled_start, @scheduled_end, @all_day, @duration_minutes, @color,
+          (@customer_id, @title, @description, @status, @scheduled_start, @scheduled_end, @all_day, @duration_minutes, @color, @category,
            @site_address_street, @site_address_city, @site_address_state, @site_address_postcode, @notes, @created_by)
          RETURNING id`
       )
@@ -944,6 +975,7 @@ router.post(
         all_day: schedule.all_day,
         duration_minutes: schedule.duration_minutes,
         color: parseJobColor(b.color),
+        category: parseJobCategory(b.category),
         site_address_street: b.site_address_street || customer.address_street || null,
         site_address_city: b.site_address_city || customer.address_city || null,
         site_address_state: b.site_address_state || customer.address_state || null,
@@ -1144,6 +1176,7 @@ router.get(
       techs,
       STATUSES,
       colors: JOB_COLORS,
+      categories: JOB_CATEGORIES,
       error: null,
       returnTo: safeReturnTo(req.query.returnTo),
     });
@@ -1178,6 +1211,7 @@ router.post(
         techs,
         STATUSES,
         colors: JOB_COLORS,
+        categories: JOB_CATEGORIES,
         error: 'Job title and customer are required.',
         returnTo,
       });
@@ -1206,7 +1240,7 @@ router.post(
         `UPDATE jobs SET
            customer_id = @customer_id, title = @title, description = @description, status = @status,
            scheduled_start = @scheduled_start, scheduled_end = @scheduled_end, all_day = @all_day,
-           duration_minutes = @duration_minutes, color = @color,
+           duration_minutes = @duration_minutes, color = @color, category = @category,
            site_address_street = @site_address_street, site_address_city = @site_address_city,
            site_address_state = @site_address_state, site_address_postcode = @site_address_postcode,
            notes = @notes,
@@ -1225,6 +1259,7 @@ router.post(
         all_day: schedule.all_day,
         duration_minutes: schedule.duration_minutes,
         color: parseJobColor(b.color),
+        category: parseJobCategory(b.category),
         site_address_street: b.site_address_street || null,
         site_address_city: b.site_address_city || null,
         site_address_state: b.site_address_state || null,
@@ -1354,10 +1389,10 @@ router.post(
     const result = await db
       .prepare(
         `INSERT INTO jobs
-          (customer_id, title, description, status, scheduled_start, scheduled_end, all_day, duration_minutes, color,
+          (customer_id, title, description, status, scheduled_start, scheduled_end, all_day, duration_minutes, color, category,
            site_address_street, site_address_city, site_address_state, site_address_postcode, notes, created_by)
          VALUES
-          (@customer_id, @title, @description, @status, @scheduled_start, @scheduled_end, @all_day, @duration_minutes, @color,
+          (@customer_id, @title, @description, @status, @scheduled_start, @scheduled_end, @all_day, @duration_minutes, @color, @category,
            @site_address_street, @site_address_city, @site_address_state, @site_address_postcode, @notes, @created_by)
          RETURNING id`
       )
@@ -1371,6 +1406,7 @@ router.post(
         all_day: job.all_day,
         duration_minutes: job.duration_minutes,
         color: job.color,
+        category: job.category,
         site_address_street: job.site_address_street,
         site_address_city: job.site_address_city,
         site_address_state: job.site_address_state,

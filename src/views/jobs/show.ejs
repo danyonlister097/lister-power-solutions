@@ -17,6 +17,10 @@
         <%= job.customer_name %>
       <% } %>
     </dd>
+    <% if (job.category) { %>
+      <dt>Category</dt>
+      <dd><%= job.category.replace(/-/g, ' ') %></dd>
+    <% } %>
     <dt>Scheduled</dt>
     <dd>
       <% if (job.all_day) { %>

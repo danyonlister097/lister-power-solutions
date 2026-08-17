@@ -83,6 +83,16 @@
   </label>
 
   <label>
+    Category <span style="font-weight:400;">(optional)</span>
+    <select name="category">
+      <option value="">No category</option>
+      <% categories.forEach(c => { %>
+        <option value="<%= c %>" <%= job.category === c ? 'selected' : '' %>><%= c.replace(/-/g, ' ') %></option>
+      <% }) %>
+    </select>
+  </label>
+
+  <label>
     Description
     <textarea name="description"><%= job.description || '' %></textarea>
   </label>

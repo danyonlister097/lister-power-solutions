@@ -719,3 +719,8 @@ CREATE INDEX IF NOT EXISTS idx_license_documents_expiry_date ON license_document
 -- keys (see DEFAULT_WIDGET_ORDER in routes/dashboard.js). NULL means "use
 -- the default order" - nothing to migrate for users who never touch it.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS dashboard_layout TEXT;
+
+-- Trade category (Electrical, Air Conditioning, Solar, Handyman, ...) set at
+-- job creation - lets the Jobs list be filtered by kind of work, separate
+-- from status/date range. See JOB_CATEGORIES in routes/jobs.js.
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category TEXT;
