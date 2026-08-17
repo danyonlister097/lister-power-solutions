@@ -75,6 +75,32 @@ router.post(
 );
 
 router.post(
+  '/:id',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const task = await db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
+    if (!task) return res.status(404).render('error', { message: 'Task not found.' });
+    if (task.created_by !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).render('error', { message: 'You do not have access to this page.' });
+    }
+
+    const title = (req.body.title || '').trim();
+    if (!title) {
+      setFlash(req, 'error', 'Task title is required.');
+      return res.redirect('/tasks');
+    }
+    const assignedTo = req.user.role === 'admin' ? req.body.assigned_to || null : task.assigned_to;
+
+    await db
+      .prepare("UPDATE tasks SET title = ?, assigned_to = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(title, assignedTo, task.id);
+
+    setFlash(req, 'success', 'Task updated.');
+    res.redirect('/tasks');
+  })
+);
+
+router.post(
   '/:id/toggle',
   verifyCsrf,
   asyncHandler(async (req, res) => {
@@ -88,6 +114,25 @@ router.post(
       )
       .run(nextDone, nextDone, task.id);
 
+    res.redirect('/tasks');
+  })
+);
+
+router.post(
+  '/:id/duplicate',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const task = await db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
+    if (!task) return res.status(404).render('error', { message: 'Task not found.' });
+    if (task.created_by !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).render('error', { message: 'You do not have access to this page.' });
+    }
+
+    await db
+      .prepare('INSERT INTO tasks (title, assigned_to, created_by) VALUES (?, ?, ?)')
+      .run(task.title, task.assigned_to, req.user.id);
+
+    setFlash(req, 'success', 'Task duplicated.');
     res.redirect('/tasks');
   })
 );

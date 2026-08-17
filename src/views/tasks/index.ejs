@@ -34,7 +34,7 @@
   <ul class="list">
     <% open.forEach(t => { %>
       <li>
-        <span class="list-item">
+        <span class="list-item row-menu-hover-target">
           <form method="post" action="/tasks/<%= t.id %>/toggle" class="task-toggle-form">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <button type="submit" class="task-check" title="Mark done" aria-label="Mark done"></button>
@@ -43,12 +43,26 @@
             <span class="list-item-title"><%= t.title %></span><br>
             <span class="list-item-meta"><%= t.assignee_name || 'Anyone' %> · added by <%= t.creator_name %></span>
           </span>
-          <span class="actions">
-            <form method="post" action="/tasks/<%= t.id %>/delete">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <button type="submit" class="btn-link">Delete</button>
-            </form>
-          </span>
+          <% if (isAdmin || t.created_by === currentUser.id) { %>
+            <div class="row-menu-cell" style="position:relative;">
+              <button class="row-menu-btn" aria-label="More actions" aria-expanded="false">⋮</button>
+              <div class="context-menu" hidden>
+                <button type="button" class="context-menu-item task-edit-btn"
+                  data-id="<%= t.id %>"
+                  data-title="<%= t.title %>"
+                  data-assigned_to="<%= t.assigned_to || '' %>">Edit</button>
+                <form method="post" action="/tasks/<%= t.id %>/duplicate" style="margin:0;">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="context-menu-item">Duplicate</button>
+                </form>
+                <form method="post" action="/tasks/<%= t.id %>/delete"
+                      data-confirm="Delete this task? This cannot be undone." style="margin:0;">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="context-menu-item context-menu-danger">Delete</button>
+                </form>
+              </div>
+            </div>
+          <% } %>
         </span>
       </li>
     <% }) %>
@@ -60,7 +74,7 @@
   <ul class="list">
     <% done.forEach(t => { %>
       <li>
-        <span class="list-item task-list-item-done">
+        <span class="list-item task-list-item-done row-menu-hover-target">
           <form method="post" action="/tasks/<%= t.id %>/toggle" class="task-toggle-form">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <button type="submit" class="task-check task-check-done" title="Mark not done" aria-label="Mark not done">&check;</button>
@@ -69,15 +83,94 @@
             <span class="list-item-title task-title-done"><%= t.title %></span><br>
             <span class="list-item-meta"><%= t.assignee_name || 'Anyone' %></span>
           </span>
-          <span class="actions">
-            <form method="post" action="/tasks/<%= t.id %>/delete">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <button type="submit" class="btn-link">Delete</button>
-            </form>
-          </span>
+          <% if (isAdmin || t.created_by === currentUser.id) { %>
+            <div class="row-menu-cell" style="position:relative;">
+              <button class="row-menu-btn" aria-label="More actions" aria-expanded="false">⋮</button>
+              <div class="context-menu" hidden>
+                <button type="button" class="context-menu-item task-edit-btn"
+                  data-id="<%= t.id %>"
+                  data-title="<%= t.title %>"
+                  data-assigned_to="<%= t.assigned_to || '' %>">Edit</button>
+                <form method="post" action="/tasks/<%= t.id %>/duplicate" style="margin:0;">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="context-menu-item">Duplicate</button>
+                </form>
+                <form method="post" action="/tasks/<%= t.id %>/delete"
+                      data-confirm="Delete this task? This cannot be undone." style="margin:0;">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="context-menu-item context-menu-danger">Delete</button>
+                </form>
+              </div>
+            </div>
+          <% } %>
         </span>
       </li>
     <% }) %>
   </ul>
+<% } %>
+
+<% if (open.length || done.length) { %>
+<!-- Edit Task Modal -->
+<div id="task-edit-modal" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="task-edit-title">
+    <button type="button" class="modal-close" id="task-edit-close" aria-label="Close">&times;</button>
+    <h2 id="task-edit-title">Edit Task</h2>
+    <form method="post" id="task-edit-form" action="">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>
+        What needs doing?
+        <input type="text" name="title" required>
+      </label>
+      <% if (isAdmin) { %>
+        <label>
+          Assign to (optional)
+          <select name="assigned_to">
+            <option value="">Anyone</option>
+            <% users.forEach(u => { %>
+              <option value="<%= u.id %>"><%= u.name %></option>
+            <% }) %>
+          </select>
+        </label>
+      <% } %>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <button type="button" class="btn btn-secondary" id="task-edit-cancel">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById('task-edit-modal');
+  var form = document.getElementById('task-edit-form');
+  var closeBtn = document.getElementById('task-edit-close');
+  var cancelBtn = document.getElementById('task-edit-cancel');
+  var assignedSelect = form.querySelector('[name="assigned_to"]');
+
+  function openEdit(btn) {
+    var id = btn.getAttribute('data-id');
+    form.action = '/tasks/' + id;
+    form.querySelector('[name="title"]').value = btn.getAttribute('data-title') || '';
+    if (assignedSelect) assignedSelect.value = btn.getAttribute('data-assigned_to') || '';
+    modal.hidden = false;
+  }
+
+  function closeModal() { modal.hidden = true; }
+
+  closeBtn.addEventListener('click', closeModal);
+  cancelBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !modal.hidden) closeModal();
+  });
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.task-edit-btn');
+    if (!btn) return;
+    openEdit(btn);
+  });
+})();
+</script>
 <% } %>
 <%- include('../partials/footer') %>
