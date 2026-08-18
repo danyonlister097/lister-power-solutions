@@ -68,6 +68,7 @@ document.getElementById('desktop-month-picker').addEventListener('change', funct
           data-notes="<%= j.notes || '' %>"
           data-all-day="<%= j.all_day ? '1' : '' %>"
         >
+          <% if (j.status === 'completed' || j.status === 'invoiced') { %><span class="shift-done-badge" title="<%= j.status === 'invoiced' ? 'Invoiced' : 'Completed' %>">&#10003;</span><% } %>
           <% if (j.all_day) { %>All day
           <% } else { %><%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %><% if (j.scheduled_end) { %>&ndash;<%= new Date(j.scheduled_end).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %><% } %><% } %>
           <%= j.title %>

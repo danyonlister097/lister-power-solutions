@@ -202,6 +202,7 @@ document.getElementById('desktop-week-picker').addEventListener('change', functi
               data-all-day="<%= j.all_day ? '1' : '' %>"
             >
               <% if (isAdmin) { %><button type="button" class="shift-menu-btn" data-job-id="<%= j.id %>" aria-label="Job options" title="Job options">&#8942;</button><% } %>
+              <% if (j.status === 'completed' || j.status === 'invoiced') { %><span class="shift-done-badge" title="<%= j.status === 'invoiced' ? 'Invoiced' : 'Completed' %>">&#10003;</span><% } %>
               <span class="shift-time">
                 <% if (j.all_day) { %>All day<% } else { %>
                   <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %><% if (j.scheduled_end) { %> - <%= new Date(j.scheduled_end).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %><% } %>

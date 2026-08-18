@@ -495,7 +495,7 @@ async function renderMonthView(req, res) {
     monthIso: `${year}-${String(month + 1).padStart(2, '0')}`,
     prevMonthIso: `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`,
     nextMonthIso: `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`,
-    todayIso: toIsoDate(now),
+    todayIso,
     isAdmin,
   });
 }
