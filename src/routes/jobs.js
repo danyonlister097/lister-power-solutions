@@ -12,7 +12,11 @@ const { generateSchedule, nextMondayIso, addDaysToIso } = require('../lib/smartS
 
 const router = express.Router();
 
-const STATUSES = ['unscheduled', 'scheduled', 'in_progress', 'completed', 'cancelled'];
+const STATUSES = ['unscheduled', 'scheduled', 'in_progress', 'completed', 'invoiced', 'cancelled'];
+// "Invoiced" is a superstate of "completed" (invoicing implies the work is
+// done) - both count as "done" for completion-requirement checks and for
+// only scheduling follow-up emails/setting completed_at once.
+const jobIsDone = (status) => status === 'completed' || status === 'invoiced';
 // Hyphenated rather than "Air Conditioning" with a space - these values ride
 // through the returnTo query string (see safeReturnTo below), whose guard
 // only allows a strict charset with no spaces. Views display them via
@@ -1080,24 +1084,18 @@ router.get(
       const costItems = await db.prepare('SELECT * FROM job_cost_items WHERE job_id = ? ORDER BY created_at ASC').all(job.id);
       const totalCost = costItems.reduce((sum, i) => sum + i.quantity * i.unit_cost, 0);
       const quotedAmount = jobCosts ? jobCosts.quoted_amount : null;
+      // Lets the Add cost item form fill in Unit cost straight from an
+      // employee's rate (set on their Employees tab profile) instead of
+      // having to know/retype it.
+      const employees = await db.prepare('SELECT id, name, hourly_rate FROM users WHERE active = 1 ORDER BY sort_order, name').all();
       costing = {
         quotedAmount,
         costItems,
         totalCost,
         profit: quotedAmount !== null ? quotedAmount - totalCost : null,
         categories: COST_CATEGORIES,
+        employees,
       };
-    }
-
-    let jobInvoices = null;
-    if (req.user.role === 'admin') {
-      jobInvoices = await db
-        .prepare(
-          `SELECT invoices.*,
-             COALESCE((SELECT SUM(quantity * unit_price) FROM invoice_items WHERE invoice_items.invoice_id = invoices.id), 0) AS total
-           FROM invoices WHERE invoices.job_id = ? ORDER BY invoices.created_at DESC`
-        )
-        .all(job.id);
     }
 
     const inventoryItems = await db.prepare('SELECT id, name, supplier_code, unit, quantity_on_hand FROM inventory_items ORDER BY name ASC').all();
@@ -1123,7 +1121,6 @@ router.get(
       attachments,
       jobForms,
       costing,
-      jobInvoices,
       inventoryItems,
       stockAllocations,
       linkedAssets,
@@ -1163,7 +1160,9 @@ router.post(
     if (!job) return res.status(404).render('error', { message: 'Job not found.' });
 
     const category = COST_CATEGORIES.includes(req.body.category) ? req.body.category : 'other';
-    const description = (req.body.description || '').trim();
+    // Labour is self-explanatory (there's usually just a rate against it),
+    // so it's the one category that doesn't force a typed description.
+    const description = (req.body.description || '').trim() || (category === 'labour' ? 'Labour' : '');
     const quantity = Number.parseFloat(req.body.quantity);
     const unitCost = Number.parseFloat(req.body.unit_cost);
 
@@ -1272,7 +1271,7 @@ router.post(
     let newStatus = b.status || job.status;
     if (!schedule.scheduled_start && newStatus === 'scheduled') newStatus = 'unscheduled';
 
-    if (newStatus === 'completed' && job.status !== 'completed') {
+    if (jobIsDone(newStatus) && !jobIsDone(job.status)) {
       const err = await checkCompletionRequirements(job.id);
       if (err) {
         setFlash(req, 'error', err);
@@ -1289,7 +1288,7 @@ router.post(
            site_address_street = @site_address_street, site_address_city = @site_address_city,
            site_address_state = @site_address_state, site_address_postcode = @site_address_postcode,
            notes = @notes,
-           completed_at = CASE WHEN @status = 'completed' AND completed_at IS NULL THEN datetime('now') ELSE completed_at END,
+           completed_at = CASE WHEN @status IN ('completed', 'invoiced') AND completed_at IS NULL THEN datetime('now') ELSE completed_at END,
            updated_at = datetime('now')
          WHERE id = @id`
       )
@@ -1314,8 +1313,10 @@ router.post(
 
     await setAssignees(job.id, assigneeIds);
 
-    // Schedule follow-up emails when a job is first marked completed
-    if (newStatus === 'completed' && job.status !== 'completed') {
+    // Schedule follow-up emails when a job is first marked done (completed,
+    // or invoiced if that status is set directly without passing through
+    // completed first)
+    if (jobIsDone(newStatus) && !jobIsDone(job.status)) {
       const customer = await db.prepare('SELECT email FROM customers WHERE id = ?').get(b.customer_id);
       if (customer && customer.email) {
         const addMonths = (n) => {
@@ -1374,7 +1375,7 @@ router.post(
       return res.status(400).render('error', { message: 'Invalid status.' });
     }
 
-    if (status === 'completed') {
+    if (jobIsDone(status) && !jobIsDone(job.status)) {
       const err = await checkCompletionRequirements(job.id);
       if (err) {
         setFlash(req, 'error', err);
@@ -1385,7 +1386,7 @@ router.post(
     await db
       .prepare(
         `UPDATE jobs SET status = @status,
-           completed_at = CASE WHEN @status = 'completed' AND completed_at IS NULL THEN datetime('now') ELSE completed_at END,
+           completed_at = CASE WHEN @status IN ('completed', 'invoiced') AND completed_at IS NULL THEN datetime('now') ELSE completed_at END,
            updated_at = datetime('now')
          WHERE id = @id`
       )

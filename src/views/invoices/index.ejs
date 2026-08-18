@@ -1,16 +1,11 @@
 <%- include('../partials/header', { title: tab === 'bills' ? 'Bills' : 'Invoices', wide: true }) %>
 <div class="page-header">
-  <h1>Invoices</h1>
+  <h1><%= tab === 'bills' ? 'Bills' : 'Invoices' %></h1>
   <% if (tab === 'bills') { %>
     <button type="button" class="btn btn-primary" id="new-bill-open">+ Add Bill</button>
   <% } else { %>
     <button type="button" class="btn btn-primary" id="new-invoice-open">+ New Invoice</button>
   <% } %>
-</div>
-
-<div class="sched-view-tabs">
-  <a href="/invoices" class="<%= tab === 'invoices' ? 'active' : '' %>">Sales Invoices</a>
-  <a href="/invoices?tab=bills" class="<%= tab === 'bills' ? 'active' : '' %>">Bills</a>
 </div>
 
 <% if (tab === 'bills') { %>

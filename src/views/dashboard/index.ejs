@@ -16,14 +16,6 @@
     <span class="leave-stat-value"><%= formatMoney(revenueThisMonth) %></span>
     <span class="leave-stat-label">Revenue this month</span>
   </div>
-  <div class="leave-stat leave-stat-declined">
-    <span class="leave-stat-value"><%= overdueInvoices.length %></span>
-    <span class="leave-stat-label">Overdue invoices (<%= formatMoney(overdueTotal) %>)</span>
-  </div>
-  <div class="leave-stat">
-    <span class="leave-stat-value"><%= outstandingQuotes.length %></span>
-    <span class="leave-stat-label">Outstanding quotes (<%= formatMoney(outstandingQuotesTotal) %>)</span>
-  </div>
   <div class="leave-stat <%= upcomingMaintenance.some(m => m.overdue) ? 'leave-stat-declined' : 'leave-stat-pending' %>">
     <span class="leave-stat-value"><%= upcomingMaintenance.length %></span>
     <span class="leave-stat-label">Vehicles &amp; equipment due for service</span>
@@ -184,54 +176,6 @@
     </div>
   </div>
 </div>
-</div>
-
-<div class="dashboard-widget" data-widget="overdue_invoices" style="order:<%= widgetOrder.indexOf('overdue_invoices') %>;">
-  <% if (isAdmin) { %><div class="dashboard-widget-handle" title="Drag to reorder">⠿ Drag to reorder</div><% } %>
-  <div class="card" style="border-left:6px solid #dc2626;">
-    <h2>Overdue invoices</h2>
-    <% if (!overdueInvoices.length) { %>
-      <p class="text-muted">Nothing overdue.</p>
-    <% } else { %>
-      <ul class="list">
-        <% overdueInvoices.forEach(inv => { %>
-          <li>
-            <span class="list-item">
-              <span>
-                <a href="/invoices/<%= inv.id %>" class="list-item-title"><%= inv.invoice_number %></a><br>
-                <span class="list-item-meta"><%= inv.customer_name %> &middot; <%= inv.job_title %> &middot; due <%= formatAuDate(inv.due_date) %></span>
-              </span>
-              <span><%= formatMoney(inv.total) %></span>
-            </span>
-          </li>
-        <% }) %>
-      </ul>
-    <% } %>
-  </div>
-</div>
-
-<div class="dashboard-widget" data-widget="outstanding_quotes" style="order:<%= widgetOrder.indexOf('outstanding_quotes') %>;">
-  <% if (isAdmin) { %><div class="dashboard-widget-handle" title="Drag to reorder">⠿ Drag to reorder</div><% } %>
-  <div class="card" style="border-left:6px solid #1d5fae;">
-    <h2>Outstanding quotes</h2>
-    <% if (!outstandingQuotes.length) { %>
-      <p class="text-muted">No quotes awaiting a decision.</p>
-    <% } else { %>
-      <ul class="list">
-        <% outstandingQuotes.forEach(q => { %>
-          <li>
-            <span class="list-item">
-              <span>
-                <a href="/quotes/<%= q.id %>" class="list-item-title"><%= q.title %></a><br>
-                <span class="list-item-meta"><%= q.customer_name %></span>
-              </span>
-              <span><%= formatMoney(q.total) %></span>
-            </span>
-          </li>
-        <% }) %>
-      </ul>
-    <% } %>
-  </div>
 </div>
 
 <div class="dashboard-widget" data-widget="quick_tasks" style="order:<%= widgetOrder.indexOf('quick_tasks') %>;">

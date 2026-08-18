@@ -729,3 +729,13 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category TEXT;
 -- expiry-tracked item (live-joined in GET /renewals, not copied) - so a
 -- licence/document only has to be entered once instead of twice.
 ALTER TABLE license_documents ADD COLUMN IF NOT EXISTS create_renewal INTEGER NOT NULL DEFAULT 0;
+
+-- "Invoiced" job status - sales invoicing now happens solely through MYOB,
+-- so there's no more in-app invoice record to auto-detect a job's been
+-- billed. This is a manually-set terminal status after Completed instead.
+-- A plain CREATE TABLE IF NOT EXISTS can't widen an existing CHECK, so the
+-- constraint is dropped and recreated (safe/idempotent - same definition
+-- every time this file runs).
+ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_status_check;
+ALTER TABLE jobs ADD CONSTRAINT jobs_status_check
+  CHECK (status IN ('unscheduled', 'scheduled', 'in_progress', 'completed', 'invoiced', 'cancelled'));

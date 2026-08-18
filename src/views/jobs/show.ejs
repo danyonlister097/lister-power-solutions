@@ -410,20 +410,29 @@
       </ul>
     <% } %>
 
-    <form method="post" action="/jobs/<%= job.id %>/costing/items" class="form-row form-row-2" data-preserve-scroll>
+    <form method="post" action="/jobs/<%= job.id %>/costing/items" class="form-row form-row-2" data-preserve-scroll id="cost-item-form">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="returnTo" value="<%= closeUrl %>">
       <label>
         Category
-        <select name="category">
+        <select name="category" id="cost-item-category">
           <% costing.categories.forEach(c => { %>
-            <option value="<%= c %>"><%= c %></option>
+            <option value="<%= c %>" <%= c === 'labour' ? 'selected' : '' %>><%= c %></option>
           <% }) %>
         </select>
       </label>
       <label>
-        Description
-        <input type="text" name="description" required placeholder="e.g. Danyon - 3.5 hrs">
+        Rate <span style="font-weight:400;">(optional &mdash; fills in Unit cost)</span>
+        <select id="cost-item-rate">
+          <option value="">&mdash; Select employee rate &mdash;</option>
+          <% costing.employees.forEach(function(e) { if (e.hourly_rate != null) { %>
+            <option value="<%= e.hourly_rate %>"><%= e.name %> &mdash; $<%= e.hourly_rate %>/hr</option>
+          <% } }) %>
+        </select>
+      </label>
+      <label style="grid-column: 1 / -1;">
+        Description <span style="font-weight:400;" id="cost-item-desc-hint">(optional for labour)</span>
+        <input type="text" name="description" placeholder="e.g. Danyon - 3.5 hrs" id="cost-item-description">
       </label>
       <label>
         Quantity
@@ -431,43 +440,36 @@
       </label>
       <label>
         Unit cost ($)
-        <input type="number" name="unit_cost" step="0.01" required>
+        <input type="number" name="unit_cost" step="0.01" required id="cost-item-unit-cost">
       </label>
       <div class="actions" style="grid-column: 1 / -1;">
         <button type="submit" class="btn btn-primary btn-sm">Add cost item</button>
       </div>
     </form>
+    <script>
+      (function () {
+        var rateSelect = document.getElementById('cost-item-rate');
+        var unitCost = document.getElementById('cost-item-unit-cost');
+        rateSelect.addEventListener('change', function () {
+          if (rateSelect.value) unitCost.value = rateSelect.value;
+        });
+
+        // Labour items are self-explanatory once you've picked a rate, so
+        // description isn't forced the way it is for every other category.
+        var categorySelect = document.getElementById('cost-item-category');
+        var descInput = document.getElementById('cost-item-description');
+        var descHint = document.getElementById('cost-item-desc-hint');
+        function updateDescRequired() {
+          var isLabour = categorySelect.value === 'labour';
+          descInput.required = !isLabour;
+          descHint.style.display = isLabour ? '' : 'none';
+        }
+        categorySelect.addEventListener('change', updateDescRequired);
+        updateDescRequired();
+      })();
+    </script>
   </div>
 
-  <div class="card">
-    <div class="page-header" style="margin-bottom: 0.75rem;">
-      <h2 style="margin:0;">Invoices</h2>
-      <form method="post" action="/invoices">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <input type="hidden" name="job_id" value="<%= job.id %>">
-        <button type="submit" class="btn btn-primary btn-sm">+ Create invoice</button>
-      </form>
-    </div>
-    <% if (!jobInvoices.length) { %>
-      <p class="text-muted">No invoices raised for this job yet.</p>
-    <% } else { %>
-      <ul class="list">
-        <% jobInvoices.forEach(inv => {
-             var eff = (inv.status === 'sent' && inv.due_date && inv.due_date < new Date().toISOString().slice(0, 10)) ? 'overdue' : inv.status;
-        %>
-          <li>
-            <span class="list-item">
-              <span>
-                <a href="/invoices/<%= inv.id %>" class="list-item-title"><%= inv.invoice_number %></a><br>
-                <span class="list-item-meta"><%= formatMoney(inv.total) %> &middot; issued <%= formatAuDate(inv.issue_date) %></span>
-              </span>
-              <span class="badge badge-<%= eff %>"><%= eff %></span>
-            </span>
-          </li>
-        <% }) %>
-      </ul>
-    <% } %>
-  </div>
 <% } %>
 <div class="card">
   <div class="page-header" style="margin-bottom:0.5rem;">

@@ -56,7 +56,10 @@ async function nextInvoiceNumber() {
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const tab = req.query.tab === 'bills' ? 'bills' : 'invoices';
+    // Sales invoicing now happens solely through MYOB, so Bills (accounts
+    // payable) is the default landing tab - Sales Invoices is kept working
+    // at ?tab=invoices for historical records, just no longer linked to.
+    const tab = req.query.tab === 'invoices' ? 'invoices' : 'bills';
     const status = req.query.status || '';
 
     if (tab === 'bills') {

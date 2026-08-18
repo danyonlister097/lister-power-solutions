@@ -13,8 +13,6 @@ const DEFAULT_WIDGET_ORDER = [
   'pending_approvals',
   'upcoming_bills',
   'job_pipeline',
-  'overdue_invoices',
-  'outstanding_quotes',
   'quick_tasks',
   'utilisation',
   'upcoming_renewals',
@@ -81,31 +79,6 @@ router.get(
         )
         .get(monthStartIso)
     ).total;
-
-    const overdueInvoices = await db
-      .prepare(
-        `SELECT invoices.id, invoices.invoice_number, invoices.due_date, jobs.title AS job_title, customers.name AS customer_name,
-           COALESCE((SELECT SUM(quantity * unit_price) FROM invoice_items WHERE invoice_items.invoice_id = invoices.id), 0) AS total
-         FROM invoices
-         JOIN jobs ON jobs.id = invoices.job_id
-         JOIN customers ON customers.id = jobs.customer_id
-         WHERE invoices.status = 'sent' AND (invoices.due_date)::date < (?)::date
-         ORDER BY invoices.due_date ASC`
-      )
-      .all(todayIso);
-    const overdueTotal = overdueInvoices.reduce((sum, i) => sum + i.total, 0);
-
-    const outstandingQuotes = await db
-      .prepare(
-        `SELECT quotes.id, quotes.title, customers.name AS customer_name,
-           COALESCE((SELECT SUM(quantity * unit_price) FROM quote_items WHERE quote_items.quote_id = quotes.id), 0) AS total
-         FROM quotes
-         JOIN customers ON customers.id = quotes.customer_id
-         WHERE quotes.status IN ('draft', 'sent')
-         ORDER BY quotes.created_at DESC`
-      )
-      .all();
-    const outstandingQuotesTotal = outstandingQuotes.reduce((sum, q) => sum + q.total, 0);
 
     const billsCutoff = addDays(todayIso, 30);
     const upcomingBills = await db
@@ -176,9 +149,12 @@ router.get(
     }));
 
     // A job's board column is derived, not stored: it starts in Unassigned/
-    // Scheduled based on jobs.status, moves to Completed once marked done, then
-    // jumps to Invoiced the moment a real (non-cancelled) invoice exists for it
-    // - so raising an invoice is what clears a job off the "needs invoicing" pile.
+    // Scheduled based on jobs.status, moves to Completed once marked done,
+    // then to Invoiced once its status is set to 'invoiced' (a manual step
+    // now sales invoicing happens solely through MYOB - there's no in-app
+    // invoice record to detect this automatically anymore). has_invoice is
+    // kept as a fallback so jobs invoiced before that change don't fall out
+    // of this column just because their status was never updated.
     const pipelineJobs = await db
       .prepare(
         `SELECT jobs.id, jobs.title, jobs.status, customers.name AS customer_name,
@@ -192,7 +168,7 @@ router.get(
 
     const jobBoard = { unassigned: [], scheduled: [], completed: [], invoiced: [] };
     pipelineJobs.forEach((j) => {
-      if (j.has_invoice) jobBoard.invoiced.push(j);
+      if (j.status === 'invoiced' || j.has_invoice) jobBoard.invoiced.push(j);
       else if (j.status === 'completed') jobBoard.completed.push(j);
       else if (j.status === 'unscheduled') jobBoard.unassigned.push(j);
       else jobBoard.scheduled.push(j);
@@ -363,10 +339,6 @@ router.get(
       jobsThisWeek,
       jobsToday,
       revenueThisMonth,
-      overdueInvoices,
-      overdueTotal,
-      outstandingQuotes,
-      outstandingQuotesTotal,
       upcomingBills,
       upcomingBillsTotal,
       overdueBillsCount,
