@@ -299,13 +299,7 @@ router.get(
 
     const techs = isAdmin ? await db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY sort_order, name').all() : [];
     const jobCustomers = isAdmin
-      ? await db
-          .prepare(
-            `SELECT DISTINCT customers.id, customers.name FROM customers
-             JOIN jobs ON jobs.customer_id = customers.id
-             ORDER BY customers.name`
-          )
-          .all()
+      ? await db.prepare('SELECT id, name FROM customers WHERE active = 1 ORDER BY name').all()
       : [];
 
     // Status counters — scoped to the same assignee/category/customer filter but across all time/status

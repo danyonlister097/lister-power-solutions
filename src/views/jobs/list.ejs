@@ -86,14 +86,14 @@
         <% }) %>
       </select>
     </label>
-    <label style="flex:1;min-width:160px;">
+    <label class="autocomplete" style="flex:1;min-width:160px;">
       Customer
-      <select name="customer">
-        <option value="">Any</option>
-        <% jobCustomers.forEach(c => { %>
-          <option value="<%= c.id %>" <%= String(customerId) === String(c.id) ? 'selected' : '' %>><%= c.name %></option>
-        <% }) %>
-      </select>
+      <%
+        var _selectedJobCustomer = customerId ? jobCustomers.find(c => String(c.id) === String(customerId)) : null;
+      %>
+      <input type="text" id="customer-filter-search" placeholder="Any" autocomplete="off" value="<%= _selectedJobCustomer ? _selectedJobCustomer.name : '' %>">
+      <input type="hidden" name="customer" id="customer-filter-id" value="<%= customerId || '' %>">
+      <div id="customer-filter-results" class="autocomplete-results" hidden></div>
     </label>
   <% } %>
   <div style="display:flex;flex-direction:column;gap:0.4rem;">
@@ -103,15 +103,69 @@
 </form>
 <script>
 (function () {
+  var customers = <%- JSON.stringify(jobCustomers.map(c => ({ id: c.id, name: c.name }))) %>;
+  var custSearch = document.getElementById('customer-filter-search');
+  var custId = document.getElementById('customer-filter-id');
+  var custResults = document.getElementById('customer-filter-results');
+
+  if (custSearch) {
+    var closeCustResults = function () {
+      custResults.hidden = true;
+      custResults.innerHTML = '';
+    };
+
+    var showCustList = function (list) {
+      if (!list.length) {
+        custResults.innerHTML = '<div class="autocomplete-empty">No matching customers</div>';
+        custResults.hidden = false;
+        return;
+      }
+      custResults.innerHTML = list
+        .map(function (c) {
+          return '<div class="autocomplete-result" data-id="' + c.id + '" data-name="' + c.name.replace(/"/g, '&quot;') + '">' + c.name + '</div>';
+        })
+        .join('');
+      custResults.hidden = false;
+    };
+
+    var custMatches = function () {
+      var q = custSearch.value.trim().toLowerCase();
+      return q ? customers.filter(function (c) { return c.name.toLowerCase().indexOf(q) !== -1; }) : customers;
+    };
+
+    // Click/focus with nothing typed shows the full customer list, like a
+    // normal dropdown; typing narrows it down, like a search box.
+    custSearch.addEventListener('focus', function () { showCustList(custMatches()); });
+
+    custSearch.addEventListener('input', function () {
+      custId.value = '';
+      showCustList(custMatches());
+    });
+
+    custResults.addEventListener('click', function (e) {
+      var row = e.target.closest('.autocomplete-result');
+      if (!row || !row.getAttribute('data-id')) return;
+      custId.value = row.getAttribute('data-id');
+      custSearch.value = row.getAttribute('data-name');
+      closeCustResults();
+    });
+
+    document.addEventListener('click', function (e) {
+      if (e.target !== custSearch && !custResults.contains(e.target)) closeCustResults();
+    });
+  }
+
   var clearBtn = document.getElementById('jobs-clear-filters');
   if (!clearBtn) return;
   clearBtn.addEventListener('click', function () {
     var form = document.getElementById('jobs-filter-form');
     var searchInput = document.getElementById('jobs-search');
-    var hasFilters = Array.prototype.some.call(form.querySelectorAll('select'), function (sel) { return sel.value !== ''; });
+    var hasFilters = Array.prototype.some.call(form.querySelectorAll('select'), function (sel) { return sel.value !== ''; }) || (custId && custId.value !== '');
     var hasSearch = searchInput && searchInput.value.trim() !== '';
     if (!hasFilters && !hasSearch) return;
     form.querySelectorAll('select').forEach(function (sel) { sel.value = ''; });
+    if (custSearch) custSearch.value = '';
+    if (custId) custId.value = '';
     if (searchInput) searchInput.value = '';
     Object.keys(sessionStorage).forEach(function (key) {
       if (key.indexOf('jobsListState:') === 0) sessionStorage.removeItem(key);

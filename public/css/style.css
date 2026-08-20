@@ -455,6 +455,7 @@ form textarea { min-height: 5rem; resize: vertical; }
   gap: 1rem;
   margin: -0.75rem 0 1.5rem;
 }
+.inventory-pagination[hidden] { display: none; }
 
 .inventory-pagination #inventory-page-info { font-size: 0.9rem; }
 
@@ -705,9 +706,22 @@ form label.toggle-label {
 }
 
 .list-item:hover { border-color: var(--color-primary); }
+.list-item[hidden] { display: none; }
 
 .list-item-title { font-weight: 600; }
 .list-item-meta { color: var(--color-muted); font-size: 0.85rem; }
+
+#jobs-search {
+  display: block;
+  width: 100%;
+  padding: 0.9rem 1.1rem;
+  font-size: 1.15rem;
+  font: inherit;
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
 
 /* Cap lists to ~4 rows then scroll — used on dashboard cards */
 .list-scroll { max-height: 220px; overflow-y: auto; }
