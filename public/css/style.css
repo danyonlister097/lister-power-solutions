@@ -494,6 +494,10 @@ form textarea { min-height: 5rem; resize: vertical; }
   margin-top: 0;
 }
 
+.tech-checkbox-onleave { opacity: 0.65; }
+.tech-checkbox-onleave input[type="checkbox"]:not(:checked) { cursor: not-allowed; }
+.tech-leave-note { color: var(--color-danger); font-size: 0.78rem; font-weight: 600; }
+
 .color-swatch-list {
   display: flex;
   flex-wrap: wrap;
@@ -1018,6 +1022,61 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+.tech-leave-badge {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Week grid: a muted, diagonally-striped chip in a tech's day cell on a day
+   they're on approved leave. Sits above any job chips still in that cell
+   (e.g. assigned before the leave was approved) rather than hiding them,
+   so the conflict stays visible for the admin to resolve. */
+.shift-leave-block {
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-danger);
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(220, 38, 38, 0.12),
+    rgba(220, 38, 38, 0.12) 6px,
+    rgba(220, 38, 38, 0.05) 6px,
+    rgba(220, 38, 38, 0.05) 12px
+  );
+  border: 1px dashed var(--color-danger);
+}
+
+/* Day view: same idea, washed across the tech's whole timeline track. Drawn
+   before the job blocks in the DOM so any existing shift still renders on
+   top of it instead of being hidden. */
+.day-leave-block {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-danger);
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(220, 38, 38, 0.1),
+    rgba(220, 38, 38, 0.1) 8px,
+    rgba(220, 38, 38, 0.04) 8px,
+    rgba(220, 38, 38, 0.04) 16px
+  );
+  pointer-events: none;
 }
 
 .stat-icon {
@@ -1662,6 +1721,28 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
   padding: 0 0.35rem;
 }
 
+.month-leave-chip {
+  display: block;
+  padding: 0.15rem 0.35rem;
+  margin-bottom: 1px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-danger);
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(220, 38, 38, 0.12),
+    rgba(220, 38, 38, 0.12) 5px,
+    rgba(220, 38, 38, 0.05) 5px,
+    rgba(220, 38, 38, 0.05) 10px
+  );
+  border: 1px dashed var(--color-danger);
+}
+
 .attachment-upload-form label { flex: 1; min-width: 200px; }
 
 /* Day view - time-axis calendar */
@@ -1853,6 +1934,8 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
 }
 .chat-message-body { white-space: pre-wrap; word-break: break-word; }
 
+.chat-message-actions { display: flex; align-items: center; gap: 0.1rem; flex-shrink: 0; }
+
 .chat-message-delete {
   flex-shrink: 0;
   border: none;
@@ -1868,6 +1951,79 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
 .chat-message:hover .chat-message-delete { opacity: 0.7; }
 .chat-message-delete:hover { opacity: 1 !important; background: rgba(0, 0, 0, 0.08); }
 .chat-message-own .chat-message-delete:hover { background: rgba(255, 255, 255, 0.25); }
+
+.chat-message-pin {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+  border-radius: 4px;
+  filter: grayscale(1);
+}
+.chat-message:hover .chat-message-pin { opacity: 0.7; }
+.chat-message-pin:hover { opacity: 1 !important; background: rgba(0, 0, 0, 0.08); }
+.chat-message-own .chat-message-pin:hover { background: rgba(255, 255, 255, 0.25); }
+.chat-message-pin-active { opacity: 1 !important; filter: none; }
+
+.chat-pinned-bar {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-primary-tint);
+  padding: 0.5rem 0.75rem;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.chat-pinned-bar-header {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-bottom: 0.3rem;
+}
+.chat-pinned-list { display: flex; flex-direction: column; gap: 0.25rem; }
+.chat-pinned-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--color-surface);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+}
+.chat-pinned-item-link {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-pinned-item-link:hover { text-decoration: underline; }
+.chat-pinned-unpin {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+}
+.chat-pinned-unpin:hover { color: var(--color-danger); }
+
+.chat-message-highlight { animation: chat-message-flash 1.6s ease; }
+@keyframes chat-message-flash {
+  0%, 100% { box-shadow: none; }
+  20% { box-shadow: 0 0 0 3px var(--color-primary); }
+}
 .chat-form {
   display: flex;
   gap: 0.5rem;
@@ -2290,6 +2446,7 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
 .leave-card-body { flex: 1; min-width: 0; }
 .leave-card-name { font-weight: 700; }
 .leave-dates { font-weight: 600; color: var(--color-text); margin-top: 0.1rem; }
+.leave-type-badge { margin-left: 0.5rem; background: var(--color-primary-tint); color: var(--color-primary); font-weight: 600; vertical-align: middle; }
 .leave-reason { color: var(--color-muted); font-size: 0.88rem; margin-top: 0.2rem; }
 .leave-meta { color: var(--color-muted); font-size: 0.78rem; margin-top: 0.3rem; font-style: italic; }
 

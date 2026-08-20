@@ -47,6 +47,9 @@ document.getElementById('desktop-month-picker').addEventListener('change', funct
     <div class="month-cell month-day-cell <%= day.inMonth ? '' : 'month-day-outside' %> <%= day.iso === todayIso ? 'month-day-today' : '' %>"
          data-href="?view=day&start=<%= day.iso %>" data-day="<%= day.iso %>">
       <a class="month-day-number" href="?view=day&start=<%= day.iso %>"><%= day.date.getDate() %></a>
+      <% (day.leave || []).forEach(function (l) { %>
+        <div class="month-leave-chip" title="<%= l.name %> is unavailable — <%= l.label %>">🚫 <%= l.name %></div>
+      <% }) %>
       <% day.jobs.slice(0, 3).forEach(j => {
            const address = [j.site_address_street, j.site_address_city, j.site_address_state, j.site_address_postcode].filter(Boolean).join(', ');
       %>

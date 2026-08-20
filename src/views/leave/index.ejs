@@ -34,6 +34,14 @@
       </label>
     </div>
     <label>
+      Leave type
+      <select name="leave_type">
+        <% LEAVE_TYPES.forEach(function (t) { %>
+          <option value="<%= t.value %>" <%= t.value === 'annual' ? 'selected' : '' %>><%= t.label %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label>
       Reason (optional)
       <textarea name="reason"></textarea>
     </label>
@@ -62,7 +70,10 @@
           <span class="tech-avatar" style="background: <%= colorFor(r.user_id) %>;"><%= initialsFor(r.user_name) %></span>
           <div class="leave-card-body">
             <div class="leave-card-name"><%= r.user_name %></div>
-            <div class="leave-dates"><%= formatAuDate(r.start_date) %> &ndash; <%= formatAuDate(r.end_date) %></div>
+            <div class="leave-dates">
+              <%= formatAuDate(r.start_date) %> &ndash; <%= formatAuDate(r.end_date) %>
+              <span class="badge leave-type-badge"><%= LEAVE_TYPE_LABELS[r.leave_type] || 'Annual Leave' %></span>
+            </div>
             <% if (r.reason) { %><div class="leave-reason"><%= r.reason %></div><% } %>
             <% if (r.decided_by_name) { %>
               <div class="leave-meta"><%= variant === 'approved' ? 'Approved' : 'Declined' %> by <%= r.decided_by_name %></div>
@@ -145,7 +156,7 @@
 <script>
 (function () {
   var COLORS = ['#12b8a0','#e2622b','#7c5cff','#1d5fae','#c2185b','#0f9d58'];
-  var approved = <%- JSON.stringify(approved.map(function(r){ return { name: r.user_name, userId: r.user_id, start: r.start_date, end: r.end_date }; })) %>;
+  var approved = <%- JSON.stringify(approved.map(function(r){ return { name: r.user_name, userId: r.user_id, start: r.start_date, end: r.end_date, leaveType: LEAVE_TYPE_LABELS[r.leave_type] || 'Annual Leave' }; })) %>;
 
   var today = new Date();
   var viewYear = today.getFullYear();
@@ -190,7 +201,7 @@
       }
       onLeave.forEach(function(r) {
         var initials = r.name.trim().split(/\s+/).map(function(p){ return p[0]; }).join('').slice(0,2).toUpperCase();
-        html += '<div title="' + r.name + '" style="font-size:0.65rem;background:' + colorFor(r.userId) + ';color:#fff;border-radius:3px;padding:1px 4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + initials + '</div>';
+        html += '<div title="' + r.name + ' &mdash; ' + r.leaveType + '" style="font-size:0.65rem;background:' + colorFor(r.userId) + ';color:#fff;border-radius:3px;padding:1px 4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + initials + '</div>';
       });
       html += '</div>';
     }

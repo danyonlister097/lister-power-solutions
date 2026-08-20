@@ -180,6 +180,11 @@ document.getElementById('desktop-week-picker').addEventListener('change', functi
       </div>
       <% row.days.forEach((dayJobs, i) => { %>
         <div class="sched-cell sched-day-cell" data-day="<%= days[i].iso %>" data-tech-id="<%= row.id === null ? '' : row.id %>">
+          <% if (row.leaveByDay && row.leaveByDay[i]) { %>
+            <div class="shift-leave-block" title="<%= row.name %> is unavailable — <%= row.leaveByDay[i].label %>">
+              Unavailable<br><%= row.leaveByDay[i].label %>
+            </div>
+          <% } %>
           <% dayJobs.forEach(j => {
                const address = [j.site_address_street, j.site_address_city, j.site_address_state, j.site_address_postcode].filter(Boolean).join(', ');
           %>

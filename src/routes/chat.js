@@ -18,6 +18,7 @@ function serialize(row) {
     createdAt: row.created_at,
     attachmentUrl: row.attachment_url || null,
     attachmentName: row.attachment_name || null,
+    pinned: Boolean(row.pinned),
   };
 }
 
@@ -273,12 +274,22 @@ router.get(
 
     await markRead(req.user.id, channel.id);
 
+    const pinnedMessages = await db
+      .prepare(
+        `SELECT chat_messages.*, users.name AS user_name
+         FROM chat_messages JOIN users ON users.id = chat_messages.user_id
+         WHERE chat_messages.channel_id = ? AND chat_messages.pinned = 1
+         ORDER BY chat_messages.pinned_at DESC`
+      )
+      .all(channel.id);
+
     res.render('chat/index', {
       title: `#${channel.name}`,
       channel,
       channels: await channelsWithUnread(req.user),
       unreadOnly: req.query.unreadOnly === '1',
       messages,
+      pinnedMessages,
       from,
       to,
     });
@@ -316,6 +327,34 @@ router.post(
 
     await db.prepare('DELETE FROM chat_messages WHERE id = ?').run(message.id);
     res.json({ ok: true });
+  })
+);
+
+router.post(
+  '/messages/:id/pin',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden.' });
+    const message = await db.prepare('SELECT id, pinned FROM chat_messages WHERE id = ?').get(req.params.id);
+    if (!message) return res.status(404).json({ error: 'Message not found.' });
+
+    const next = message.pinned ? 0 : 1;
+    await db
+      .prepare(
+        `UPDATE chat_messages SET pinned = ?, pinned_by = ?, pinned_at = CASE WHEN ? = 1 THEN datetime('now') ELSE NULL END WHERE id = ?`
+      )
+      .run(next, next ? req.user.id : null, next, message.id);
+
+    if (!next) return res.json({ ok: true, pinned: false });
+
+    const pinned = await db
+      .prepare(
+        `SELECT chat_messages.*, users.name AS user_name
+         FROM chat_messages JOIN users ON users.id = chat_messages.user_id
+         WHERE chat_messages.id = ?`
+      )
+      .get(message.id);
+    res.json({ ok: true, pinned: true, message: serialize(pinned) });
   })
 );
 

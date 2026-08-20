@@ -3,6 +3,7 @@ const db = require('../db');
 const { verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
+const { LEAVE_TYPES, LEAVE_TYPE_LABELS, parseLeaveType } = require('../lib/leaveTypes');
 
 const router = express.Router();
 
@@ -31,6 +32,8 @@ async function loadViewData(req) {
     pending,
     approved,
     declined,
+    LEAVE_TYPES,
+    LEAVE_TYPE_LABELS,
   };
 }
 
@@ -60,8 +63,8 @@ router.post(
     }
 
     await db
-      .prepare('INSERT INTO leave_requests (user_id, start_date, end_date, reason) VALUES (?, ?, ?, ?)')
-      .run(req.user.id, start_date, end_date, reason || null);
+      .prepare('INSERT INTO leave_requests (user_id, start_date, end_date, reason, leave_type) VALUES (?, ?, ?, ?, ?)')
+      .run(req.user.id, start_date, end_date, reason || null, parseLeaveType(req.body.leave_type));
 
     setFlash(req, 'success', 'Leave request submitted.');
     res.redirect('/leave');
@@ -156,7 +159,7 @@ router.get(
       .get(req.params.id);
     if (!request) return res.status(404).render('error', { message: 'Leave request not found.' });
 
-    res.render('leave/edit', { title: 'Edit Leave', request, error: null });
+    res.render('leave/edit', { title: 'Edit Leave', request, LEAVE_TYPES, error: null });
   })
 );
 
@@ -177,13 +180,14 @@ router.post(
       return res.status(400).render('leave/edit', {
         title: 'Edit Leave',
         request: { ...request, ...req.body, user_name: user.name },
+        LEAVE_TYPES,
         error: 'Please provide a valid start and end date.',
       });
     }
 
     await db
-      .prepare("UPDATE leave_requests SET start_date = ?, end_date = ?, admin_comment = ?, updated_at = datetime('now') WHERE id = ?")
-      .run(start_date, end_date, admin_comment || null, request.id);
+      .prepare("UPDATE leave_requests SET start_date = ?, end_date = ?, admin_comment = ?, leave_type = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(start_date, end_date, admin_comment || null, parseLeaveType(req.body.leave_type), request.id);
 
     setFlash(req, 'success', 'Leave request updated.');
     res.redirect('/leave');

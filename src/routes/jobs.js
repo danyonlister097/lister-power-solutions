@@ -9,6 +9,7 @@ const { JOB_COLORS, JOB_COLOR_VALUES } = require('../lib/jobColors');
 const { asyncHandler } = require('../lib/asyncHandler');
 const { geocodeAddress, buildAddress } = require('../lib/geocode');
 const { generateSchedule, nextMondayIso, addDaysToIso } = require('../lib/smartSchedule');
+const { LEAVE_TYPE_LABELS } = require('../lib/leaveTypes');
 
 const router = express.Router();
 
@@ -111,6 +112,67 @@ function parseAssigneeIds(body) {
   if (raw === undefined || raw === null || raw === '') return [];
   if (!Array.isArray(raw)) raw = [raw];
   return raw.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+}
+
+// A tech on approved leave can't be assigned to a job scheduled that day -
+// used both by the create/edit job form and by schedule drag-and-drop.
+// Returns the first conflict found (name + leave type label) or null.
+async function findAssigneeLeaveConflict(userIds, dayIso) {
+  if (!userIds || !userIds.length || !dayIso) return null;
+  const placeholders = userIds.map(() => '?').join(',');
+  const row = await db
+    .prepare(
+      `SELECT leave_requests.leave_type, users.name
+       FROM leave_requests JOIN users ON users.id = leave_requests.user_id
+       WHERE leave_requests.status = 'approved'
+         AND leave_requests.user_id IN (${placeholders})
+         AND leave_requests.start_date <= ? AND leave_requests.end_date >= ?
+       LIMIT 1`
+    )
+    .get(...userIds, dayIso, dayIso);
+  if (!row) return null;
+  return { name: row.name, label: LEAVE_TYPE_LABELS[row.leave_type] || 'Leave' };
+}
+
+// Approved leave for every active tech, keyed by user id - embedded into the
+// job form so it can grey out on-leave techs client-side as the date changes.
+async function loadTechLeaveMap() {
+  const rows = await db
+    .prepare("SELECT user_id, start_date, end_date, leave_type FROM leave_requests WHERE status = 'approved'")
+    .all();
+  const map = {};
+  for (const r of rows) {
+    (map[r.user_id] = map[r.user_id] || []).push({
+      start_date: r.start_date,
+      end_date: r.end_date,
+      label: LEAVE_TYPE_LABELS[r.leave_type] || 'Leave',
+    });
+  }
+  return map;
+}
+
+// Approved leave overlapping a date range, keyed by user id - used to flag
+// "Unavailable" on the week/day schedule grids.
+async function getApprovedLeaveInRange(startIso, endIso) {
+  const rows = await db
+    .prepare(
+      `SELECT user_id, start_date, end_date, leave_type FROM leave_requests
+       WHERE status = 'approved' AND start_date <= ? AND end_date >= ?`
+    )
+    .all(endIso, startIso);
+  const byUser = new Map();
+  for (const r of rows) {
+    if (!byUser.has(r.user_id)) byUser.set(r.user_id, []);
+    byUser.get(r.user_id).push(r);
+  }
+  return byUser;
+}
+
+function leaveOnDay(leaveByUser, userId, dayIso) {
+  const list = leaveByUser.get(userId);
+  if (!list) return null;
+  const hit = list.find((r) => dayIso >= r.start_date && dayIso <= r.end_date);
+  return hit ? { label: LEAVE_TYPE_LABELS[hit.leave_type] || 'Leave' } : null;
 }
 
 async function getJobOr404(req, res) {
@@ -498,6 +560,7 @@ async function renderGridView(req, res, numDays) {
   });
 
   const techs = await db.prepare('SELECT id, name, hourly_rate FROM users WHERE active = 1 ORDER BY sort_order, name').all();
+  const leaveByUser = await getApprovedLeaveInRange(rangeStartIso, rangeEndIso);
 
   function jobsFor(techId, dayIso) {
     return jobs.filter((j) => {
@@ -507,7 +570,7 @@ async function renderGridView(req, res, numDays) {
   }
 
   const rows = [
-    { id: null, name: 'Unassigned shifts', days: days.map((d) => jobsFor(null, d.iso)) },
+    { id: null, name: 'Unassigned shifts', days: days.map((d) => jobsFor(null, d.iso)), leaveByDay: days.map(() => null) },
     ...techs.map((t) => {
       const rowDays = days.map((d) => jobsFor(t.id, d.iso));
       const rowJobs = rowDays.flat();
@@ -516,6 +579,7 @@ async function renderGridView(req, res, numDays) {
         id: t.id,
         name: t.name,
         days: rowDays,
+        leaveByDay: days.map((d) => leaveOnDay(leaveByUser, t.id, d.iso)),
         shiftCount: rowJobs.length,
         hoursLabel: formatHoursLabel(minutes),
         minutes,
@@ -636,6 +700,24 @@ async function renderMonthView(req, res) {
   });
   weeks.forEach((week) => week.forEach((day) => { day.jobs = jobsByDay[day.iso] || []; }));
 
+  // Team leave - same visibility rule as the week/day grids: a non-admin
+  // only sees their own row/schedule, so they only see their own leave here
+  // too, not the whole team's.
+  const leaveByUser = await getApprovedLeaveInRange(startIso, endIso);
+  const leaveTechs = isAdmin
+    ? await db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY sort_order, name').all()
+    : [{ id: req.user.id, name: req.user.name }];
+  weeks.forEach((week) =>
+    week.forEach((day) => {
+      day.leave = leaveTechs
+        .map((t) => {
+          const hit = leaveOnDay(leaveByUser, t.id, day.iso);
+          return hit ? { name: t.name, label: hit.label } : null;
+        })
+        .filter(Boolean);
+    })
+  );
+
   const prevMonth = new Date(year, month - 1, 1);
   const nextMonth = new Date(year, month + 1, 1);
 
@@ -714,6 +796,7 @@ async function renderDayView(req, res) {
   });
 
   const techs = await db.prepare('SELECT id, name, hourly_rate FROM users WHERE active = 1 ORDER BY sort_order, name').all();
+  const leaveByUser = await getApprovedLeaveInRange(dayIso, dayIso);
 
   function blocksFor(techId) {
     const list = jobs
@@ -754,6 +837,7 @@ async function renderDayView(req, res) {
         name: t.name,
         blocks,
         trackHeight: laneCount * DAY_LANE_HEIGHT,
+        leave: leaveOnDay(leaveByUser, t.id, dayIso),
         shiftCount: rowJobs.length,
         hoursLabel: formatHoursLabel(minutes),
         minutes,
@@ -891,16 +975,30 @@ router.post(
     const newDate = req.body.date;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate || '')) return res.status(400).json({ error: 'Invalid date.' });
 
+    // Resolve who the job's assignees will be *after* this move, whether or
+    // not this particular drag also changed them, so a plain day-to-day drag
+    // (assignee untouched) still gets checked against the new date.
+    let newAssigneeIds = null;
     if (Object.prototype.hasOwnProperty.call(req.body, 'assignedTo')) {
       const raw = req.body.assignedTo;
       if (!raw) {
-        await setAssignees(job.id, []);
+        newAssigneeIds = [];
       } else {
         const assignee = await db.prepare('SELECT id FROM users WHERE id = ? AND active = 1').get(raw);
         if (!assignee) return res.status(400).json({ error: 'Invalid user.' });
-        await setAssignees(job.id, [assignee.id]);
+        newAssigneeIds = [assignee.id];
       }
     }
+    const effectiveAssigneeIds = newAssigneeIds !== null
+      ? newAssigneeIds
+      : (await db.prepare('SELECT user_id FROM job_assignees WHERE job_id = ?').all(job.id)).map((r) => r.user_id);
+
+    const leaveConflict = await findAssigneeLeaveConflict(effectiveAssigneeIds, newDate);
+    if (leaveConflict) {
+      return res.status(400).json({ error: `${leaveConflict.name} is on ${leaveConflict.label} on ${newDate} and can't be scheduled that day.` });
+    }
+
+    if (newAssigneeIds !== null) await setAssignees(job.id, newAssigneeIds);
 
     const [y, m, d] = newDate.split('-').map(Number);
     const oldStart = new Date(job.scheduled_start);
@@ -1078,11 +1176,13 @@ router.get(
     const preselectedCustomerId = req.query.customer_id ? Number(req.query.customer_id) : null;
     const preselectedDate = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '') ? req.query.date : '';
     const randomColor = JOB_COLORS[Math.floor(Math.random() * JOB_COLORS.length)].value;
+    const techLeave = await loadTechLeaveMap();
     res.render('jobs/form', {
       title: 'New Job',
       job: { customer_id: preselectedCustomerId, date: preselectedDate, start_time: '', end_time: '', all_day: false, assigneeIds: [], color: randomColor, category: null },
       customers,
       techs,
+      techLeave,
       STATUSES,
       colors: JOB_COLORS,
       categories: JOB_CATEGORIES,
@@ -1145,6 +1245,7 @@ router.post(
         job: { ...b, assigneeIds },
         customers,
         techs,
+        techLeave: await loadTechLeaveMap(),
         STATUSES,
         colors: JOB_COLORS,
         categories: JOB_CATEGORIES,
@@ -1156,6 +1257,22 @@ router.post(
     const customer = await db.prepare('SELECT * FROM customers WHERE id = ?').get(b.customer_id);
     const schedule = buildSchedule(b);
     const status = schedule.scheduled_start ? 'scheduled' : 'unscheduled';
+
+    const leaveConflict = await findAssigneeLeaveConflict(assigneeIds, schedule.scheduled_start ? schedule.scheduled_start.slice(0, 10) : null);
+    if (leaveConflict) {
+      return res.status(400).render('jobs/form', {
+        title: 'New Job',
+        job: { ...b, assigneeIds },
+        customers,
+        techs,
+        techLeave: await loadTechLeaveMap(),
+        STATUSES,
+        colors: JOB_COLORS,
+        categories: JOB_CATEGORIES,
+        error: `${leaveConflict.name} is on ${leaveConflict.label} that day and can't be assigned. Remove them or pick a different date.`,
+        returnTo,
+      });
+    }
 
     const result = await db
       .prepare(
@@ -1371,6 +1488,7 @@ router.get(
       customers,
       currentCustomer,
       techs,
+      techLeave: await loadTechLeaveMap(),
       STATUSES,
       colors: JOB_COLORS,
       categories: JOB_CATEGORIES,
@@ -1406,6 +1524,7 @@ router.post(
         customers,
         currentCustomer,
         techs,
+        techLeave: await loadTechLeaveMap(),
         STATUSES,
         colors: JOB_COLORS,
         categories: JOB_CATEGORIES,
@@ -1415,6 +1534,23 @@ router.post(
     }
 
     const schedule = buildSchedule(b);
+
+    const leaveConflict = await findAssigneeLeaveConflict(assigneeIds, schedule.scheduled_start ? schedule.scheduled_start.slice(0, 10) : null);
+    if (leaveConflict) {
+      return res.status(400).render('jobs/form', {
+        title: `Edit ${job.title}`,
+        job: { ...job, ...b, assigneeIds },
+        customers,
+        currentCustomer,
+        techs,
+        techLeave: await loadTechLeaveMap(),
+        STATUSES,
+        colors: JOB_COLORS,
+        categories: JOB_CATEGORIES,
+        error: `${leaveConflict.name} is on ${leaveConflict.label} that day and can't be assigned. Remove them or pick a different date.`,
+        returnTo,
+      });
+    }
 
     // A cleared date always wins over a stale "scheduled" status left over
     // from before - otherwise ticking Unscheduled without also touching the

@@ -199,6 +199,8 @@ CREATE TABLE IF NOT EXISTS leave_requests (
 CREATE INDEX IF NOT EXISTS idx_leave_requests_user_id ON leave_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_leave_requests_status ON leave_requests(status);
 
+ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_type TEXT NOT NULL DEFAULT 'annual';
+
 CREATE TABLE IF NOT EXISTS tasks (
   id SERIAL PRIMARY KEY,
   title TEXT NOT NULL,
@@ -756,3 +758,7 @@ CREATE TABLE IF NOT EXISTS job_duplicate_decisions (
   decided_at TEXT NOT NULL DEFAULT now_utc_text(),
   UNIQUE (match_type, match_key)
 );
+
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS pinned INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS pinned_by INTEGER REFERENCES users(id);
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS pinned_at TEXT;

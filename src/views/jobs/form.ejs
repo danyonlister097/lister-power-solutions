@@ -101,7 +101,7 @@
     <span class="form-field-label">Assigned techs</span>
     <div class="tech-checkbox-list">
       <% techs.forEach(t => { %>
-        <label class="tech-checkbox">
+        <label class="tech-checkbox" data-tech-id="<%= t.id %>">
           <input type="checkbox" name="assigned_to" value="<%= t.id %>" <%= (job.assigneeIds || []).map(String).includes(String(t.id)) ? 'checked' : '' %>>
           <%= t.name %>
         </label>
@@ -261,6 +261,53 @@
         swatch.classList.add('color-swatch-selected');
       });
     });
+  })();
+
+  // Flag techs who are on approved leave on the currently-selected date.
+  // Already-checked boxes are left alone (never silently unchecked - the
+  // server is the real backstop if someone saves over a flagged tech), but
+  // a flagged box can't newly be checked.
+  (function () {
+    var TECH_LEAVE = <%- JSON.stringify(typeof techLeave !== 'undefined' ? techLeave : {}) %>;
+    var dateInput = document.getElementById('job-date');
+    var unscheduled = document.getElementById('job-unscheduled');
+    var labels = document.querySelectorAll('.tech-checkbox[data-tech-id]');
+    if (!dateInput || !labels.length) return;
+
+    function applyLeaveWarnings() {
+      var dateVal = unscheduled.checked ? '' : dateInput.value;
+      labels.forEach(function (label) {
+        var cb = label.querySelector('input[type=checkbox]');
+        var ranges = TECH_LEAVE[label.getAttribute('data-tech-id')] || [];
+        var hit = dateVal ? ranges.find(function (r) { return dateVal >= r.start_date && dateVal <= r.end_date; }) : null;
+        label.classList.toggle('tech-checkbox-onleave', !!hit);
+        cb.dataset.leaveBlocked = hit ? '1' : '';
+        var note = label.querySelector('.tech-leave-note');
+        if (hit) {
+          if (!note) {
+            note = document.createElement('span');
+            note.className = 'tech-leave-note';
+            label.appendChild(note);
+          }
+          note.textContent = 'Unavailable — ' + hit.label;
+        } else if (note) {
+          note.remove();
+        }
+      });
+    }
+
+    labels.forEach(function (label) {
+      label.querySelector('input[type=checkbox]').addEventListener('click', function (e) {
+        if (this.dataset.leaveBlocked === '1' && this.checked) {
+          e.preventDefault();
+          this.checked = false;
+        }
+      });
+    });
+
+    dateInput.addEventListener('change', applyLeaveWarnings);
+    unscheduled.addEventListener('change', applyLeaveWarnings);
+    applyLeaveWarnings();
   })();
 
   // Shared customer list — used by both the combobox and the quick-add modal

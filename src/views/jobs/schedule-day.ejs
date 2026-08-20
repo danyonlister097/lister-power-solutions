@@ -113,6 +113,9 @@ document.getElementById('desktop-day-picker').addEventListener('change', functio
             <span class="tech-avatar" style="background: <%= color %>;"><%= initials %></span>
             <div>
               <div class="tech-name"><%= row.name %></div>
+              <% if (row.leave) { %>
+                <div class="tech-leave-badge">Unavailable — <%= row.leave.label %></div>
+              <% } %>
               <div class="tech-stats">
                 <span class="tech-stat">
                   <svg class="stat-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.3"/><path d="M8 4.6V8l2.2 1.3"/></svg>
@@ -144,6 +147,9 @@ document.getElementById('desktop-day-picker').addEventListener('change', functio
 
       <% rows.forEach(row => { %>
         <div class="day-track" style="height: <%= row.id === null ? 88 : Math.max(row.trackHeight, 96) %>px;">
+          <% if (row.leave) { %>
+            <div class="day-leave-block" title="<%= row.name %> is unavailable — <%= row.leave.label %>">Unavailable — <%= row.leave.label %></div>
+          <% } %>
           <% row.blocks.forEach(b => {
                const j = b.job;
                const address = [j.site_address_street, j.site_address_city, j.site_address_state, j.site_address_postcode].filter(Boolean).join(', ');

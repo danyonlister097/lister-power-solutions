@@ -11,6 +11,17 @@
     return window.location.pathname + window.location.search;
   }
 
+  // A rejected reschedule (e.g. the tech is on approved leave that day) has a
+  // specific reason in the JSON body - show that instead of a generic
+  // "please try again", which would be actively misleading here since
+  // retrying the same move will just fail again.
+  function reportRescheduleFailure(res) {
+    res
+      .json()
+      .then(function (data) { alert(data && data.error ? data.error : 'Could not move that job. Please try again.'); })
+      .catch(function () { alert('Could not move that job. Please try again.'); });
+  }
+
   // --- Job detail modal ---
 
   function setupModal() {
@@ -169,7 +180,7 @@
         '&_csrf=' + encodeURIComponent(csrf),
     })
       .then(function (res) {
-        if (!res.ok) throw new Error('Reschedule failed');
+        if (!res.ok) { reportRescheduleFailure(res); return; }
         window.location.reload();
       })
       .catch(function () {
@@ -208,7 +219,7 @@
       body: 'date=' + encodeURIComponent(day) + '&_csrf=' + encodeURIComponent(csrf),
     })
       .then(function (res) {
-        if (!res.ok) throw new Error('Reschedule failed');
+        if (!res.ok) { reportRescheduleFailure(res); return; }
         window.location.reload();
       })
       .catch(function () {

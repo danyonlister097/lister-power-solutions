@@ -45,17 +45,38 @@
       data-last-id="<%= messages.length ? messages[messages.length - 1].id : 0 %>"
       data-live="<%= (from || to) ? '0' : '1' %>"
     >
+      <% if (typeof pinnedMessages !== 'undefined' && pinnedMessages.length) { %>
+        <div class="chat-pinned-bar" id="chat-pinned-bar">
+          <div class="chat-pinned-bar-header">📌 Pinned messages</div>
+          <div class="chat-pinned-list" id="chat-pinned-list">
+            <% pinnedMessages.forEach(function (m) { %>
+              <div class="chat-pinned-item" data-message-id="<%= m.id %>">
+                <button type="button" class="chat-pinned-item-link" data-message-id="<%= m.id %>">
+                  <strong><%= m.user_name %>:</strong>
+                  <%= (m.body || (m.attachment_name ? '📎 ' + m.attachment_name : '')).slice(0, 80) %>
+                </button>
+                <% if (currentUser.role === 'admin') { %>
+                  <button type="button" class="chat-pinned-unpin" data-message-id="<%= m.id %>" title="Unpin">&times;</button>
+                <% } %>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+      <% } %>
       <div class="chat-messages" id="chat-messages">
         <% if (!messages.length) { %>
           <p class="text-muted chat-empty">No messages<%= (from || to) ? ' in this date range.' : ' yet — say hello.' %></p>
         <% } %>
         <% messages.forEach(m => { %>
-          <div class="chat-message <%= m.user_id === currentUser.id ? 'chat-message-own' : '' %>" data-message-id="<%= m.id %>">
+          <div class="chat-message <%= m.user_id === currentUser.id ? 'chat-message-own' : '' %>" id="msg-<%= m.id %>" data-message-id="<%= m.id %>">
             <div class="chat-message-meta">
-              <%= m.user_name %> &middot; <%= new Date(m.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) %>
-              <% if (currentUser.role === 'admin') { %>
-                <button type="button" class="chat-message-delete" data-message-id="<%= m.id %>" title="Delete message" aria-label="Delete message">&times;</button>
-              <% } %>
+              <span><%= m.user_name %> &middot; <%= new Date(m.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) %></span>
+              <span class="chat-message-actions">
+                <% if (currentUser.role === 'admin') { %>
+                  <button type="button" class="chat-message-pin <%= m.pinned ? 'chat-message-pin-active' : '' %>" data-message-id="<%= m.id %>" data-pinned="<%= m.pinned ? '1' : '0' %>" title="<%= m.pinned ? 'Unpin message' : 'Pin message' %>" aria-label="<%= m.pinned ? 'Unpin message' : 'Pin message' %>">📌</button>
+                  <button type="button" class="chat-message-delete" data-message-id="<%= m.id %>" title="Delete message" aria-label="Delete message">&times;</button>
+                <% } %>
+              </span>
             </div>
             <% if (m.body) { %><div class="chat-message-body"><%= m.body %></div><% } %>
             <% if (m.attachment_url) { %>

@@ -18,6 +18,14 @@
         <input type="date" name="end_date" value="<%= request.end_date %>" required>
       </label>
     </div>
+    <label>
+      Leave type
+      <select name="leave_type">
+        <% LEAVE_TYPES.forEach(function (t) { %>
+          <option value="<%= t.value %>" <%= (request.leave_type || 'annual') === t.value ? 'selected' : '' %>><%= t.label %></option>
+        <% }) %>
+      </select>
+    </label>
     <% if (request.reason) { %>
       <label>
         Employee's reason

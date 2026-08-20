@@ -21,13 +21,29 @@
 
       var div = document.createElement('div');
       div.className = 'chat-message' + (String(m.userId) === String(currentUserId) ? ' chat-message-own' : '');
+      div.id = 'msg-' + m.id;
       div.setAttribute('data-message-id', m.id);
 
       var meta = document.createElement('div');
       meta.className = 'chat-message-meta';
       var time = new Date(m.createdAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-      meta.appendChild(document.createTextNode(m.userName + ' · ' + time));
+      var nameSpan = document.createElement('span');
+      nameSpan.textContent = m.userName + ' · ' + time;
+      meta.appendChild(nameSpan);
       if (isAdmin) {
+        var actions = document.createElement('span');
+        actions.className = 'chat-message-actions';
+
+        var pinBtn = document.createElement('button');
+        pinBtn.type = 'button';
+        pinBtn.className = 'chat-message-pin' + (m.pinned ? ' chat-message-pin-active' : '');
+        pinBtn.setAttribute('data-message-id', m.id);
+        pinBtn.setAttribute('data-pinned', m.pinned ? '1' : '0');
+        pinBtn.title = m.pinned ? 'Unpin message' : 'Pin message';
+        pinBtn.setAttribute('aria-label', pinBtn.title);
+        pinBtn.textContent = '📌';
+        actions.appendChild(pinBtn);
+
         var delBtn = document.createElement('button');
         delBtn.type = 'button';
         delBtn.className = 'chat-message-delete';
@@ -35,7 +51,9 @@
         delBtn.title = 'Delete message';
         delBtn.setAttribute('aria-label', 'Delete message');
         delBtn.textContent = '×';
-        meta.appendChild(delBtn);
+        actions.appendChild(delBtn);
+
+        meta.appendChild(actions);
       }
       div.appendChild(meta);
 
@@ -79,8 +97,109 @@
 
     scrollToBottom();
 
+    // --- Pinned messages bar ---
+
+    function ensurePinnedBar() {
+      var bar = document.getElementById('chat-pinned-bar');
+      if (bar) return bar;
+      bar = document.createElement('div');
+      bar.className = 'chat-pinned-bar';
+      bar.id = 'chat-pinned-bar';
+      bar.innerHTML = '<div class="chat-pinned-bar-header">📌 Pinned messages</div><div class="chat-pinned-list" id="chat-pinned-list"></div>';
+      panel.insertBefore(bar, messagesEl);
+      return bar;
+    }
+
+    function addPinnedItem(m) {
+      var existing = document.querySelector('.chat-pinned-item[data-message-id="' + m.id + '"]');
+      if (existing) return;
+      ensurePinnedBar();
+      var list = document.getElementById('chat-pinned-list');
+      var item = document.createElement('div');
+      item.className = 'chat-pinned-item';
+      item.setAttribute('data-message-id', m.id);
+
+      var link = document.createElement('button');
+      link.type = 'button';
+      link.className = 'chat-pinned-item-link';
+      link.setAttribute('data-message-id', m.id);
+      var strong = document.createElement('strong');
+      strong.textContent = m.userName + ':';
+      link.appendChild(strong);
+      var snippet = m.body || (m.attachmentName ? '📎 ' + m.attachmentName : '');
+      link.appendChild(document.createTextNode(' ' + snippet.slice(0, 80)));
+      item.appendChild(link);
+
+      if (isAdmin) {
+        var unpinBtn = document.createElement('button');
+        unpinBtn.type = 'button';
+        unpinBtn.className = 'chat-pinned-unpin';
+        unpinBtn.setAttribute('data-message-id', m.id);
+        unpinBtn.title = 'Unpin';
+        unpinBtn.textContent = '×';
+        item.appendChild(unpinBtn);
+      }
+
+      list.insertBefore(item, list.firstChild);
+    }
+
+    function removePinnedItem(messageId) {
+      var item = document.querySelector('.chat-pinned-item[data-message-id="' + messageId + '"]');
+      if (item) item.remove();
+      var list = document.getElementById('chat-pinned-list');
+      var bar = document.getElementById('chat-pinned-bar');
+      if (list && bar && !list.children.length) bar.remove();
+    }
+
+    function applyPinState(messageId, pinned, message) {
+      document.querySelectorAll('.chat-message-pin[data-message-id="' + messageId + '"]').forEach(function (btn) {
+        btn.classList.toggle('chat-message-pin-active', pinned);
+        btn.setAttribute('data-pinned', pinned ? '1' : '0');
+        btn.title = pinned ? 'Unpin message' : 'Pin message';
+        btn.setAttribute('aria-label', btn.title);
+      });
+      if (pinned && message) addPinnedItem(message);
+      else if (!pinned) removePinnedItem(messageId);
+    }
+
+    function togglePin(messageId) {
+      fetch('/chat/messages/' + messageId + '/pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '_csrf=' + encodeURIComponent(csrf),
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error('Pin failed');
+          return res.json();
+        })
+        .then(function (data) { applyPinState(messageId, data.pinned, data.message); })
+        .catch(function () { alert('Could not update that pin. Please try again.'); });
+    }
+
+    function jumpToMessage(messageId) {
+      var target = document.getElementById('msg-' + messageId);
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.remove('chat-message-highlight');
+      void target.offsetWidth; // restart the animation if it's already flashed once
+      target.classList.add('chat-message-highlight');
+    }
+
+    document.addEventListener('click', function (e) {
+      var link = e.target.closest('.chat-pinned-item-link');
+      if (link) { jumpToMessage(link.getAttribute('data-message-id')); return; }
+      var unpinBtn = e.target.closest('.chat-pinned-unpin');
+      if (unpinBtn) togglePin(unpinBtn.getAttribute('data-message-id'));
+    });
+
     if (isAdmin) {
       messagesEl.addEventListener('click', function (e) {
+        var pinBtn = e.target.closest('.chat-message-pin');
+        if (pinBtn) {
+          togglePin(pinBtn.getAttribute('data-message-id'));
+          return;
+        }
+
         var btn = e.target.closest('.chat-message-delete');
         if (!btn) return;
         var messageId = btn.getAttribute('data-message-id');
@@ -95,6 +214,7 @@
             .then(function (res) {
               if (!res.ok) throw new Error('Delete failed');
               if (messageEl) messageEl.remove();
+              removePinnedItem(messageId);
             })
             .catch(function () {
               alert('Could not delete that message. Please try again.');
