@@ -739,3 +739,20 @@ ALTER TABLE license_documents ADD COLUMN IF NOT EXISTS create_renewal INTEGER NO
 ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_status_check;
 ALTER TABLE jobs ADD CONSTRAINT jobs_status_check
   CHECK (status IN ('unscheduled', 'scheduled', 'in_progress', 'completed', 'invoiced', 'cancelled'));
+
+-- Remembers a verdict against a duplicate-job match (see findDuplicateJobIds
+-- in routes/jobs.js) so the same call doesn't have to be made twice. Keyed
+-- by the match itself (a work-order number, or a description's text) rather
+-- than a pair of job IDs, since that's what the decision is really about -
+-- if a third job later reuses the same number, the earlier verdict applies
+-- to it too. Only the latest verdict per key is kept (no history).
+CREATE TABLE IF NOT EXISTS job_duplicate_decisions (
+  id SERIAL PRIMARY KEY,
+  match_type TEXT NOT NULL CHECK (match_type IN ('number', 'description')),
+  match_key TEXT NOT NULL,
+  is_duplicate INTEGER NOT NULL,
+  reason TEXT,
+  decided_by INTEGER NOT NULL REFERENCES users(id),
+  decided_at TEXT NOT NULL DEFAULT now_utc_text(),
+  UNIQUE (match_type, match_key)
+);

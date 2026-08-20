@@ -2173,6 +2173,15 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
 .leave-stat-approved .leave-stat-value { color: var(--color-success); }
 .leave-stat-declined { border-top-color: var(--color-danger); background: #fbeaea; }
 .leave-stat-declined .leave-stat-value { color: var(--color-danger); }
+.leave-stat-invoiced { border-top-color: #6b4fa0; background: #ede7f6; }
+.leave-stat-invoiced .leave-stat-value { color: #6b4fa0; }
+.leave-stat-warning { border-top-color: #9a6300; background: #fff4e0; }
+.leave-stat-warning .leave-stat-value { color: #9a6300; }
+
+/* Flags a job row whose title starts with the same work-order number, or
+   has the exact same description, as another job - see findDuplicateJobIds
+   in routes/jobs.js. */
+.dupe-flag-badge { background: #fff4e0; color: #9a6300; }
 
 .leave-form-card { max-width: 480px; }
 .leave-form-title { margin: 0 0 0.9rem; font-size: 1.05rem; }

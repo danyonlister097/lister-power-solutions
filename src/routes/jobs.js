@@ -145,6 +145,65 @@ async function getJobOr404(req, res) {
   return job;
 }
 
+// A leading work-order number in the title (e.g. "4441 - Aircon leaking",
+// sometimes with no spaces around the dash) is how jobs get entered from
+// property managers' maintenance systems - the same number showing up
+// twice usually means the same job got entered twice. Matched separately
+// from an identical description (trimmed/case-insensitive), since either
+// on its own is a strong signal. Computed globally (not filtered by the
+// list's current category/assignedTo) so a genuine duplicate is never
+// hidden just because its pair was mis-categorised differently.
+const JOB_NUMBER_PREFIX = /^(\d+)\s*[-–—]\s*/;
+const DUPLICATE_MATCH_TYPES = ['number', 'description'];
+
+function addToGroup(map, key, id) {
+  if (!map.has(key)) map.set(key, []);
+  map.get(key).push(id);
+}
+
+// A match (a specific job-number or description text) is only ever flagged
+// or dismissed as a whole - not per pair - so a verdict made on two jobs
+// automatically covers a third job that later reuses the same number.
+// Returns Map<jobId, Array<{matchType, matchKey, verdict, reason}>>, where
+// verdict is 'pending' (never reviewed) or 'duplicate' (confirmed); matches
+// dismissed as "not a duplicate" are simply left out.
+async function findDuplicateJobIds() {
+  const allJobs = await db.prepare("SELECT id, title, description FROM jobs WHERE status != 'cancelled'").all();
+  const decisions = await db.prepare('SELECT match_type, match_key, is_duplicate, reason FROM job_duplicate_decisions').all();
+  const decisionByKey = new Map(decisions.map((d) => [`${d.match_type}:${d.match_key}`, d]));
+
+  const byNumber = new Map();
+  const byDescription = new Map();
+  for (const j of allJobs) {
+    const m = j.title.match(JOB_NUMBER_PREFIX);
+    if (m) addToGroup(byNumber, m[1], j.id);
+    const desc = (j.description || '').trim().toLowerCase();
+    if (desc) addToGroup(byDescription, desc, j.id);
+  }
+
+  const matches = new Map();
+  function markDuplicateGroups(groups, matchType) {
+    for (const [matchKey, ids] of groups.entries()) {
+      if (ids.length < 2) continue;
+      const decision = decisionByKey.get(`${matchType}:${matchKey}`);
+      if (decision && !decision.is_duplicate) continue; // dismissed - not flagged
+      const entry = {
+        matchType,
+        matchKey,
+        verdict: decision ? 'duplicate' : 'pending',
+        reason: decision ? decision.reason : null,
+      };
+      for (const id of ids) {
+        if (!matches.has(id)) matches.set(id, []);
+        matches.get(id).push(entry);
+      }
+    }
+  }
+  markDuplicateGroups(byNumber, 'number');
+  markDuplicateGroups(byDescription, 'description');
+  return matches;
+}
+
 async function checkCompletionRequirements(jobId) {
   const flags = await db.prepare('SELECT photos_na, stock_na, actual_start, actual_end FROM jobs WHERE id = ?').get(jobId);
   const missing = [];
@@ -167,39 +226,56 @@ router.get(
     const isAdmin = req.user.role === 'admin';
     const status = req.query.status || '';
     const category = req.query.category || '';
+    const customerId = req.query.customer || '';
     const range = req.query.range || 'all';
     const assignedTo = isAdmin ? req.query.assignedTo || '' : String(req.user.id);
+    const dupeReasons = await findDuplicateJobIds();
+    // Non-admin-visible duplicate jobs still get flagged on their own rows,
+    // but the "show me only duplicates" view is an admin data-hygiene tool -
+    // gating it here also stops a non-admin using ?dupes=1 to see job titles
+    // outside their own assigned jobs.
+    const dupesOnly = isAdmin && req.query.dupes === '1';
 
     const clauses = [];
     const params = {};
 
-    if (!isAdmin) {
-      clauses.push('EXISTS (SELECT 1 FROM job_assignees ja WHERE ja.job_id = jobs.id AND ja.user_id = @userId)');
-      params.userId = req.user.id;
-    } else if (assignedTo) {
-      clauses.push('EXISTS (SELECT 1 FROM job_assignees ja WHERE ja.job_id = jobs.id AND ja.user_id = @assignedTo)');
-      params.assignedTo = assignedTo;
-    }
+    if (dupesOnly) {
+      clauses.push('jobs.id = ANY(@dupeIds)');
+      params.dupeIds = [...dupeReasons.keys()];
+    } else {
+      if (!isAdmin) {
+        clauses.push('EXISTS (SELECT 1 FROM job_assignees ja WHERE ja.job_id = jobs.id AND ja.user_id = @userId)');
+        params.userId = req.user.id;
+      } else if (assignedTo) {
+        clauses.push('EXISTS (SELECT 1 FROM job_assignees ja WHERE ja.job_id = jobs.id AND ja.user_id = @assignedTo)');
+        params.assignedTo = assignedTo;
+      }
 
-    if (status) {
-      clauses.push('jobs.status = @status');
-      params.status = status;
-    }
+      if (status) {
+        clauses.push('jobs.status = @status');
+        params.status = status;
+      }
 
-    if (category) {
-      clauses.push('jobs.category = @category');
-      params.category = category;
-    }
+      if (category) {
+        clauses.push('jobs.category = @category');
+        params.category = category;
+      }
 
-    if (range === 'today') {
-      clauses.push(`(jobs.scheduled_start)::date = (now() AT TIME ZONE '${BUSINESS_TZ}')::date`);
-    } else if (range === 'week') {
-      clauses.push(
-        `(jobs.scheduled_start)::date BETWEEN (now() AT TIME ZONE '${BUSINESS_TZ}')::date AND ((now() AT TIME ZONE '${BUSINESS_TZ}') + interval '7 days')::date`
-      );
-    } else if (range === 'upcoming') {
-      clauses.push(`(jobs.scheduled_start IS NULL OR (jobs.scheduled_start)::date >= (now() AT TIME ZONE '${BUSINESS_TZ}')::date)`);
-      clauses.push("jobs.status NOT IN ('completed', 'cancelled')");
+      if (customerId) {
+        clauses.push('jobs.customer_id = @customerId');
+        params.customerId = customerId;
+      }
+
+      if (range === 'today') {
+        clauses.push(`(jobs.scheduled_start)::date = (now() AT TIME ZONE '${BUSINESS_TZ}')::date`);
+      } else if (range === 'week') {
+        clauses.push(
+          `(jobs.scheduled_start)::date BETWEEN (now() AT TIME ZONE '${BUSINESS_TZ}')::date AND ((now() AT TIME ZONE '${BUSINESS_TZ}') + interval '7 days')::date`
+        );
+      } else if (range === 'upcoming') {
+        clauses.push(`(jobs.scheduled_start IS NULL OR (jobs.scheduled_start)::date >= (now() AT TIME ZONE '${BUSINESS_TZ}')::date)`);
+        clauses.push("jobs.status NOT IN ('completed', 'cancelled')");
+      }
     }
 
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
@@ -222,17 +298,36 @@ router.get(
     }
 
     const techs = isAdmin ? await db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY sort_order, name').all() : [];
+    const jobCustomers = isAdmin
+      ? await db
+          .prepare(
+            `SELECT DISTINCT customers.id, customers.name FROM customers
+             JOIN jobs ON jobs.customer_id = customers.id
+             ORDER BY customers.name`
+          )
+          .all()
+      : [];
 
-    // Status counters — scoped to the same assignee/category filter but across all time/status
-    const countCategoryClause = category ? 'WHERE jobs.category = @category' : '';
+    // Status counters — scoped to the same assignee/category/customer filter but across all time/status
+    const countClauses = [];
+    const countParams = { uid: isAdmin ? Number(assignedTo) : req.user.id };
+    if (category) {
+      countClauses.push('jobs.category = @category');
+      countParams.category = category;
+    }
+    if (customerId) {
+      countClauses.push('jobs.customer_id = @customerId');
+      countParams.customerId = customerId;
+    }
+    const countWhere = countClauses.length ? `WHERE ${countClauses.join(' AND ')}` : '';
     const countRows = isAdmin && !assignedTo
-      ? await db.prepare(`SELECT status, COUNT(*) AS n FROM jobs ${countCategoryClause} GROUP BY status`).all({ category })
+      ? await db.prepare(`SELECT status, COUNT(*) AS n FROM jobs ${countWhere} GROUP BY status`).all(countParams)
       : await db.prepare(
           `SELECT jobs.status, COUNT(*) AS n FROM jobs
            JOIN job_assignees ja ON ja.job_id = jobs.id AND ja.user_id = @uid
-           ${countCategoryClause}
+           ${countWhere}
            GROUP BY jobs.status`
-        ).all({ uid: isAdmin ? Number(assignedTo) : req.user.id, category });
+        ).all(countParams);
     const statusCounts = Object.fromEntries(STATUSES.map((s) => [s, 0]));
     for (const row of countRows) if (statusCounts[row.status] !== undefined) statusCounts[row.status] = Number(row.n);
 
@@ -240,15 +335,79 @@ router.get(
       title: 'Jobs',
       jobs,
       techs,
+      jobCustomers,
       status,
       category,
+      customerId,
       range,
       assignedTo,
       isAdmin,
       STATUSES,
       JOB_CATEGORIES,
       statusCounts,
+      dupeReasons,
+      dupesOnly,
+      duplicateCount: dupeReasons.size,
+      dismissedDuplicates: dupesOnly
+        ? await db
+            .prepare(
+              `SELECT job_duplicate_decisions.*, users.name AS decided_by_name
+               FROM job_duplicate_decisions
+               JOIN users ON users.id = job_duplicate_decisions.decided_by
+               WHERE is_duplicate = 0
+               ORDER BY decided_at DESC`
+            )
+            .all()
+        : [],
     });
+  })
+);
+
+router.post(
+  '/duplicates/decide',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const isDuplicate = req.body.is_duplicate === '1' ? 1 : 0;
+    const reason = (req.body.reason || '').trim() || null;
+    let matches = [];
+    try {
+      matches = JSON.parse(req.body.matches || '[]');
+    } catch {
+      matches = [];
+    }
+    matches = matches.filter((m) => m && DUPLICATE_MATCH_TYPES.includes(m.matchType) && typeof m.matchKey === 'string' && m.matchKey);
+
+    if (!matches.length) {
+      setFlash(req, 'error', 'Nothing to decide.');
+      return res.redirect(safeReturnTo(req.body.returnTo) || '/jobs');
+    }
+
+    for (const m of matches) {
+      await db
+        .prepare(
+          `INSERT INTO job_duplicate_decisions (match_type, match_key, is_duplicate, reason, decided_by)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT (match_type, match_key) DO UPDATE SET
+             is_duplicate = excluded.is_duplicate, reason = excluded.reason,
+             decided_by = excluded.decided_by, decided_at = now_utc_text()`
+        )
+        .run(m.matchType, m.matchKey, isDuplicate, reason, req.user.id);
+    }
+
+    setFlash(req, 'success', isDuplicate ? 'Marked as a confirmed duplicate.' : "Marked as not a duplicate - won't be flagged again.");
+    res.redirect(safeReturnTo(req.body.returnTo) || '/jobs');
+  })
+);
+
+router.post(
+  '/duplicates/:id/undo',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    await db.prepare('DELETE FROM job_duplicate_decisions WHERE id = ?').run(req.params.id);
+    setFlash(req, 'success', 'Decision undone.');
+    res.redirect(safeReturnTo(req.body.returnTo) || '/jobs?dupes=1');
   })
 );
 

@@ -17,28 +17,43 @@
     scheduled:   { label: 'Scheduled',   cls: '' },
     in_progress: { label: 'In Progress', cls: 'leave-stat-pending' },
     completed:   { label: 'Completed',   cls: 'leave-stat-approved' },
+    invoiced:    { label: 'Invoiced',    cls: 'leave-stat-invoiced' },
     cancelled:   { label: 'Cancelled',   cls: 'leave-stat-declined' },
   };
 %>
 <div class="leave-stats" style="margin-bottom:1rem;flex-wrap:nowrap;">
   <% STATUSES.forEach(s => {
-    const meta = statMeta[s] || { label: s, cls: '' };
-    const isActive = status === s;
-  %>
-    <a href="?range=all&status=<%= s %>&assignedTo=<%= assignedTo %>&category=<%= category %>"
-       class="leave-stat <%= meta.cls %>"
-       style="text-decoration:none;<%= isActive ? 'outline:2px solid currentColor;outline-offset:2px;' : '' %>">
-      <span class="leave-stat-value"><%= statusCounts[s] %></span>
-      <span class="leave-stat-label"><%= meta.label %></span>
-    </a>
+    // Admins get a "Duplicate Jobs" card in place of "In Progress" - a
+    // data-hygiene tool for spotting jobs entered twice (see
+    // findDuplicateJobIds in routes/jobs.js). Everyone else keeps the
+    // normal 6-status row.
+    if (isAdmin && s === 'in_progress') { %>
+      <a href="?range=all&status=&assignedTo=&category=&customer=&dupes=1"
+         class="leave-stat leave-stat-warning"
+         style="text-decoration:none;<%= dupesOnly ? 'outline:2px solid currentColor;outline-offset:2px;' : '' %>"
+         title="Jobs sharing a work-order number or an identical description with another job">
+        <span class="leave-stat-value"><%= duplicateCount %></span>
+        <span class="leave-stat-label">Duplicate Jobs</span>
+      </a>
+    <% } else {
+      const meta = statMeta[s] || { label: s, cls: '' };
+      const isActive = !dupesOnly && status === s;
+    %>
+      <a href="?range=all&status=<%= s %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>"
+         class="leave-stat <%= meta.cls %>"
+         style="text-decoration:none;<%= isActive ? 'outline:2px solid currentColor;outline-offset:2px;' : '' %>">
+        <span class="leave-stat-value"><%= statusCounts[s] %></span>
+        <span class="leave-stat-label"><%= meta.label %></span>
+      </a>
+    <% } %>
   <% }) %>
 </div>
 
 <div class="filters">
-  <a href="?range=all&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>" class="<%= range === 'all' ? 'active' : '' %>">All</a>
-  <a href="?range=today&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>" class="<%= range === 'today' ? 'active' : '' %>">Day</a>
-  <a href="?range=week&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>" class="<%= range === 'week' ? 'active' : '' %>">Week</a>
-  <a href="?range=upcoming&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>" class="<%= range === 'upcoming' ? 'active' : '' %>">Upcoming</a>
+  <a href="?range=all&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>" class="<%= range === 'all' ? 'active' : '' %>">All</a>
+  <a href="?range=today&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>" class="<%= range === 'today' ? 'active' : '' %>">Day</a>
+  <a href="?range=week&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>" class="<%= range === 'week' ? 'active' : '' %>">Week</a>
+  <a href="?range=upcoming&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>" class="<%= range === 'upcoming' ? 'active' : '' %>">Upcoming</a>
 </div>
 
 <form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">
@@ -71,15 +86,24 @@
         <% }) %>
       </select>
     </label>
+    <label style="flex:1;min-width:160px;">
+      Customer
+      <select name="customer">
+        <option value="">Any</option>
+        <% jobCustomers.forEach(c => { %>
+          <option value="<%= c.id %>" <%= String(customerId) === String(c.id) ? 'selected' : '' %>><%= c.name %></option>
+        <% }) %>
+      </select>
+    </label>
   <% } %>
   <button type="submit" class="btn btn-secondary">Filter</button>
 </form>
 
 
 <% if (jobs.length === 0) { %>
-  <div class="empty-state">No jobs match these filters.</div>
+  <div class="empty-state"><%= dupesOnly ? 'No duplicate jobs found.' : 'No jobs match these filters.' %></div>
 <% } else { %>
-  <% var _returnTo = '/jobs?range=' + range + '&status=' + status + '&assignedTo=' + (assignedTo || '') + '&category=' + (category || ''); %>
+  <% var _returnTo = '/jobs?range=' + range + '&status=' + status + '&assignedTo=' + (assignedTo || '') + '&category=' + (category || '') + '&customer=' + (customerId || '') + (dupesOnly ? '&dupes=1' : ''); %>
   <div id="jobs-list-root">
     <%
       let lastDay = null;
@@ -110,6 +134,18 @@
                 <% if (j.assigneeNames) { %> &middot; <%= j.assigneeNames %><% } %>
               </span>
             </span>
+            <%
+              var dupeMatches = dupeReasons.get(j.id);
+              if (dupeMatches) {
+                var dupeConfirmed = dupeMatches.find(function (m) { return m.reason; });
+                var dupeTooltip = dupeConfirmed
+                  ? dupeConfirmed.reason
+                  : 'Possible duplicate — matches another job\'s ' +
+                    dupeMatches.map(function (m) { return m.matchType === 'number' ? 'job number' : 'description'; })
+                      .filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' and ');
+            %>
+              <span class="badge dupe-flag-badge" title="<%= dupeTooltip %>">&#9888; Duplicate</span>
+            <% } %>
             <span class="badge badge-<%= j.status %>"><%= j.status.replace('_', ' ') %></span>
           </a>
           <% if (isAdmin) { %>
@@ -117,6 +153,11 @@
             <button class="row-menu-btn" aria-label="More actions" aria-expanded="false">⋮</button>
             <div class="context-menu" hidden>
               <a class="context-menu-item" href="/jobs/<%= j.id %>/edit?returnTo=<%= encodeURIComponent(_returnTo) %>">Edit</a>
+              <% if (dupeMatches) { %>
+                <% var dupeMatchesJson = JSON.stringify(dupeMatches.map(function (m) { return { matchType: m.matchType, matchKey: m.matchKey }; })).replace(/"/g, '&quot;'); %>
+                <button type="button" class="context-menu-item dupe-decide-btn" data-verdict="1" data-matches="<%- dupeMatchesJson %>">Confirm duplicate&hellip;</button>
+                <button type="button" class="context-menu-item dupe-decide-btn" data-verdict="0" data-matches="<%- dupeMatchesJson %>">Not a duplicate&hellip;</button>
+              <% } %>
               <form method="post" action="/jobs/<%= j.id %>/duplicate" style="margin:0;">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <input type="hidden" name="returnTo" value="<%= _returnTo %>">
@@ -292,6 +333,93 @@
       });
       bulkUnscheduleForm.submit();
     });
+  });
+})();
+</script>
+<% } %>
+
+<% if (isAdmin && dupesOnly && dismissedDuplicates.length) { %>
+  <% var _dupeReturnTo = typeof _returnTo !== 'undefined' ? _returnTo : '/jobs?dupes=1'; %>
+  <div class="section-heading">Dismissed (<%= dismissedDuplicates.length %>)</div>
+  <ul class="list">
+    <% dismissedDuplicates.forEach(function (d) { %>
+      <li>
+        <span class="list-item">
+          <span style="min-width:0;">
+            <span class="list-item-title">
+              <%= d.match_type === 'number' ? 'Job number ' + d.match_key : 'Description match' %>
+            </span><br>
+            <span class="list-item-meta">
+              <% if (d.match_type === 'description') { %>&ldquo;<%= d.match_key.length > 70 ? d.match_key.slice(0, 70) + '…' : d.match_key %>&rdquo; &middot; <% } %>
+              <% if (d.reason) { %><em><%= d.reason %></em> &middot; <% } %>
+              not a duplicate, per <%= d.decided_by_name %> on <%= formatAuDate(d.decided_at.slice(0, 10)) %>
+            </span>
+          </span>
+          <form method="post" action="/jobs/duplicates/<%= d.id %>/undo" style="margin:0;">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="returnTo" value="<%= _dupeReturnTo %>">
+            <button type="submit" class="btn-link">Undo</button>
+          </form>
+        </span>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+
+<% if (isAdmin) { %>
+<!-- Duplicate decision modal - "Confirm duplicate…" / "Not a duplicate…" from a flagged row's ⋮ menu -->
+<div id="dupe-decision-modal" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dupe-decision-title" style="max-width:420px;">
+    <button type="button" class="modal-close" id="dupe-decision-close" aria-label="Close">&times;</button>
+    <h2 id="dupe-decision-title">Not a duplicate</h2>
+    <p class="text-muted" id="dupe-decision-hint" style="font-size:0.85rem;margin-top:-0.5rem;">
+      Applies to every job sharing this job number or description - including any added later.
+    </p>
+    <form method="post" action="/jobs/duplicates/decide" id="dupe-decision-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="returnTo" value="<%= typeof _returnTo !== 'undefined' ? _returnTo : '/jobs' %>">
+      <input type="hidden" name="is_duplicate" id="dupe-decision-verdict">
+      <input type="hidden" name="matches" id="dupe-decision-matches">
+      <label>
+        Reason <span style="font-weight:400;">(optional)</span>
+        <textarea name="reason" id="dupe-decision-reason" rows="2" placeholder="e.g. Two separate issues logged under the same work order"></textarea>
+      </label>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="dupe-decision-cancel">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById('dupe-decision-modal');
+  var titleEl = document.getElementById('dupe-decision-title');
+  var verdictInput = document.getElementById('dupe-decision-verdict');
+  var matchesInput = document.getElementById('dupe-decision-matches');
+  var reasonInput = document.getElementById('dupe-decision-reason');
+
+  function openModal(btn) {
+    var verdict = btn.getAttribute('data-verdict');
+    titleEl.textContent = verdict === '1' ? 'Confirm duplicate' : 'Not a duplicate';
+    verdictInput.value = verdict;
+    matchesInput.value = btn.getAttribute('data-matches');
+    reasonInput.value = '';
+    modal.hidden = false;
+    reasonInput.focus();
+  }
+  function closeModal() { modal.hidden = true; }
+
+  document.getElementById('dupe-decision-close').addEventListener('click', closeModal);
+  document.getElementById('dupe-decision-cancel').addEventListener('click', closeModal);
+  modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.dupe-decide-btn');
+    if (!btn) return;
+    openModal(btn);
   });
 })();
 </script>
