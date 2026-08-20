@@ -56,7 +56,7 @@
   <a href="?range=upcoming&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>" class="<%= range === 'upcoming' ? 'active' : '' %>">Upcoming</a>
 </div>
 
-<form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">
+<form method="get" id="jobs-filter-form" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">
   <input type="hidden" name="range" value="<%= range %>">
   <label style="flex:1;min-width:160px;">
     Status
@@ -96,14 +96,43 @@
       </select>
     </label>
   <% } %>
-  <button type="submit" class="btn btn-secondary">Filter</button>
+  <div style="display:flex;flex-direction:column;gap:0.4rem;">
+    <button type="button" id="jobs-clear-filters" class="btn btn-secondary btn-sm">Clear</button>
+    <button type="submit" class="btn btn-secondary">Filter</button>
+  </div>
 </form>
+<script>
+(function () {
+  var clearBtn = document.getElementById('jobs-clear-filters');
+  if (!clearBtn) return;
+  clearBtn.addEventListener('click', function () {
+    var form = document.getElementById('jobs-filter-form');
+    var searchInput = document.getElementById('jobs-search');
+    var hasFilters = Array.prototype.some.call(form.querySelectorAll('select'), function (sel) { return sel.value !== ''; });
+    var hasSearch = searchInput && searchInput.value.trim() !== '';
+    if (!hasFilters && !hasSearch) return;
+    form.querySelectorAll('select').forEach(function (sel) { sel.value = ''; });
+    if (searchInput) searchInput.value = '';
+    Object.keys(sessionStorage).forEach(function (key) {
+      if (key.indexOf('jobsListState:') === 0) sessionStorage.removeItem(key);
+    });
+    form.submit();
+  });
+})();
+</script>
 
 
 <% if (jobs.length === 0) { %>
   <div class="empty-state"><%= dupesOnly ? 'No duplicate jobs found.' : 'No jobs match these filters.' %></div>
 <% } else { %>
   <% var _returnTo = '/jobs?range=' + range + '&status=' + status + '&assignedTo=' + (assignedTo || '') + '&category=' + (category || '') + '&customer=' + (customerId || '') + (dupesOnly ? '&dupes=1' : ''); %>
+  <div class="card" style="margin-bottom:1rem;">
+    <label>
+      Search
+      <input type="search" id="jobs-search" placeholder="Search by title, description, customer, category or assigned tech&hellip;">
+    </label>
+  </div>
+  <div id="jobs-search-empty" class="empty-state" hidden>No jobs match your search.</div>
   <div id="jobs-list-root">
     <%
       let lastDay = null;
@@ -120,7 +149,8 @@
       <div class="jobs-day-group">
         <div class="section-heading"><%= day %></div>
     <% } %>
-        <div class="list-item row-menu-hover-target jobs-row" style="padding:0;gap:0;">
+        <div class="list-item row-menu-hover-target jobs-row" style="padding:0;gap:0;"
+             data-search="<%= [j.title, j.description, j.customer_name, j.category, j.assigneeNames, j.notes].filter(Boolean).join(' ').toLowerCase() %>">
           <% if (isAdmin) { %><label style="padding:0 0 0 1rem;display:flex;align-items:center;cursor:pointer;" aria-label="Select job"><input type="checkbox" class="job-select" value="<%= j.id %>"></label><% } %>
           <a href="/jobs/<%= j.id %>?returnTo=<%= encodeURIComponent(_returnTo) %>" style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1rem;gap:0.5rem;text-decoration:none;color:inherit;min-width:0;">
             <span style="min-width:0;">
@@ -199,23 +229,32 @@
     var nextBtn = document.getElementById('jobs-next-page');
     var pageInfo = document.getElementById('jobs-page-info');
     var pager = document.getElementById('jobs-pagination');
+    var searchInput = document.getElementById('jobs-search');
+    var searchEmpty = document.getElementById('jobs-search-empty');
     var groups = Array.prototype.slice.call(document.querySelectorAll('.jobs-day-group'));
     var rows = Array.prototype.slice.call(document.querySelectorAll('.jobs-row'));
     if (!rows.length) return;
 
     var currentPage = 1;
-    // Keyed by the filter querystring so paging/scroll is remembered
+    // Keyed by the filter querystring so paging/scroll/search is remembered
     // per filter combination, not shared across "All"/"Day"/"Week"/etc.
     var STATE_KEY = 'jobsListState:' + window.location.search;
 
+    function matchingRows() {
+      var q = searchInput.value.trim().toLowerCase();
+      if (!q) return rows;
+      return rows.filter(function (row) { return (row.getAttribute('data-search') || '').indexOf(q) !== -1; });
+    }
+
     function render() {
+      var matched = matchingRows();
       var pageSize = Number.parseInt(pageSizeSelect.value, 10) || 20;
-      var totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+      var totalPages = Math.max(1, Math.ceil(matched.length / pageSize));
       if (currentPage > totalPages) currentPage = totalPages;
       if (currentPage < 1) currentPage = 1;
 
       var start = (currentPage - 1) * pageSize;
-      var visible = new Set(rows.slice(start, start + pageSize));
+      var visible = new Set(matched.slice(start, start + pageSize));
 
       rows.forEach(function (row) { row.hidden = !visible.has(row); });
       groups.forEach(function (group) {
@@ -223,19 +262,21 @@
         group.hidden = !anyVisible;
       });
 
+      searchEmpty.hidden = matched.length > 0;
       pageInfo.textContent = 'Page ' + currentPage + ' of ' + totalPages;
       prevBtn.disabled = currentPage <= 1;
       nextBtn.disabled = currentPage >= totalPages;
       pager.hidden = totalPages <= 1;
     }
 
-    // Restore page/page-size/scroll from the last visit to this exact
+    // Restore search/page/page-size/scroll from the last visit to this exact
     // filtered list - e.g. returning via a job's Close button - so a long
     // list doesn't jump back to page 1, top of page, every time.
     var restoredScroll = null;
     try {
       var saved = JSON.parse(sessionStorage.getItem(STATE_KEY) || 'null');
       if (saved) {
+        if (saved.search) searchInput.value = saved.search;
         if (saved.pageSize) pageSizeSelect.value = saved.pageSize;
         if (saved.page) currentPage = saved.page;
         if (typeof saved.scroll === 'number') restoredScroll = saved.scroll;
@@ -252,6 +293,7 @@
     }
 
     pageSizeSelect.addEventListener('change', resetToTop);
+    searchInput.addEventListener('input', resetToTop);
     prevBtn.addEventListener('click', function () { currentPage--; render(); window.scrollTo(0, 0); });
     nextBtn.addEventListener('click', function () { currentPage++; render(); window.scrollTo(0, 0); });
 
@@ -260,6 +302,7 @@
     // the moment they left.
     window.addEventListener('pagehide', function () {
       sessionStorage.setItem(STATE_KEY, JSON.stringify({
+        search: searchInput.value,
         pageSize: pageSizeSelect.value,
         page: currentPage,
         scroll: window.scrollY,
