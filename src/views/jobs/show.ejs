@@ -102,11 +102,24 @@
     <input type="hidden" name="returnTo" value="<%= closeUrl %>">
     <label>
       <%= job.actual_start ? 'Update' : 'Start time' %>
-      <input type="datetime-local" name="actual_start" value="<%= toLocalInput(job.actual_start) %>">
+      <input type="datetime-local" name="actual_start" id="job-actual-start-input" value="<%= toLocalInput(job.actual_start) %>">
     </label>
     <div class="actions">
       <button type="submit" class="btn btn-primary btn-sm">Save start time</button>
     </div>
+    <script>
+      (function () {
+        var input = document.getElementById('job-actual-start-input');
+        var form = input.closest('form');
+        input.addEventListener('click', function () {
+          if (typeof input.showPicker === 'function') input.showPicker();
+        });
+        input.addEventListener('change', function () {
+          if (form.requestSubmit) form.requestSubmit();
+          else form.submit();
+        });
+      })();
+    </script>
   </form>
 </div>
 
@@ -542,11 +555,24 @@
     <input type="hidden" name="returnTo" value="<%= closeUrl %>">
     <label>
       <%= job.actual_end ? 'Update' : 'Finish time' %>
-      <input type="datetime-local" name="actual_end" value="<%= toLocalInput(job.actual_end) %>">
+      <input type="datetime-local" name="actual_end" id="job-actual-end-input" value="<%= toLocalInput(job.actual_end) %>">
     </label>
     <div class="actions">
       <button type="submit" class="btn btn-primary btn-sm">Save finish time</button>
     </div>
+    <script>
+      (function () {
+        var input = document.getElementById('job-actual-end-input');
+        var form = input.closest('form');
+        input.addEventListener('click', function () {
+          if (typeof input.showPicker === 'function') input.showPicker();
+        });
+        input.addEventListener('change', function () {
+          if (form.requestSubmit) form.requestSubmit();
+          else form.submit();
+        });
+      })();
+    </script>
   </form>
 </div>
 
