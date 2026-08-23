@@ -762,3 +762,24 @@ CREATE TABLE IF NOT EXISTS job_duplicate_decisions (
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS pinned INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS pinned_by INTEGER REFERENCES users(id);
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS pinned_at TEXT;
+
+-- Web Push subscriptions - one row per device/browser a user has enabled
+-- notifications on (a user can have several: phone + desktop). endpoint is
+-- unique per device registration, so re-subscribing the same device just
+-- updates its keys rather than creating a duplicate row.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
+
+-- Tracks whether each of the two bill-due push reminders (a few days out,
+-- and on the day itself) has already fired, so the daily cron doesn't
+-- re-notify for the same bill every time it runs.
+ALTER TABLE bills ADD COLUMN IF NOT EXISTS reminder_soon_sent_at TEXT;
+ALTER TABLE bills ADD COLUMN IF NOT EXISTS reminder_due_sent_at TEXT;

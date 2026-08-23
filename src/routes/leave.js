@@ -4,6 +4,8 @@ const { verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
 const { LEAVE_TYPES, LEAVE_TYPE_LABELS, parseLeaveType } = require('../lib/leaveTypes');
+const { sendPushToUsers } = require('../lib/push');
+const { formatAuDate } = require('../lib/dates');
 
 const router = express.Router();
 
@@ -65,6 +67,19 @@ router.post(
     await db
       .prepare('INSERT INTO leave_requests (user_id, start_date, end_date, reason, leave_type) VALUES (?, ?, ?, ?, ?)')
       .run(req.user.id, start_date, end_date, reason || null, parseLeaveType(req.body.leave_type));
+
+    // Notify admins who can approve it - excluding the requester themselves,
+    // in case an admin is requesting their own leave.
+    const admins = await db.prepare("SELECT id FROM users WHERE role = 'admin' AND active = 1 AND id != ?").all(req.user.id);
+    await sendPushToUsers(
+      admins.map((a) => a.id),
+      {
+        title: 'New leave request',
+        body: `${req.user.name} — ${formatAuDate(start_date)} to ${formatAuDate(end_date)} (${LEAVE_TYPE_LABELS[parseLeaveType(req.body.leave_type)]})`,
+        url: '/leave',
+        tag: 'leave-request',
+      }
+    );
 
     setFlash(req, 'success', 'Leave request submitted.');
     res.redirect('/leave');

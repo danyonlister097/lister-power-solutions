@@ -268,3 +268,85 @@
 
   poll();
 })();
+
+// Push notification opt-in toggle (the bell icon next to the "?" help
+// link). Hidden by default in the markup - only revealed once we've
+// confirmed the browser actually supports the APIs involved, so it never
+// shows up as a dead button (notably: iOS Safari only supports this once
+// the site has been "Added to Home Screen", not in a normal browser tab).
+(function () {
+  var btn = document.getElementById('push-toggle-btn');
+  if (!btn) return;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+
+  var vapidKey = btn.getAttribute('data-vapid-key');
+  var csrf = btn.getAttribute('data-csrf');
+
+  // A VAPID public key arrives as URL-safe base64; pushManager.subscribe
+  // needs it as a raw byte array.
+  function urlBase64ToUint8Array(base64String) {
+    var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var rawData = window.atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+    for (var i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  function setState(subscribed) {
+    btn.classList.toggle('topbar-help-active', subscribed);
+    btn.title = subscribed ? 'Notifications on (tap to turn off)' : 'Enable notifications';
+    btn.setAttribute('aria-label', btn.title);
+  }
+
+  function refreshState() {
+    navigator.serviceWorker.ready
+      .then(function (reg) { return reg.pushManager.getSubscription(); })
+      .then(function (sub) {
+        setState(!!sub);
+        btn.hidden = false;
+      })
+      .catch(function () {});
+  }
+
+  btn.addEventListener('click', function () {
+    navigator.serviceWorker.ready.then(function (reg) {
+      reg.pushManager.getSubscription().then(function (existing) {
+        if (existing) {
+          existing.unsubscribe().then(function () {
+            fetch('/push/unsubscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: 'endpoint=' + encodeURIComponent(existing.endpoint) + '&_csrf=' + encodeURIComponent(csrf),
+            }).finally(function () { setState(false); });
+          });
+          return;
+        }
+
+        if (Notification.permission === 'denied') {
+          alert('Notifications are blocked for this site in your browser/phone settings. Enable them there, then try again.');
+          return;
+        }
+
+        Notification.requestPermission().then(function (permission) {
+          if (permission !== 'granted') return;
+          reg.pushManager
+            .subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(vapidKey) })
+            .then(function (sub) {
+              return fetch('/push/subscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subscription: sub, _csrf: csrf }),
+              }).then(function (res) {
+                if (!res.ok) throw new Error('Subscribe failed');
+                setState(true);
+              });
+            })
+            .catch(function () { alert('Could not enable notifications. Please try again.'); });
+        });
+      });
+    });
+  });
+
+  refreshState();
+})();

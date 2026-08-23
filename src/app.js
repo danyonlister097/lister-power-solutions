@@ -12,6 +12,8 @@ const { formatAuDate } = require('./lib/dates');
 const { formatMoney } = require('./lib/money');
 const { asyncHandler } = require('./lib/asyncHandler');
 const { generateWeeklyTimesheets } = require('./lib/timesheetGen');
+const { brisbaneTodayIso, addDays } = require('./lib/timesheetCalc');
+const { sendPushToAdmins } = require('./lib/push');
 const { getUnreadSupplierEmails, getEmailAttachments, markAsRead } = require('./lib/graph');
 const { parseCnwDocument } = require('./lib/cnwParser');
 const { sendFollowUpEmail } = require('./lib/email');
@@ -72,6 +74,7 @@ app.use((req, res, next) => {
   res.locals.formatAuDate = formatAuDate;
   res.locals.formatMoney = formatMoney;
   res.locals.homeUrl = homeRoute(req.user);
+  res.locals.vapidPublicKey = config.push.publicKey;
   next();
 });
 app.use(
@@ -305,6 +308,49 @@ app.get(
   })
 );
 
+const BILL_REMINDER_DAYS_BEFORE = 3;
+
+app.get(
+  '/api/cron/send-bill-reminders',
+  asyncHandler(async (req, res) => {
+    if (config.app.cronSecret && req.headers.authorization !== `Bearer ${config.app.cronSecret}`) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const today = brisbaneTodayIso();
+    const soonDate = addDays(today, BILL_REMINDER_DAYS_BEFORE);
+
+    const soonBills = await db
+      .prepare(`SELECT id, supplier, total, due_date FROM bills WHERE status = 'unpaid' AND due_date = ? AND reminder_soon_sent_at IS NULL`)
+      .all(soonDate);
+    const dueBills = await db
+      .prepare(`SELECT id, supplier, total, due_date FROM bills WHERE status = 'unpaid' AND due_date = ? AND reminder_due_sent_at IS NULL`)
+      .all(today);
+
+    for (const bill of soonBills) {
+      await sendPushToAdmins({
+        title: 'Bill due soon',
+        body: `${bill.supplier} — $${Number(bill.total).toFixed(2)} due ${bill.due_date}`,
+        url: '/invoices',
+        tag: `bill-soon-${bill.id}`,
+      });
+      await db.prepare(`UPDATE bills SET reminder_soon_sent_at = datetime('now') WHERE id = ?`).run(bill.id);
+    }
+    for (const bill of dueBills) {
+      await sendPushToAdmins({
+        title: 'Bill due today',
+        body: `${bill.supplier} — $${Number(bill.total).toFixed(2)} is due today`,
+        url: '/invoices',
+        tag: `bill-due-${bill.id}`,
+      });
+      await db.prepare(`UPDATE bills SET reminder_due_sent_at = datetime('now') WHERE id = ?`).run(bill.id);
+    }
+
+    logger.info('Bill reminder cron complete', { soon: soonBills.length, due: dueBills.length });
+    res.json({ ok: true, soon: soonBills.length, due: dueBills.length });
+  })
+);
+
 app.use('/', require('./routes/auth'));
 
 app.get('/', (req, res) => res.redirect(homeRoute(req.user)));
@@ -338,6 +384,9 @@ app.use('/invoices', requirePermission('invoices'), require('./routes/invoices')
 app.use('/renewals', requirePermission('renewals'), require('./routes/renewals'));
 app.use('/milestones', requirePermission('dashboard'), require('./routes/milestones'));
 app.use('/feedback', requirePermission('feedback'), require('./routes/feedback'));
+// Notification opt-in/out is available to every logged-in user regardless of
+// their other permissions, not gated behind a specific feature checkbox.
+app.use('/push', requireAuth, require('./routes/push'));
 app.use('/myob', requireRole('admin'), require('./routes/myob'));
 
 app.use((req, res) => {

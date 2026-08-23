@@ -4,6 +4,7 @@ const { verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
 const { chatUpload, putFile } = require('../lib/uploads');
+const { sendPushToUsers } = require('../lib/push');
 
 const router = express.Router();
 
@@ -429,7 +430,7 @@ router.post(
   }),
   verifyCsrf,
   asyncHandler(async (req, res) => {
-    const channel = await db.prepare('SELECT id, locked FROM chat_channels WHERE id = ?').get(req.params.id);
+    const channel = await db.prepare('SELECT id, name, locked, admin_only FROM chat_channels WHERE id = ?').get(req.params.id);
     if (!channel) return res.status(404).json({ error: 'Channel not found.' });
     if (channel.locked && req.user.role !== 'admin') {
       const wantsJson = req.get('Accept') === 'application/json';
@@ -464,6 +465,27 @@ router.post(
       .get(result.lastInsertRowid);
 
     await markRead(req.user.id, channel.id);
+
+    // Notify everyone who can see this channel except the sender - same
+    // visibility rule the channel list itself uses (admin_only channels
+    // only page admins).
+    const recipients = await db
+      .prepare(
+        channel.admin_only
+          ? "SELECT id FROM users WHERE role = 'admin' AND active = 1 AND id != ?"
+          : 'SELECT id FROM users WHERE active = 1 AND id != ?'
+      )
+      .all(req.user.id);
+    const preview = body || (attachmentName ? `📎 ${attachmentName}` : '');
+    await sendPushToUsers(
+      recipients.map((r) => r.id),
+      {
+        title: `#${channel.name}`,
+        body: `${req.user.name}: ${preview}`.slice(0, 150),
+        url: `/chat/c/${channel.id}`,
+        tag: `chat-${channel.id}`,
+      }
+    );
 
     if (wantsJson) return res.json({ message: serialize(row) });
     res.redirect(`/chat/c/${channel.id}`);

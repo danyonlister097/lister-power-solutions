@@ -51,5 +51,10 @@ module.exports = {
   maps: {
     apiKey: process.env.GOOGLE_MAPS_API_KEY || '',
   },
+  push: {
+    publicKey: process.env.VAPID_PUBLIC_KEY || '',
+    privateKey: process.env.VAPID_PRIVATE_KEY || '',
+    subject: process.env.VAPID_SUBJECT || `mailto:${process.env.ADMIN_EMAIL || 'admin@example.com'}`,
+  },
   logLevel: process.env.LOG_LEVEL || 'info',
 };

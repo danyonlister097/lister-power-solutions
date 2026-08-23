@@ -70,6 +70,9 @@
       <% if (allowed('invoices')) { %><a href="/invoices">Bills</a><% } %>
       <% if (allowed('employees')) { %><a href="/users">Employees</a><% } %>
     </nav>
+    <% if (vapidPublicKey) { %>
+      <button type="button" id="push-toggle-btn" class="topbar-help" title="Enable notifications" aria-label="Enable notifications" data-vapid-key="<%= vapidPublicKey %>" data-csrf="<%= csrfToken %>" hidden>&#128276;</button>
+    <% } %>
     <% if (allowed('feedback')) { %>
       <a href="/feedback" class="topbar-help<%= starts('/feedback') ? ' topbar-help-active' : '' %>" title="Bug Reports &amp; Ideas">?</a>
     <% } %>
