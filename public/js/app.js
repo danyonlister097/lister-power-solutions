@@ -117,9 +117,31 @@
   var saved = sessionStorage.getItem(key);
   if (saved !== null) {
     sessionStorage.removeItem(key);
-    window.addEventListener('load', function () {
-      window.scrollTo(0, Number.parseInt(saved, 10));
-    });
+    var targetY = Number.parseInt(saved, 10);
+
+    // A single restore-on-load can get silently undone by content that
+    // settles slightly after `load` fires - a slow attachment photo on a
+    // job card, a web font swap reflowing text below it. This is most
+    // noticeable on a slow mobile connection, where it can look like the
+    // restore never happened at all. Re-assert the position for a short
+    // window instead of trusting one shot, but stop the moment the user
+    // actually touches/scrolls themselves so it never fights real intent.
+    function restore() { window.scrollTo(0, targetY); }
+
+    if (document.readyState === 'complete') restore();
+    else window.addEventListener('load', restore);
+
+    var attempts = 0;
+    var retry = setInterval(function () {
+      attempts++;
+      restore();
+      if (attempts >= 10) clearInterval(retry);
+    }, 100);
+
+    var stopRetrying = function () { clearInterval(retry); };
+    document.addEventListener('touchstart', stopRetrying, { once: true, passive: true });
+    document.addEventListener('wheel', stopRetrying, { once: true, passive: true });
+    document.addEventListener('keydown', stopRetrying, { once: true });
   }
 })();
 

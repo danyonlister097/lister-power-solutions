@@ -870,6 +870,8 @@ async function renderDayView(req, res) {
     currentUrl: req.originalUrl,
     view: 'day',
     capacityHours: 8,
+    axisStartHour: DAY_AXIS_START_HOUR,
+    axisEndHour: DAY_AXIS_END_HOUR,
     dayIso,
     dayLabel: day.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
     prevStartIso: toIsoDate(prevDay),
@@ -975,6 +977,11 @@ router.post(
     const newDate = req.body.date;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate || '')) return res.status(400).json({ error: 'Invalid date.' });
 
+    // Optional - set by the day view's slide-to-reschedule drag, which moves
+    // a job's time within the same day rather than to a different day/tech.
+    const newTime = req.body.time;
+    if (newTime !== undefined && !/^\d{2}:\d{2}$/.test(newTime)) return res.status(400).json({ error: 'Invalid time.' });
+
     // Resolve who the job's assignees will be *after* this move, whether or
     // not this particular drag also changed them, so a plain day-to-day drag
     // (assignee untouched) still gets checked against the new date.
@@ -1004,6 +1011,10 @@ router.post(
     const oldStart = new Date(job.scheduled_start);
     const newStart = new Date(oldStart);
     newStart.setFullYear(y, m - 1, d);
+    if (newTime) {
+      const [hh, mm] = newTime.split(':').map(Number);
+      newStart.setHours(hh, mm, 0, 0);
+    }
 
     let newEndIso = null;
     if (job.scheduled_end) {

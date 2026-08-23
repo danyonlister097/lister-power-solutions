@@ -91,7 +91,7 @@
                 <% } else { %>—<% } %>
               </div>
               <div class="mobile-job-body">
-                <div class="mobile-job-title"><%= j.title %></div>
+                <div class="mobile-job-title"><% if (j.status === 'completed' || j.status === 'invoiced') { %><span class="mobile-job-done" title="<%= j.status === 'invoiced' ? 'Invoiced' : 'Completed' %>">&#10003;</span><% } %><%= j.title %></div>
                 <div class="mobile-job-meta"><%= j.customer_name %><% if (j.assigneeNames) { %> · <%= j.assigneeNames %><% } %></div>
               </div>
               <span class="mobile-job-arrow">›</span>

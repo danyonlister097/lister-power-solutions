@@ -60,7 +60,7 @@
             <% } else { %>—<% } %>
           </div>
           <div class="mobile-job-body">
-            <div class="mobile-job-title"><%= j.title %></div>
+            <div class="mobile-job-title"><% if (j.status === 'completed' || j.status === 'invoiced') { %><span class="mobile-job-done" title="<%= j.status === 'invoiced' ? 'Invoiced' : 'Completed' %>">&#10003;</span><% } %><%= j.title %></div>
             <div class="mobile-job-meta"><%= j.customer_name %><% if (j.assigneeNames) { %> · <%= j.assigneeNames %><% } %></div>
           </div>
           <span class="mobile-job-arrow">›</span>
@@ -93,7 +93,7 @@ document.getElementById('desktop-day-picker').addEventListener('change', functio
 });
 </script>
 
-<div class="day-sched" id="sched-grid" data-csrf="<%= csrfToken %>" data-is-admin="<%= isAdmin ? '1' : '0' %>">
+<div class="day-sched" id="sched-grid" data-csrf="<%= csrfToken %>" data-is-admin="<%= isAdmin ? '1' : '0' %>" data-axis-start-hour="<%= axisStartHour %>" data-axis-end-hour="<%= axisEndHour %>">
   <div class="day-sched-headers">
     <div class="day-sched-header-spacer">Trades</div>
     <% const avatarColors = ['#12b8a0', '#e2622b', '#7c5cff', '#1d5fae', '#c2185b', '#0f9d58']; %>

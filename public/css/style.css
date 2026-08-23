@@ -1521,6 +1521,25 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
     text-overflow: ellipsis;
   }
 
+  /* Same purpose as .shift-done-badge on the desktop schedule chips - a
+     job's custom colour can hide the status-based left border here too, so
+     completion needs its own always-visible signal. Inline rather than an
+     absolute overlay since the mobile card has room in its title row. */
+  .mobile-job-done {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: #16a34a;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    margin-right: 0.3rem;
+    flex-shrink: 0;
+  }
+
   .mobile-job-meta {
     font-size: 0.78rem;
     color: var(--color-muted);
@@ -1838,6 +1857,13 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
   height: 52px;
   overflow: hidden;
   box-sizing: border-box;
+}
+
+.day-shift-block-dragging {
+  cursor: grabbing;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  transition: left 0.08s ease-out;
 }
 
 .day-shift-block .shift-time { font-size: 0.72rem; }

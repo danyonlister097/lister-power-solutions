@@ -4,6 +4,11 @@
   var csrf = grid.getAttribute('data-csrf');
   var isAdmin = grid.getAttribute('data-is-admin') === '1';
 
+  // Set right after a day-view time-slide drag so the native "click" that
+  // fires on mouseup (same element pressed and released) doesn't also pop
+  // the job detail modal open immediately after the drag.
+  var suppressNextClick = false;
+
   // The schedule pages (day/week/month) are all served from /jobs/schedule with
   // different query params, so the current path+search is exactly the URL we want
   // the edit page to send us back to after Save/Cancel.
@@ -97,6 +102,10 @@
     }
 
     grid.addEventListener('click', function (e) {
+      if (suppressNextClick) {
+        suppressNextClick = false;
+        return;
+      }
       if (isAdmin) {
         var menuBtn = e.target.closest('.shift-menu-btn');
         if (menuBtn) {
@@ -226,6 +235,105 @@
         alert('Could not move that job. Please try again.');
       });
   });
+
+  // --- Drag: day view — slide a shift left/right to change its time,
+  // snapping to 15-minute steps (a quarter of each hourly column) ---
+
+  (function () {
+    var timeline = document.querySelector('.day-sched-timeline');
+    if (!timeline) return; // week/month views don't have a time axis
+
+    var axisStartMin = (Number.parseInt(grid.getAttribute('data-axis-start-hour'), 10) || 6) * 60;
+    var axisEndMin = (Number.parseInt(grid.getAttribute('data-axis-end-hour'), 10) || 21) * 60;
+    var axisTotalMin = axisEndMin - axisStartMin;
+    var drag = null;
+
+    function minutesToTimeStr(mins) {
+      var h = Math.floor(mins / 60);
+      var m = mins % 60;
+      return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+    }
+
+    function minutesFromMidnight(iso) {
+      var d = new Date(iso);
+      return d.getHours() * 60 + d.getMinutes();
+    }
+
+    timeline.addEventListener('mousedown', function (e) {
+      if (e.button !== 0) return;
+      if (e.target.closest('.shift-menu-btn')) return;
+      var block = e.target.closest('.day-shift-block');
+      if (!block) return;
+      if (block.getAttribute('data-all-day') === '1') return; // no time-of-day to slide
+      var track = block.closest('.day-track');
+      var startIso = block.getAttribute('data-start');
+      if (!track || !startIso) return;
+
+      var origStartMin = minutesFromMidnight(startIso);
+      var endIso = block.getAttribute('data-end');
+      var durationMin = endIso ? minutesFromMidnight(endIso) - origStartMin : 60;
+      if (durationMin <= 0) durationMin = 60;
+
+      drag = {
+        block: block,
+        jobId: block.getAttribute('data-job-id'),
+        dateIso: startIso.slice(0, 10),
+        startClientX: e.clientX,
+        origStartMin: origStartMin,
+        trackWidth: track.getBoundingClientRect().width,
+        moved: false,
+        finalStartMin: origStartMin,
+      };
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function (e) {
+      if (!drag) return;
+      var deltaX = e.clientX - drag.startClientX;
+      if (!drag.moved && Math.abs(deltaX) < 4) return;
+      drag.moved = true;
+      drag.block.classList.add('day-shift-block-dragging');
+
+      var deltaMin = (deltaX / drag.trackWidth) * axisTotalMin;
+      var snappedDelta = Math.round(deltaMin / 15) * 15;
+      var newOffsetMin = Math.max(0, Math.min((drag.origStartMin - axisStartMin) + snappedDelta, axisTotalMin));
+
+      drag.finalStartMin = axisStartMin + newOffsetMin;
+      drag.block.style.left = (newOffsetMin / axisTotalMin * 100) + '%';
+    });
+
+    document.addEventListener('mouseup', function () {
+      if (!drag) return;
+      var d = drag;
+      drag = null;
+      d.block.classList.remove('day-shift-block-dragging');
+      if (!d.moved || d.finalStartMin === d.origStartMin) return;
+
+      suppressNextClick = true;
+      // Undo the optimistic slide if the server rejects the move (e.g. the
+      // tech went on leave) - no page reload needed either way, since
+      // nothing else on the page depends on this block's position.
+      var origLeftPct = ((d.origStartMin - axisStartMin) / axisTotalMin * 100) + '%';
+
+      fetch('/jobs/' + d.jobId + '/reschedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'date=' + encodeURIComponent(d.dateIso) + '&time=' + encodeURIComponent(minutesToTimeStr(d.finalStartMin)) + '&_csrf=' + encodeURIComponent(csrf),
+      })
+        .then(function (res) {
+          if (!res.ok) {
+            d.block.style.left = origLeftPct;
+            reportRescheduleFailure(res);
+            return;
+          }
+          window.location.reload();
+        })
+        .catch(function () {
+          d.block.style.left = origLeftPct;
+          alert('Could not move that job. Please try again.');
+        });
+    });
+  })();
 
   // --- Drag: staff row reorder ---
 
