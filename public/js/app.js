@@ -64,13 +64,16 @@
     var message = form.getAttribute('data-confirm');
     if (!message || form.dataset.confirmed === 'true') return;
     e.preventDefault();
-    okBtn.textContent = form.getAttribute('data-confirm-ok-label') || 'Delete';
-    okBtn.className = 'btn btn-' + (form.getAttribute('data-confirm-variant') || 'danger');
-    showConfirm(form.getAttribute('data-confirm-title') || 'Are you sure?', message, function () {
-      form.dataset.confirmed = 'true';
-      if (form.requestSubmit) form.requestSubmit();
-      else form.submit();
-    });
+    showConfirm(
+      form.getAttribute('data-confirm-title') || 'Are you sure?',
+      message,
+      function () {
+        form.dataset.confirmed = 'true';
+        if (form.requestSubmit) form.requestSubmit();
+        else form.submit();
+      },
+      { okLabel: form.getAttribute('data-confirm-ok-label'), variant: form.getAttribute('data-confirm-variant') }
+    );
   });
 
   window.showConfirm = showConfirm;
