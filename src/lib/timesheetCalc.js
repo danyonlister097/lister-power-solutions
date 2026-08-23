@@ -47,7 +47,9 @@ function formatHours(minutes, alwaysShow) {
   if (!minutes && !alwaysShow) return '--';
   const h = Math.floor(minutes / 60);
   const m = Math.round(minutes % 60);
-  return `${h}:${String(m).padStart(2, '0')}h`;
+  if (h && m) return `${h}h ${m}m`;
+  if (h) return `${h}h`;
+  return `${m}m`;
 }
 
 // Given a user's clock_events for a single day (ascending), pair up in/out
