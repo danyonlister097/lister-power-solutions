@@ -715,6 +715,9 @@ form label.toggle-label {
 .list-item-title { font-weight: 600; }
 .list-item-meta { color: var(--color-muted); font-size: 0.85rem; }
 
+.job-history-changes { list-style: none; margin: 0.4rem 0 0; padding: 0; font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.job-history-changes strong { font-weight: 600; }
+
 #jobs-search {
   display: block;
   width: 100%;

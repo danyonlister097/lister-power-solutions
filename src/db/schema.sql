@@ -788,3 +788,19 @@ CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(
 -- re-notify for the same bill every time it runs.
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS reminder_soon_sent_at TEXT;
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS reminder_due_sent_at TEXT;
+
+-- Field-level edit history for jobs - one row per edit event that actually
+-- changed something, `changes` a JSON array of {field, from, to} display
+-- strings (already human-readable, not raw column values). Who/when a job
+-- was *created* lives on jobs.created_by/created_at directly, so there's no
+-- separate "created" row here. user_id is nullable (ON DELETE SET NULL) so
+-- deleting a user never breaks old entries, just shows no name for them.
+CREATE TABLE IF NOT EXISTS job_history (
+  id SERIAL PRIMARY KEY,
+  job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  changes TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_history_job_id ON job_history(job_id);

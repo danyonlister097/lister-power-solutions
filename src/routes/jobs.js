@@ -114,6 +114,101 @@ function parseAssigneeIds(body) {
   return raw.map(Number).filter((n) => Number.isInteger(n) && n > 0);
 }
 
+async function getAssigneeNames(jobId) {
+  const rows = await db
+    .prepare(
+      `SELECT users.name FROM job_assignees JOIN users ON users.id = job_assignees.user_id
+       WHERE job_assignees.job_id = ? ORDER BY users.sort_order, users.name`
+    )
+    .all(jobId);
+  return rows.map((r) => r.name);
+}
+
+function truncateForHistory(v, max = 200) {
+  if (!v) return v;
+  return v.length > max ? `${v.slice(0, max)}…` : v;
+}
+
+function formatScheduleForHistory(job) {
+  if (!job.scheduled_start) return 'Not scheduled';
+  const start = new Date(job.scheduled_start);
+  const datePart = start.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (job.all_day) return `${datePart} (all day)`;
+  const timePart = start.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+  if (!job.scheduled_end) return `${datePart}, ${timePart}`;
+  const endTimePart = new Date(job.scheduled_end).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+  return `${datePart}, ${timePart}-${endTimePart}`;
+}
+
+function formatDateTimeForHistory(v) {
+  if (!v) return null;
+  return new Date(v).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+// Snapshot used to diff before/after an edit for job_history - a flat map of
+// display label -> already human-readable string, so a recorded change never
+// has to re-resolve a raw column value (an FK id, a boolean flag) at render
+// time. Called once before and once after a mutation; only fields that
+// actually differ get written to job_history.
+async function captureJobSnapshot(jobId) {
+  const job = await db
+    .prepare(`SELECT jobs.*, customers.name AS customer_name FROM jobs JOIN customers ON customers.id = jobs.customer_id WHERE jobs.id = ?`)
+    .get(jobId);
+  if (!job) return null;
+  const assigneeNames = await getAssigneeNames(jobId);
+  const site = [job.site_address_street, job.site_address_city, job.site_address_state, job.site_address_postcode].filter(Boolean).join(', ');
+  return {
+    Title: job.title || null,
+    Customer: job.customer_name || null,
+    Status: job.status ? job.status.replace(/_/g, ' ') : null,
+    Category: job.category ? job.category.replace(/-/g, ' ') : null,
+    Scheduled: formatScheduleForHistory(job),
+    'Estimated duration': job.duration_minutes ? `${job.duration_minutes} min` : null,
+    'Assigned to': assigneeNames.length ? assigneeNames.join(', ') : 'Unassigned',
+    'Site address': site || null,
+    Description: truncateForHistory(job.description),
+    Notes: truncateForHistory(job.notes),
+    'Actual start': formatDateTimeForHistory(job.actual_start),
+    'Actual finish': formatDateTimeForHistory(job.actual_end),
+    'Photos N/A': job.photos_na ? 'Yes' : 'No',
+    'Stock N/A': job.stock_na ? 'Yes' : 'No',
+  };
+}
+
+function diffJobSnapshots(before, after) {
+  if (!before || !after) return [];
+  const changes = [];
+  for (const field of Object.keys(after)) {
+    if (before[field] !== after[field]) changes.push({ field, from: before[field], to: after[field] });
+  }
+  return changes;
+}
+
+async function recordJobHistory(jobId, userId, changes) {
+  if (!changes || !changes.length) return;
+  await db.prepare('INSERT INTO job_history (job_id, user_id, changes) VALUES (?, ?, ?)').run(jobId, userId || null, JSON.stringify(changes));
+}
+
+// Shared by the job page's History card and the Jobs list's on-demand
+// History popup, so both read the exact same data the exact same way.
+async function loadJobHistoryData(jobId) {
+  const job = await db.prepare('SELECT created_by, created_at FROM jobs WHERE id = ?').get(jobId);
+  if (!job) return null;
+  const createdBy = job.created_by ? await db.prepare('SELECT name FROM users WHERE id = ?').get(job.created_by) : null;
+  const historyRows = await db
+    .prepare(
+      `SELECT job_history.*, users.name AS user_name
+       FROM job_history LEFT JOIN users ON users.id = job_history.user_id
+       WHERE job_history.job_id = ? ORDER BY job_history.created_at DESC`
+    )
+    .all(jobId);
+  return {
+    createdByName: createdBy ? createdBy.name : null,
+    createdAt: job.created_at,
+    history: historyRows.map((r) => ({ id: r.id, userName: r.user_name, createdAt: r.created_at, changes: JSON.parse(r.changes) })),
+  };
+}
+
 // A tech on approved leave can't be assigned to a job scheduled that day -
 // used both by the create/edit job form and by schedule drag-and-drop.
 // Returns the first conflict found (name + leave type label) or null.
@@ -976,6 +1071,7 @@ router.post(
     const job = await db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.id);
     if (!job) return res.status(404).json({ error: 'Job not found.' });
     if (!job.scheduled_start) return res.status(400).json({ error: 'Job has no scheduled date to move.' });
+    const before = await captureJobSnapshot(job.id);
 
     const newDate = req.body.date;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate || '')) return res.status(400).json({ error: 'Invalid date.' });
@@ -1034,6 +1130,9 @@ router.post(
       )
       .run(toLocalIsoMinute(newStart), newEndIso, job.id);
 
+    const after = await captureJobSnapshot(job.id);
+    await recordJobHistory(job.id, req.user.id, diffJobSnapshots(before, after));
+
     res.json({ ok: true });
   })
 );
@@ -1084,6 +1183,9 @@ router.post(
       return res.redirect('/jobs');
     }
 
+    const before = {};
+    for (const id of ids) before[id] = await captureJobSnapshot(id);
+
     const placeholders = ids.map(() => '?').join(',');
     await db
       .prepare(
@@ -1091,6 +1193,11 @@ router.post(
       )
       .run(...ids);
     await db.prepare(`DELETE FROM job_assignees WHERE job_id IN (${placeholders})`).run(...ids);
+
+    for (const id of ids) {
+      const after = await captureJobSnapshot(id);
+      await recordJobHistory(id, req.user.id, diffJobSnapshots(before[id], after));
+    }
 
     setFlash(req, 'success', `${ids.length} job${ids.length === 1 ? '' : 's'} reverted to unscheduled.`);
     res.redirect('/jobs');
@@ -1170,12 +1277,16 @@ router.post(
       return res.status(400).json({ ok: false, error: 'date and jobs (with id + startTime) required' });
     }
     for (const j of jobs) {
+      const jobId = Number(j.id);
+      const before = await captureJobSnapshot(jobId);
       const scheduledStart = `${date}T${j.startTime}:00`;
       const scheduledEnd = isTime(j.endTime) ? `${date}T${j.endTime}:00` : null;
       await db
         .prepare(`UPDATE jobs SET scheduled_start = ?, scheduled_end = ?, status = 'scheduled', updated_at = datetime('now') WHERE id = ? AND status = 'unscheduled'`)
-        .run(scheduledStart, scheduledEnd, Number(j.id));
-      await db.prepare('DELETE FROM job_assignees WHERE job_id = ?').run(Number(j.id));
+        .run(scheduledStart, scheduledEnd, jobId);
+      await db.prepare('DELETE FROM job_assignees WHERE job_id = ?').run(jobId);
+      const after = await captureJobSnapshot(jobId);
+      await recordJobHistory(jobId, req.user.id, diffJobSnapshots(before, after));
     }
     res.json({ ok: true, committed: jobs.length });
   })
@@ -1398,6 +1509,14 @@ router.get(
       )
       .all(job.id);
 
+    let createdByName = null;
+    let jobHistory = [];
+    if (req.user.role === 'admin') {
+      const historyData = await loadJobHistoryData(job.id);
+      createdByName = historyData.createdByName;
+      jobHistory = historyData.history;
+    }
+
     res.render('jobs/show', {
       title: job.title,
       job,
@@ -1408,8 +1527,23 @@ router.get(
       inventoryItems,
       stockAllocations,
       linkedAssets,
+      createdByName,
+      jobHistory,
       closeUrl: safeReturnTo(req.query.returnTo) || '/jobs',
     });
+  })
+);
+
+// Backs the "History" item in the Jobs list's row ⋮ menu - a quick popup
+// without leaving the list, fetched on demand rather than preloaded for
+// every row.
+router.get(
+  '/:id/history',
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const data = await loadJobHistoryData(req.params.id);
+    if (!data) return res.status(404).json({ error: 'Job not found.' });
+    res.json(data);
   })
 );
 
@@ -1519,6 +1653,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const job = await getJobOr404(req, res);
     if (!job) return;
+    const before = await captureJobSnapshot(job.id);
 
     const b = req.body;
     const customers = await db.prepare('SELECT id, name FROM customers WHERE active = 1 ORDER BY name').all();
@@ -1632,6 +1767,9 @@ router.post(
       }
     }
 
+    const after = await captureJobSnapshot(job.id);
+    await recordJobHistory(job.id, req.user.id, diffJobSnapshots(before, after));
+
     setFlash(req, 'success', 'Job updated.');
     res.redirect(returnTo || `/jobs/${job.id}`);
   })
@@ -1643,9 +1781,12 @@ router.post(
   asyncHandler(async (req, res) => {
     const job = await getJobOr404(req, res);
     if (!job) return;
+    const before = await captureJobSnapshot(job.id);
     const toIso = (v) => { if (!v || !v.trim()) return null; const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d.toISOString(); };
     const actualStart = toIso(req.body.actual_start);
     await db.prepare(`UPDATE jobs SET actual_start = @actualStart, updated_at = datetime('now') WHERE id = @id`).run({ id: job.id, actualStart });
+    const after = await captureJobSnapshot(job.id);
+    await recordJobHistory(job.id, req.user.id, diffJobSnapshots(before, after));
     setFlash(req, 'success', 'Start time saved.');
     res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
@@ -1657,9 +1798,12 @@ router.post(
   asyncHandler(async (req, res) => {
     const job = await getJobOr404(req, res);
     if (!job) return;
+    const before = await captureJobSnapshot(job.id);
     const toIso = (v) => { if (!v || !v.trim()) return null; const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d.toISOString(); };
     const actualEnd = toIso(req.body.actual_end);
     await db.prepare(`UPDATE jobs SET actual_end = @actualEnd, updated_at = datetime('now') WHERE id = @id`).run({ id: job.id, actualEnd });
+    const after = await captureJobSnapshot(job.id);
+    await recordJobHistory(job.id, req.user.id, diffJobSnapshots(before, after));
     setFlash(req, 'success', 'Finish time saved.');
     res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
@@ -1686,6 +1830,8 @@ router.post(
       }
     }
 
+    const before = await captureJobSnapshot(job.id);
+
     await db
       .prepare(
         `UPDATE jobs SET status = @status,
@@ -1694,6 +1840,9 @@ router.post(
          WHERE id = @id`
       )
       .run({ id: job.id, status });
+
+    const after = await captureJobSnapshot(job.id);
+    await recordJobHistory(job.id, req.user.id, diffJobSnapshots(before, after));
 
     setFlash(req, 'success', `Job marked ${status.replace('_', ' ')}.`);
     res.redirect(returnTo || `/jobs/${job.id}`);
@@ -1706,9 +1855,12 @@ router.post(
   asyncHandler(async (req, res) => {
     const job = await getJobOr404(req, res);
     if (!job) return;
+    const before = await captureJobSnapshot(job.id);
     await db
       .prepare(`UPDATE jobs SET photos_na = ?, stock_na = ?, updated_at = now_utc_text() WHERE id = ?`)
       .run(req.body.photos_na === '1' ? 1 : 0, req.body.stock_na === '1' ? 1 : 0, job.id);
+    const after = await captureJobSnapshot(job.id);
+    await recordJobHistory(job.id, req.user.id, diffJobSnapshots(before, after));
     res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
 );
@@ -1720,7 +1872,10 @@ router.post(
   asyncHandler(async (req, res) => {
     const job = await db.prepare('SELECT id FROM jobs WHERE id = ?').get(req.params.id);
     if (!job) return res.status(404).json({ error: 'Job not found.' });
+    const before = await captureJobSnapshot(job.id);
     await setAssignees(job.id, []);
+    const after = await captureJobSnapshot(job.id);
+    await recordJobHistory(job.id, req.user.id, diffJobSnapshots(before, after));
     res.json({ ok: true });
   })
 );

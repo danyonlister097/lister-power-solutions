@@ -237,6 +237,7 @@
             <button class="row-menu-btn" aria-label="More actions" aria-expanded="false">⋮</button>
             <div class="context-menu" hidden>
               <a class="context-menu-item" href="/jobs/<%= j.id %>/edit?returnTo=<%= encodeURIComponent(_returnTo) %>">Edit</a>
+              <button type="button" class="context-menu-item history-btn" data-job-id="<%= j.id %>">History</button>
               <% if (dupeMatches) { %>
                 <% var dupeMatchesJson = JSON.stringify(dupeMatches.map(function (m) { return { matchType: m.matchType, matchKey: m.matchKey }; })).replace(/"/g, '&quot;'); %>
                 <button type="button" class="context-menu-item dupe-decide-btn" data-verdict="1" data-matches="<%- dupeMatchesJson %>">Confirm duplicate&hellip;</button>
@@ -517,6 +518,101 @@
     var btn = e.target.closest('.dupe-decide-btn');
     if (!btn) return;
     openModal(btn);
+  });
+})();
+</script>
+<% } %>
+
+<% if (isAdmin) { %>
+<!-- Job history popup - "History" from a row's ⋮ menu; content is fetched on demand, not preloaded per row -->
+<div id="job-history-modal" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="job-history-title" style="max-width:480px;">
+    <button type="button" class="modal-close" id="job-history-close" aria-label="Close">&times;</button>
+    <h2 id="job-history-title">Job history</h2>
+    <div id="job-history-body"><p class="text-muted">Loading&hellip;</p></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById('job-history-modal');
+  var body = document.getElementById('job-history-body');
+
+  function formatDT(v) {
+    return new Date(v).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  // Built with DOM methods rather than innerHTML+string-concat - several of
+  // these values (title, description, notes, site address) are free-text a
+  // user typed into a job, so they can't be trusted as safe HTML.
+  function renderHistory(data) {
+    body.innerHTML = '';
+
+    var created = document.createElement('p');
+    created.className = 'list-item-meta';
+    created.style.margin = '0 0 1rem';
+    created.textContent = 'Created by ' + (data.createdByName || 'Unknown user') + ' · ' + formatDT(data.createdAt);
+    body.appendChild(created);
+
+    if (!data.history.length) {
+      var empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'No edits recorded yet.';
+      body.appendChild(empty);
+      return;
+    }
+
+    var list = document.createElement('ul');
+    list.className = 'list';
+    data.history.forEach(function (h) {
+      var li = document.createElement('li');
+      var span = document.createElement('span');
+      span.className = 'list-item';
+      span.style.display = 'block';
+
+      var meta = document.createElement('span');
+      meta.className = 'list-item-meta';
+      meta.textContent = (h.userName || 'Unknown user') + ' · ' + formatDT(h.createdAt);
+      span.appendChild(meta);
+
+      var changes = document.createElement('ul');
+      changes.className = 'job-history-changes';
+      h.changes.forEach(function (c) {
+        var cli = document.createElement('li');
+        var strong = document.createElement('strong');
+        strong.textContent = c.field + ':';
+        cli.appendChild(strong);
+        cli.appendChild(document.createTextNode(' ' + (c.from || '(none)') + ' → ' + (c.to || '(none)')));
+        changes.appendChild(cli);
+      });
+      span.appendChild(changes);
+
+      li.appendChild(span);
+      list.appendChild(li);
+    });
+    body.appendChild(list);
+  }
+
+  function closeModal() { modal.hidden = true; }
+
+  document.getElementById('job-history-close').addEventListener('click', closeModal);
+  modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.history-btn');
+    if (!btn) return;
+    body.innerHTML = '<p class="text-muted">Loading&hellip;</p>';
+    modal.hidden = false;
+    fetch('/jobs/' + btn.getAttribute('data-job-id') + '/history')
+      .then(function (res) {
+        if (!res.ok) throw new Error('Failed to load history');
+        return res.json();
+      })
+      .then(renderHistory)
+      .catch(function () {
+        body.innerHTML = '<p class="text-muted">Could not load history. Please try again.</p>';
+      });
   });
 })();
 </script>

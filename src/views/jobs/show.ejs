@@ -596,4 +596,29 @@
     <button type="submit" class="btn btn-primary">Update status</button>
   </form>
 </div>
+
+<% if (currentUser.role === 'admin') { %>
+  <div class="card">
+    <h2>History</h2>
+    <p class="list-item-meta" style="margin:0 0 1rem;">Created by <%= createdByName || 'Unknown user' %> &middot; <%= new Date(job.created_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></p>
+    <% if (jobHistory.length === 0) { %>
+      <div class="empty-state">No edits recorded yet.</div>
+    <% } else { %>
+      <ul class="list">
+        <% jobHistory.forEach(function (h) { %>
+          <li>
+            <span class="list-item" style="display:block;">
+              <span class="list-item-meta"><%= h.userName || 'Unknown user' %> &middot; <%= new Date(h.createdAt).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+              <ul class="job-history-changes">
+                <% h.changes.forEach(function (c) { %>
+                  <li><strong><%= c.field %>:</strong> <%= c.from || '(none)' %> &rarr; <%= c.to || '(none)' %></li>
+                <% }) %>
+              </ul>
+            </span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+<% } %>
 <%- include('../partials/footer') %>
