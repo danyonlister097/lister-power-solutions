@@ -72,12 +72,18 @@
             <div class="chat-message-meta">
               <span><%= m.user_name %> &middot; <%= new Date(m.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) %></span>
               <span class="chat-message-actions">
+                <button type="button" class="chat-message-reply" data-message-id="<%= m.id %>" data-user-name="<%= m.user_name %>" data-preview="<%= (m.body || (m.attachment_name ? '📎 ' + m.attachment_name : '')).slice(0, 80) %>" title="Reply" aria-label="Reply to this message">↩</button>
                 <% if (currentUser.role === 'admin') { %>
                   <button type="button" class="chat-message-pin <%= m.pinned ? 'chat-message-pin-active' : '' %>" data-message-id="<%= m.id %>" data-pinned="<%= m.pinned ? '1' : '0' %>" title="<%= m.pinned ? 'Unpin message' : 'Pin message' %>" aria-label="<%= m.pinned ? 'Unpin message' : 'Pin message' %>">📌</button>
                   <button type="button" class="chat-message-delete" data-message-id="<%= m.id %>" title="Delete message" aria-label="Delete message">&times;</button>
                 <% } %>
               </span>
             </div>
+            <% if (m.reply_to_id) { %>
+              <button type="button" class="chat-message-quote" data-message-id="<%= m.reply_to_id %>">
+                <strong><%= m.reply_user_name || 'Deleted message' %></strong><% if (m.reply_user_name) { %>: <%= (m.reply_body || (m.reply_attachment_name ? '📎 ' + m.reply_attachment_name : '')).slice(0, 80) %><% } %>
+              </button>
+            <% } %>
             <% if (m.body) { %><div class="chat-message-body"><%= m.body %></div><% } %>
             <% if (m.attachment_url) { %>
               <div class="chat-message-attachment">
@@ -99,8 +105,13 @@
       <% } else if (channel.locked && currentUser.role !== 'admin') { %>
         <div class="chat-filtered-notice">🔒 This channel is locked — only admins can post.</div>
       <% } else { %>
+        <div id="chat-reply-banner" class="chat-reply-banner" hidden>
+          <span class="chat-reply-banner-text">Replying to <strong id="chat-reply-banner-name"></strong>: <span id="chat-reply-banner-preview"></span></span>
+          <button type="button" id="chat-reply-cancel" title="Cancel reply" aria-label="Cancel reply">&times;</button>
+        </div>
         <form id="chat-form" class="chat-form" method="post" action="/chat/c/<%= channel.id %>" enctype="multipart/form-data">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="reply_to" id="chat-reply-to">
           <input type="file" id="chat-file-input" name="attachment" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none;">
           <div style="flex:1;display:flex;flex-direction:column;gap:0.2rem;min-width:0;">
             <div id="chat-file-preview" style="display:none;font-size:0.8rem;padding:0.2rem 0.5rem;background:var(--hover-bg,#f3f4f6);border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>

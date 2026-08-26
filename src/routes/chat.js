@@ -20,8 +20,20 @@ function serialize(row) {
     attachmentUrl: row.attachment_url || null,
     attachmentName: row.attachment_name || null,
     pinned: Boolean(row.pinned),
+    replyTo: row.reply_to_id
+      ? { id: row.reply_to_id, userName: row.reply_user_name, body: row.reply_body, attachmentName: row.reply_attachment_name }
+      : null,
   };
 }
+
+// Shared fragment joining back to the message being replied to (and its
+// author) so serialize() can show a quoted preview without a second round
+// trip. LEFT JOIN so a plain message, or a reply whose parent was since
+// deleted (reply_to_id goes NULL via ON DELETE SET NULL), just comes back
+// with NULLs here rather than disappearing.
+const REPLY_JOIN_SQL = `LEFT JOIN chat_messages reply_msg ON reply_msg.id = chat_messages.reply_to_id
+   LEFT JOIN users reply_user ON reply_user.id = reply_msg.user_id`;
+const REPLY_SELECT_SQL = `reply_msg.body AS reply_body, reply_msg.attachment_name AS reply_attachment_name, reply_user.name AS reply_user_name`;
 
 function escapeLike(raw) {
   return raw.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -254,8 +266,9 @@ router.get(
       }
       messages = await db
         .prepare(
-          `SELECT chat_messages.*, users.name AS user_name
+          `SELECT chat_messages.*, users.name AS user_name, ${REPLY_SELECT_SQL}
            FROM chat_messages JOIN users ON users.id = chat_messages.user_id
+           ${REPLY_JOIN_SQL}
            WHERE ${clauses.join(' AND ')}
            ORDER BY chat_messages.id ASC LIMIT 500`
         )
@@ -264,8 +277,9 @@ router.get(
       messages = (
         await db
           .prepare(
-            `SELECT chat_messages.*, users.name AS user_name
+            `SELECT chat_messages.*, users.name AS user_name, ${REPLY_SELECT_SQL}
              FROM chat_messages JOIN users ON users.id = chat_messages.user_id
+             ${REPLY_JOIN_SQL}
              WHERE chat_messages.channel_id = ?
              ORDER BY chat_messages.id DESC LIMIT ?`
           )
@@ -306,8 +320,9 @@ router.get(
     const afterId = Number.parseInt(req.query.after, 10) || 0;
     const messages = await db
       .prepare(
-        `SELECT chat_messages.*, users.name AS user_name
+        `SELECT chat_messages.*, users.name AS user_name, ${REPLY_SELECT_SQL}
          FROM chat_messages JOIN users ON users.id = chat_messages.user_id
+         ${REPLY_JOIN_SQL}
          WHERE chat_messages.channel_id = ? AND chat_messages.id > ? ORDER BY chat_messages.id ASC LIMIT 100`
       )
       .all(channel.id, afterId);
@@ -350,8 +365,9 @@ router.post(
 
     const pinned = await db
       .prepare(
-        `SELECT chat_messages.*, users.name AS user_name
+        `SELECT chat_messages.*, users.name AS user_name, ${REPLY_SELECT_SQL}
          FROM chat_messages JOIN users ON users.id = chat_messages.user_id
+         ${REPLY_JOIN_SQL}
          WHERE chat_messages.id = ?`
       )
       .get(message.id);
@@ -453,13 +469,24 @@ router.post(
       return res.redirect(`/chat/c/${channel.id}`);
     }
 
+    // Only honour reply_to if it's a real message in this same channel -
+    // otherwise silently post as a normal message rather than erroring, in
+    // case the quoted message got deleted between the reply button being
+    // clicked and this submit going through.
+    let replyToId = null;
+    if (req.body.reply_to) {
+      const parent = await db.prepare('SELECT id FROM chat_messages WHERE id = ? AND channel_id = ?').get(req.body.reply_to, channel.id);
+      if (parent) replyToId = parent.id;
+    }
+
     const result = await db
-      .prepare('INSERT INTO chat_messages (channel_id, user_id, body, attachment_url, attachment_name) VALUES (?, ?, ?, ?, ?) RETURNING id')
-      .run(channel.id, req.user.id, body || null, attachmentUrl, attachmentName);
+      .prepare('INSERT INTO chat_messages (channel_id, user_id, body, attachment_url, attachment_name, reply_to_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING id')
+      .run(channel.id, req.user.id, body || null, attachmentUrl, attachmentName, replyToId);
     const row = await db
       .prepare(
-        `SELECT chat_messages.*, users.name AS user_name
+        `SELECT chat_messages.*, users.name AS user_name, ${REPLY_SELECT_SQL}
          FROM chat_messages JOIN users ON users.id = chat_messages.user_id
+         ${REPLY_JOIN_SQL}
          WHERE chat_messages.id = ?`
       )
       .get(result.lastInsertRowid);

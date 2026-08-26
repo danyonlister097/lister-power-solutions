@@ -30,10 +30,22 @@
       var nameSpan = document.createElement('span');
       nameSpan.textContent = m.userName + ' · ' + time;
       meta.appendChild(nameSpan);
-      if (isAdmin) {
+      {
         var actions = document.createElement('span');
         actions.className = 'chat-message-actions';
 
+        var replyBtn = document.createElement('button');
+        replyBtn.type = 'button';
+        replyBtn.className = 'chat-message-reply';
+        replyBtn.setAttribute('data-message-id', m.id);
+        replyBtn.setAttribute('data-user-name', m.userName);
+        replyBtn.setAttribute('data-preview', (m.body || (m.attachmentName ? '📎 ' + m.attachmentName : '')).slice(0, 80));
+        replyBtn.title = 'Reply';
+        replyBtn.setAttribute('aria-label', 'Reply to this message');
+        replyBtn.textContent = '↩';
+        actions.appendChild(replyBtn);
+      }
+      if (isAdmin) {
         var pinBtn = document.createElement('button');
         pinBtn.type = 'button';
         pinBtn.className = 'chat-message-pin' + (m.pinned ? ' chat-message-pin-active' : '');
@@ -52,10 +64,24 @@
         delBtn.setAttribute('aria-label', 'Delete message');
         delBtn.textContent = '×';
         actions.appendChild(delBtn);
-
-        meta.appendChild(actions);
       }
+      meta.appendChild(actions);
       div.appendChild(meta);
+
+      if (m.replyTo) {
+        var quote = document.createElement('button');
+        quote.type = 'button';
+        quote.className = 'chat-message-quote';
+        quote.setAttribute('data-message-id', m.replyTo.id);
+        var quoteName = document.createElement('strong');
+        quoteName.textContent = m.replyTo.userName || 'Deleted message';
+        quote.appendChild(quoteName);
+        if (m.replyTo.userName) {
+          var quotePreview = (m.replyTo.body || (m.replyTo.attachmentName ? '📎 ' + m.replyTo.attachmentName : '')).slice(0, 80);
+          quote.appendChild(document.createTextNode(': ' + quotePreview));
+        }
+        div.appendChild(quote);
+      }
 
       if (m.body) {
         var body = document.createElement('div');
@@ -185,11 +211,42 @@
       target.classList.add('chat-message-highlight');
     }
 
+    // --- Reply-to banner above the message box ---
+
+    var replyBanner = document.getElementById('chat-reply-banner');
+    var replyToInput = document.getElementById('chat-reply-to');
+    var replyBannerName = document.getElementById('chat-reply-banner-name');
+    var replyBannerPreview = document.getElementById('chat-reply-banner-preview');
+
+    function showReplyBanner(messageId, userName, preview) {
+      if (!replyBanner) return;
+      replyToInput.value = messageId;
+      replyBannerName.textContent = userName;
+      replyBannerPreview.textContent = preview;
+      replyBanner.hidden = false;
+      if (input) input.focus();
+    }
+
+    function clearReplyBanner() {
+      if (!replyBanner) return;
+      replyToInput.value = '';
+      replyBanner.hidden = true;
+    }
+
+    var replyCancelBtn = document.getElementById('chat-reply-cancel');
+    if (replyCancelBtn) replyCancelBtn.addEventListener('click', clearReplyBanner);
+
     document.addEventListener('click', function (e) {
       var link = e.target.closest('.chat-pinned-item-link');
       if (link) { jumpToMessage(link.getAttribute('data-message-id')); return; }
       var unpinBtn = e.target.closest('.chat-pinned-unpin');
-      if (unpinBtn) togglePin(unpinBtn.getAttribute('data-message-id'));
+      if (unpinBtn) { togglePin(unpinBtn.getAttribute('data-message-id')); return; }
+      var quote = e.target.closest('.chat-message-quote');
+      if (quote) { jumpToMessage(quote.getAttribute('data-message-id')); return; }
+      var replyBtn = e.target.closest('.chat-message-reply');
+      if (replyBtn) {
+        showReplyBanner(replyBtn.getAttribute('data-message-id'), replyBtn.getAttribute('data-user-name'), replyBtn.getAttribute('data-preview'));
+      }
     });
 
     if (isAdmin) {
@@ -250,6 +307,7 @@
         fd.append('_csrf', csrf);
         if (body) fd.append('body', body);
         if (hasFile) fd.append('attachment', fileInput.files[0]);
+        if (replyToInput && replyToInput.value) fd.append('reply_to', replyToInput.value);
 
         fetch('/chat/c/' + channelId, {
           method: 'POST',
@@ -266,6 +324,7 @@
               fileInput.value = '';
               if (filePreview) filePreview.style.display = 'none';
             }
+            clearReplyBanner();
             renderMessage(data.message);
             scrollToBottom();
           })

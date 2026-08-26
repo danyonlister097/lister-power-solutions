@@ -762,6 +762,11 @@ CREATE TABLE IF NOT EXISTS job_duplicate_decisions (
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS pinned INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS pinned_by INTEGER REFERENCES users(id);
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS pinned_at TEXT;
+-- Nullable self-reference for "reply to this message". ON DELETE SET NULL
+-- so deleting the original message never fails/cascades - a reply just
+-- quietly loses its quoted preview instead of blocking the delete or
+-- taking the reply down with it.
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reply_to_id INTEGER REFERENCES chat_messages(id) ON DELETE SET NULL;
 
 -- Web Push subscriptions - one row per device/browser a user has enabled
 -- notifications on (a user can have several: phone + desktop). endpoint is
