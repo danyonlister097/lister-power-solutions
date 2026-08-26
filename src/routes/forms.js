@@ -138,23 +138,28 @@ router.get(
   })
 );
 
-// Duplicating a template with a job_id attaches it straight to that job
-// (the "+ Add form" flow from a job page already knows which job). Without
-// one, it's created as an unassigned draft - the user picks a job later,
-// when they save it, from its own page. Either way, land on the new form's
-// own page next so it can be filled out/completed before returning to the
-// job, rather than dumping the user straight back on the job page.
+// Duplicating a template with a job_id attaches it straight to that job -
+// the "+ Add form" flow from a job page already knows which job, so it goes
+// straight back there where the new form is now listed, ready to open and
+// fill in. Without a job_id (browsing the general template library), it's
+// created as an unassigned draft and lands on the new form's own page
+// instead, since there's no job page yet to return to.
 router.post(
   '/:id/duplicate',
   verifyCsrf,
   asyncHandler(async (req, res) => {
+    const wantsJson = req.get('Accept') === 'application/json';
     const template = await db.prepare('SELECT * FROM form_templates WHERE id = ?').get(req.params.id);
-    if (!template) return res.status(404).render('error', { message: 'Template not found.' });
+    if (!template) {
+      if (wantsJson) return res.status(404).json({ error: 'Template not found.' });
+      return res.status(404).render('error', { message: 'Template not found.' });
+    }
 
     let job = null;
     if (req.body.job_id) {
       job = await db.prepare('SELECT id, title FROM jobs WHERE id = ?').get(req.body.job_id);
       if (!job) {
+        if (wantsJson) return res.status(400).json({ error: 'Please choose a valid job.' });
         setFlash(req, 'error', 'Please choose a valid job.');
         return res.redirect('/forms');
       }
@@ -173,9 +178,14 @@ router.post(
     setFlash(
       req,
       'success',
-      job ? `"${template.name}" added to ${job.title}. Fill it out and save when done.` : `"${template.name}" created. Assign it to a job when you save it.`
+      job ? `"${template.name}" added to ${job.title}. Open it to fill in, then upload the completed version.` : `"${template.name}" created. Assign it to a job when you save it.`
     );
-    res.redirect(`/forms/job/${result.lastInsertRowid}`);
+
+    const redirectUrl = job ? `/jobs/${job.id}` : `/forms/job/${result.lastInsertRowid}`;
+    if (wantsJson) {
+      return res.json({ ok: true, formId: result.lastInsertRowid, downloadUrl: `/forms/job/${result.lastInsertRowid}/download`, redirectUrl });
+    }
+    res.redirect(redirectUrl);
   })
 );
 

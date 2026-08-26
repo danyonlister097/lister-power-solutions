@@ -231,6 +231,7 @@
     <h2 style="margin: 0;">Forms &amp; certificates</h2>
     <a class="btn btn-secondary btn-sm" href="/forms?forJob=<%= job.id %>">+ Add form</a>
   </div>
+  <p class="text-muted" style="font-size:0.85rem;margin:0 0 0.75rem;">Open a form to fill it in with your phone's PDF app (e.g. Adobe Acrobat's Fill &amp; Sign) or on a computer, save it, then upload the completed version here.</p>
   <% if (jobForms.length === 0) { %>
     <div class="empty-state">No forms attached to this job yet.</div>
   <% } else { %>

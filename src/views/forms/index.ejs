@@ -41,6 +41,45 @@
   </div>
 <% } %>
 
+<% if (forJob) { %>
+  <script>
+    (function () {
+      // Picking a template for a job should open the new form straight away,
+      // ready to fill in, instead of just silently attaching a blank copy and
+      // leaving the user to go find it - so this intercepts the normal form
+      // POST to do the same thing via fetch, then opens the result in a new
+      // tab from inside this same click's handler chain (still counts as
+      // user-initiated, so it isn't popup-blocked) before sending this tab
+      // back to the job page as usual.
+      document.querySelectorAll('.form-template-card-form').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var btn = form.querySelector('button[type="submit"]');
+          btn.disabled = true;
+
+          fetch(form.action, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+            body: new URLSearchParams(new FormData(form)).toString(),
+          })
+            .then(function (res) {
+              if (!res.ok) throw new Error('Failed to add form');
+              return res.json();
+            })
+            .then(function (data) {
+              window.open(data.downloadUrl, '_blank');
+              window.location.href = data.redirectUrl;
+            })
+            .catch(function () {
+              alert('Could not add that form. Please try again.');
+              btn.disabled = false;
+            });
+        });
+      });
+    })();
+  </script>
+<% } %>
+
 <% if (!forJob) { %>
   <div class="section-heading">Drafts not yet assigned to a job (<%= drafts.length %>)</div>
   <% if (!drafts.length) { %>
