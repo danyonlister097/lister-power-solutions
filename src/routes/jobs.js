@@ -341,13 +341,16 @@ router.get(
     }
 
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    // Invoiced jobs are historical - most recent first is more useful than
+    // the closest-upcoming-first order every other status view wants.
+    const orderBy = status === 'invoiced' ? 'jobs.scheduled_start DESC NULLS LAST' : 'jobs.scheduled_start ASC NULLS LAST';
     const jobs = await db
       .prepare(
         `SELECT jobs.*, customers.name AS customer_name
          FROM jobs
          JOIN customers ON customers.id = jobs.customer_id
          ${where}
-         ORDER BY (jobs.scheduled_start IS NULL), jobs.scheduled_start ASC`
+         ORDER BY ${orderBy}`
       )
       .all(params);
 
