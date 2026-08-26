@@ -296,6 +296,17 @@
       });
     }
 
+    // The compose box is a textarea so Enter inserts a newline instead of
+    // sending (only the Send button submits) - it grows to fit what's typed,
+    // capped by CSS max-height/overflow-y so a very long message scrolls
+    // instead of taking over the page.
+    function autoResizeInput() {
+      if (!input) return;
+      input.style.height = 'auto';
+      input.style.height = input.scrollHeight + 'px';
+    }
+    if (input) input.addEventListener('input', autoResizeInput);
+
     if (form) {
       form.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -320,6 +331,7 @@
           })
           .then(function (data) {
             input.value = '';
+            autoResizeInput();
             if (fileInput) {
               fileInput.value = '';
               if (filePreview) filePreview.style.display = 'none';
