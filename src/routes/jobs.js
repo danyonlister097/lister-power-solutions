@@ -1349,7 +1349,7 @@ async function autoAllocateAirconStock(jobId, jobTitle, allocatedBy) {
       : await db.prepare("SELECT id FROM inventory_items WHERE name ILIKE '%' || ? || '%' LIMIT 1").get(pattern);
     if (!item) continue;
     await db.prepare('INSERT INTO job_stock_allocations (job_id, item_id, quantity, allocated_by) VALUES (?, ?, ?, ?)').run(jobId, item.id, qty, allocatedBy);
-    await db.prepare('UPDATE inventory_items SET quantity_on_hand = quantity_on_hand - ?, updated_at = now_utc_text() WHERE id = ?').run(qty, item.id);
+    await db.prepare('UPDATE inventory_items SET quantity_on_hand = GREATEST(quantity_on_hand - ?, 0), updated_at = now_utc_text() WHERE id = ?').run(qty, item.id);
   }
 }
 

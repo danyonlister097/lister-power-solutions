@@ -804,3 +804,13 @@ CREATE TABLE IF NOT EXISTS job_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_job_history_job_id ON job_history(job_id);
+
+-- Stock can never go below zero - every code path that decrements
+-- quantity_on_hand now floors at 0 (GREATEST(quantity_on_hand - x, 0)); this
+-- is the backstop against any path that doesn't. NOT VALID skips checking
+-- pre-existing rows, since some are already negative from before this floor
+-- existed - so this can't fail to apply on a database that isn't clean yet.
+-- New/updated rows are enforced immediately either way.
+ALTER TABLE inventory_items DROP CONSTRAINT IF EXISTS inventory_items_quantity_non_negative;
+ALTER TABLE inventory_items ADD CONSTRAINT inventory_items_quantity_non_negative
+  CHECK (quantity_on_hand >= 0) NOT VALID;

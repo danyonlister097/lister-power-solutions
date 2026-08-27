@@ -180,7 +180,7 @@ router.post(
     }
 
     await db
-      .prepare(`UPDATE inventory_items SET quantity_on_hand = quantity_on_hand - ?, updated_at = datetime('now') WHERE id = ?`)
+      .prepare(`UPDATE inventory_items SET quantity_on_hand = GREATEST(quantity_on_hand - ?, 0), updated_at = datetime('now') WHERE id = ?`)
       .run(quantity, item.id);
 
     let costItemId = null;
@@ -256,7 +256,7 @@ router.post(
         }
       }
       await db
-        .prepare(`UPDATE inventory_items SET quantity_on_hand = quantity_on_hand - ?, updated_at = datetime('now') WHERE id = ?`)
+        .prepare(`UPDATE inventory_items SET quantity_on_hand = GREATEST(quantity_on_hand - ?, 0), updated_at = datetime('now') WHERE id = ?`)
         .run(diff, allocation.item_id);
       await db.prepare('UPDATE job_stock_allocations SET quantity = ? WHERE id = ?').run(newQty, allocation.id);
       if (allocation.cost_item_id) {

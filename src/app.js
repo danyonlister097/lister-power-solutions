@@ -195,7 +195,7 @@ app.get(
           if (itemId) {
             if (isCredit) {
               await db
-                .prepare(`UPDATE inventory_items SET quantity_on_hand = quantity_on_hand - ?, updated_at = now_utc_text() WHERE id = ?`)
+                .prepare(`UPDATE inventory_items SET quantity_on_hand = GREATEST(quantity_on_hand - ?, 0), updated_at = now_utc_text() WHERE id = ?`)
                 .run(line.supplied, itemId);
             } else {
               await db
