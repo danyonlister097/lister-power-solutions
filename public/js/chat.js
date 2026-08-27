@@ -121,7 +121,15 @@
       lastId = Math.max(lastId, m.id);
     }
 
-    scrollToBottom();
+    // A search result links here as #msg-<id> (with a from/to date filter so
+    // that message is actually among what got loaded) - land on it directly
+    // instead of the usual scroll-to-bottom.
+    var hashMatch = /^#msg-(\d+)$/.exec(window.location.hash);
+    if (hashMatch) {
+      jumpToMessage(hashMatch[1]);
+    } else {
+      scrollToBottom();
+    }
 
     // --- Pinned messages bar ---
 
@@ -202,13 +210,122 @@
         .catch(function () { alert('Could not update that pin. Please try again.'); });
     }
 
+    // The highlight ring stays on a message (animation-fill-mode: forwards)
+    // rather than fading out on its own, so it's still there whenever the
+    // caller needs to explicitly take it off - moving to a different match,
+    // a search with no results, or Clear.
+    function clearMessageHighlight() {
+      document.querySelectorAll('.chat-message-highlight').forEach(function (el) { el.classList.remove('chat-message-highlight'); });
+    }
+
     function jumpToMessage(messageId) {
       var target = document.getElementById('msg-' + messageId);
       if (!target) return;
+      clearMessageHighlight();
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      target.classList.remove('chat-message-highlight');
       void target.offsetWidth; // restart the animation if it's already flashed once
       target.classList.add('chat-message-highlight');
+    }
+
+    // --- Find-in-channel search - like Ctrl+F in a PDF: type, press Enter to
+    // jump to the first match, keep pressing Enter to cycle through the rest
+    // (wrapping back to the first after the last). Only searches messages
+    // currently loaded in the DOM, same set the channel view already shows.
+
+    var findInput = document.getElementById('chat-find-input');
+    var findCount = document.getElementById('chat-find-count');
+    var findClearBtn = document.getElementById('chat-find-clear');
+
+    if (findInput) {
+      var findMatches = [];
+      var findIndex = -1;
+      var findQuery = '';
+      var findHighlightedBody = null; // the .chat-message-body currently showing a <mark>, if any
+
+      function collectFindMatches(query) {
+        var lower = query.toLowerCase();
+        return Array.prototype.filter.call(messagesEl.querySelectorAll('.chat-message'), function (el) {
+          var body = el.querySelector('.chat-message-body');
+          return body && body.textContent.toLowerCase().indexOf(lower) !== -1;
+        });
+      }
+
+      function escapeHtmlText(s) {
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+      }
+
+      // Reads back its own current plain text and reassigns it, which
+      // collapses any <mark> wrapper back into an ordinary text node -
+      // simpler than remembering the original string separately.
+      function clearWordHighlight() {
+        if (findHighlightedBody) {
+          findHighlightedBody.textContent = findHighlightedBody.textContent;
+          findHighlightedBody = null;
+        }
+      }
+
+      // Wraps just the first occurrence of `query` in this message's body
+      // with a <mark> - built from escaped text either side so nothing in
+      // the message itself (which is free-typed user content) is ever
+      // interpreted as HTML.
+      function highlightWordInMatch(messageEl, query) {
+        var body = messageEl.querySelector('.chat-message-body');
+        if (!body) return;
+        var text = body.textContent;
+        var idx = text.toLowerCase().indexOf(query.toLowerCase());
+        if (idx === -1) return;
+        var before = text.slice(0, idx);
+        var hit = text.slice(idx, idx + query.length);
+        var after = text.slice(idx + query.length);
+        body.innerHTML = escapeHtmlText(before) + '<mark class="chat-search-hit">' + escapeHtmlText(hit) + '</mark>' + escapeHtmlText(after);
+        findHighlightedBody = body;
+      }
+
+      findInput.addEventListener('input', function () {
+        findClearBtn.hidden = !findInput.value;
+      });
+
+      findInput.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        var query = findInput.value.trim();
+        if (!query) return;
+
+        if (query !== findQuery) {
+          clearWordHighlight();
+          findQuery = query;
+          findMatches = collectFindMatches(query);
+          findIndex = -1;
+        }
+
+        findCount.hidden = false;
+        if (!findMatches.length) {
+          findCount.textContent = 'No matches';
+          clearMessageHighlight();
+          return;
+        }
+
+        clearWordHighlight();
+        findIndex = (findIndex + 1) % findMatches.length;
+        findCount.textContent = (findIndex + 1) + ' of ' + findMatches.length;
+        var matchEl = findMatches[findIndex];
+        jumpToMessage(matchEl.getAttribute('data-message-id'));
+        highlightWordInMatch(matchEl, query);
+      });
+
+      findClearBtn.addEventListener('click', function () {
+        clearWordHighlight();
+        clearMessageHighlight();
+        findInput.value = '';
+        findQuery = '';
+        findMatches = [];
+        findIndex = -1;
+        findCount.hidden = true;
+        findClearBtn.hidden = true;
+        findInput.focus();
+      });
     }
 
     // --- Reply-to banner above the message box ---

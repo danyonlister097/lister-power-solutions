@@ -2109,10 +2109,27 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
 }
 .chat-pinned-unpin:hover { color: var(--color-danger); }
 
-.chat-message-highlight { animation: chat-message-flash 1.6s ease; }
+/* Amber rather than the teal primary color - own-message bubbles are already
+   teal-filled, so a teal ring would barely show up on those. Stays applied
+   (animation-fill-mode: forwards) instead of fading out, so "which message
+   is this" stays obvious until the next jump moves it - a quick pulse on
+   arrival, then a steady, unmistakable ring around the message. */
+.chat-message-highlight {
+  border-radius: var(--radius);
+  animation: chat-message-flash 0.5s ease forwards;
+}
 @keyframes chat-message-flash {
-  0%, 100% { box-shadow: none; }
-  20% { box-shadow: 0 0 0 3px var(--color-primary); }
+  0% { box-shadow: 0 0 0 6px rgba(245, 166, 35, 0.45); }
+  100% { box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.95); }
+}
+
+/* The specific matched word/phrase within a highlighted search result. */
+.chat-search-hit {
+  background: #ffd54a;
+  color: #1a1200;
+  padding: 0 0.15em;
+  border-radius: 2px;
+  font-weight: 600;
 }
 .chat-form {
   display: flex;
@@ -2313,13 +2330,59 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
 
 .chat-channel-title { margin: 0; }
 
+.chat-header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+/* A native <input type="date"> renders at a different intrinsic height than
+   a plain text input - by how much varies by browser, so matching padding
+   alone was never reliable. Giving every control here (search box, date
+   boxes, Filter button) the same explicit height + border-box removes the
+   size difference outright instead of trying to align around it. */
+.chat-inline-search { display: flex; align-items: center; gap: 0.4rem; }
+.chat-inline-search input[type="text"] {
+  width: 11rem;
+  height: 2.25rem;
+  box-sizing: border-box;
+  padding: 0 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font: inherit;
+}
+.chat-find-count { font-size: 0.8rem; color: var(--color-muted); white-space: nowrap; }
+.chat-find-clear {
+  border: none;
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+}
+.chat-find-clear:hover { color: var(--color-danger); }
+
 .chat-date-filter {
   display: flex;
   align-items: center;
   gap: 0.4rem;
 }
-.chat-date-filter input { padding: 0.35rem 0.5rem; border: 1px solid var(--color-border); border-radius: var(--radius); font: inherit; }
+.chat-date-filter input {
+  height: 2.25rem;
+  margin-top: 0; /* overrides the global `form input { margin-top: 0.3rem }` rule - this input is inside a <form>, the search box next to it isn't, and that mismatch was the actual remaining cause of the misalignment */
+  box-sizing: border-box;
+  padding: 0 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font: inherit;
+}
+.chat-date-filter button { height: 2.25rem; box-sizing: border-box; }
 .chat-date-filter-sep { color: var(--color-muted); }
+
+.chat-search-scope { font-size: 0.85rem; color: var(--color-muted); margin: 0 0 0.75rem; }
 
 .chat-filtered-notice {
   padding: 0.75rem;

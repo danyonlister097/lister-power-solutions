@@ -26,13 +26,20 @@
           </div>
         </div>
       <% } %>
-      <form class="chat-date-filter" method="get" action="/chat/c/<%= channel.id %>" style="margin-left:auto;">
-        <input type="date" name="from" value="<%= from %>">
-        <span class="chat-date-filter-sep">&ndash;</span>
-        <input type="date" name="to" value="<%= to %>">
-        <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
-        <% if (from || to) { %><a class="btn-link" href="/chat/c/<%= channel.id %>">Clear</a><% } %>
-      </form>
+      <div class="chat-header-actions">
+        <div class="chat-inline-search">
+          <input type="text" id="chat-find-input" placeholder="Search">
+          <span id="chat-find-count" class="chat-find-count" hidden></span>
+          <button type="button" id="chat-find-clear" class="chat-find-clear" title="Clear search" aria-label="Clear search" hidden>&times;</button>
+        </div>
+        <form class="chat-date-filter" method="get" action="/chat/c/<%= channel.id %>">
+          <input type="date" name="from" value="<%= from %>">
+          <span class="chat-date-filter-sep">&ndash;</span>
+          <input type="date" name="to" value="<%= to %>">
+          <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+          <% if (from || to) { %><a class="btn-link" href="/chat/c/<%= channel.id %>">Clear</a><% } %>
+        </form>
+      </div>
     </div>
 
     <div

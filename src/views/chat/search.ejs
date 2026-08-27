@@ -8,10 +8,14 @@
 
   <div class="chat-main">
     <div class="card chat-search-card">
+      <% if (channelFilter) { %>
+        <p class="chat-search-scope">Searching in <strong>#<%= channelFilter.name %></strong> &middot; <a href="/chat/search?q=<%= encodeURIComponent(q) %>&from=<%= from %>&to=<%= to %>">Search all channels instead</a></p>
+      <% } %>
       <form method="get" action="/chat/search">
+        <% if (channelFilter) { %><input type="hidden" name="channel" value="<%= channelFilter.id %>"><% } %>
         <label>
           Search text
-          <input type="text" name="q" value="<%= q %>" placeholder="Search all channels...">
+          <input type="text" name="q" value="<%= q %>" placeholder="<%= channelFilter ? 'Search in #' + channelFilter.name + '...' : 'Search all channels...' %>">
         </label>
         <div class="form-row form-row-2">
           <label>
@@ -36,7 +40,8 @@
       <% } else { %>
         <div class="chat-search-results">
           <% results.forEach(r => { %>
-            <a class="chat-search-result" href="/chat/c/<%= r.channel_id %>">
+            <% var _day = r.created_at.slice(0, 10); %>
+            <a class="chat-search-result" href="/chat/c/<%= r.channel_id %>?from=<%= _day %>&to=<%= _day %>#msg-<%= r.id %>">
               <div class="chat-search-result-head">
                 <span class="chat-search-result-channel">#<%= r.channel_name %></span>
                 <span class="chat-search-result-user"><%= r.user_name %></span>

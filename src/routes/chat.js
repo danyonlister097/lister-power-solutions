@@ -202,10 +202,28 @@ router.get(
     const from = isValidDate(req.query.from) ? req.query.from : '';
     const to = isValidDate(req.query.to) ? req.query.to : '';
 
+    // Optional - set when search is opened from inside a specific channel,
+    // scoping results to just that channel instead of every channel.
+    let channelFilter = null;
+    if (req.query.channel) {
+      channelFilter = await db.prepare('SELECT id, name, admin_only FROM chat_channels WHERE id = ?').get(req.query.channel);
+      if (channelFilter && channelFilter.admin_only && req.user.role !== 'admin') {
+        return res.status(403).render('error', { message: 'This channel is admin-only.' });
+      }
+    }
+
     let results = [];
     if (q || from || to) {
       const clauses = [];
       const params = [];
+      // A non-admin's search must never surface snippets from admin-only
+      // channels they can't otherwise open - same rule the channel list itself
+      // uses (channelsWithUnread's adminFilter above).
+      if (req.user.role !== 'admin') clauses.push('chat_channels.admin_only = 0');
+      if (channelFilter) {
+        clauses.push('chat_messages.channel_id = ?');
+        params.push(channelFilter.id);
+      }
       if (q) {
         clauses.push('chat_messages.body ILIKE ? ESCAPE \'\\\'');
         params.push(`%${escapeLike(q)}%`);
@@ -232,11 +250,12 @@ router.get(
     }
 
     res.render('chat/search', {
-      title: 'Search chats',
+      title: channelFilter ? `Search #${channelFilter.name}` : 'Search chats',
       q,
       from,
       to,
       results,
+      channelFilter,
       channels: await channelsWithUnread(req.user),
     });
   })
