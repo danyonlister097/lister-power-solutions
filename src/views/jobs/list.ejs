@@ -183,7 +183,7 @@
   <div class="card" style="margin-bottom:1rem;">
     <label>
       Search
-      <input type="search" id="jobs-search" placeholder="Search by title, description, customer, category or assigned tech&hellip;">
+      <input type="search" id="jobs-search" placeholder="Search by title, description, customer, address, category or assigned tech&hellip;">
     </label>
   </div>
   <div id="jobs-search-empty" class="empty-state" hidden>No jobs match your search.</div>
@@ -204,7 +204,7 @@
         <div class="section-heading"><%= day %></div>
     <% } %>
         <div class="list-item row-menu-hover-target jobs-row" style="padding:0;gap:0;"
-             data-search="<%= [j.title, j.description, j.customer_name, j.category, j.assigneeNames, j.notes].filter(Boolean).join(' ').toLowerCase() %>">
+             data-search="<%= [j.title, j.description, j.customer_name, j.category, j.assigneeNames, j.notes, j.site_address_street, j.site_address_city, j.site_address_state, j.site_address_postcode].filter(Boolean).join(' ').toLowerCase() %>">
           <% if (isAdmin) { %><label style="padding:0 0 0 1rem;display:flex;align-items:center;cursor:pointer;" aria-label="Select job"><input type="checkbox" class="job-select" value="<%= j.id %>"></label><% } %>
           <a href="/jobs/<%= j.id %>?returnTo=<%= encodeURIComponent(_returnTo) %>" style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:0.9rem 1rem;gap:0.5rem;text-decoration:none;color:inherit;min-width:0;">
             <span style="min-width:0;">
