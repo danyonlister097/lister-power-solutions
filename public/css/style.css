@@ -718,7 +718,7 @@ form label.toggle-label {
 .job-history-changes { list-style: none; margin: 0.4rem 0 0; padding: 0; font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.2rem; }
 .job-history-changes strong { font-weight: 600; }
 
-#jobs-search {
+#jobs-search, #customer-search {
   display: block;
   width: 100%;
   padding: 0.9rem 1.1rem;
