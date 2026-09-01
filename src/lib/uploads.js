@@ -50,6 +50,26 @@ const licenseUpload = multer({
   },
 });
 
+const QUOTE_ALLOWED_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+
+const quoteUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024, files: 5 },
+  fileFilter: (req, file, cb) => {
+    if (!QUOTE_ALLOWED_TYPES.has(file.mimetype)) {
+      return cb(new Error('Only images, PDF, Word, and Excel files are allowed.'));
+    }
+    cb(null, true);
+  },
+});
+
 // Uploads one multer (memoryStorage) file to Vercel Blob and returns its
 // URL - stored as the "filename" column across job_attachments,
 // photo_folder_images, form_templates, and job_forms. The URL is never
@@ -95,4 +115,4 @@ async function deleteFile(url) {
   await del(url, { token: config.blob.token }).catch(() => {});
 }
 
-module.exports = { upload, chatUpload, licenseUpload, putFile, copyFile, fetchFile, deleteFile };
+module.exports = { upload, chatUpload, licenseUpload, quoteUpload, putFile, copyFile, fetchFile, deleteFile };

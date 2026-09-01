@@ -814,3 +814,20 @@ CREATE INDEX IF NOT EXISTS idx_job_history_job_id ON job_history(job_id);
 ALTER TABLE inventory_items DROP CONSTRAINT IF EXISTS inventory_items_quantity_non_negative;
 ALTER TABLE inventory_items ADD CONSTRAINT inventory_items_quantity_non_negative
   CHECK (quantity_on_hand >= 0) NOT VALID;
+
+-- Quote documents attached to a job (under Job costing) - separate from the
+-- numeric quoted_amount on job_costs, this is the actual file sent to the
+-- customer. Same one-row-per-file shape as job_attachments, since a job can
+-- have more than one (an initial quote, a later revision, etc).
+CREATE TABLE IF NOT EXISTS job_quote_files (
+  id SERIAL PRIMARY KEY,
+  job_id INTEGER NOT NULL REFERENCES jobs(id),
+  filename TEXT NOT NULL,
+  original_name TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  uploaded_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_quote_files_job_id ON job_quote_files(job_id);

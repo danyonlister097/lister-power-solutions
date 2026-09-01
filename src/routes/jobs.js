@@ -3,7 +3,7 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth, requireRole, requirePermission, verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
-const { upload, putFile, fetchFile, deleteFile } = require('../lib/uploads');
+const { upload, quoteUpload, putFile, fetchFile, deleteFile } = require('../lib/uploads');
 const { homeRoute } = require('../lib/homeRoute');
 const { JOB_COLORS, JOB_COLOR_VALUES } = require('../lib/jobColors');
 const { asyncHandler } = require('../lib/asyncHandler');
@@ -78,6 +78,10 @@ async function deleteJobsCascade(jobIds) {
   const forms = await db.prepare(`SELECT filename FROM job_forms WHERE job_id IN (${placeholders})`).all(...jobIds);
   await Promise.all(forms.map((f) => deleteFile(f.filename)));
   await db.prepare(`DELETE FROM job_forms WHERE job_id IN (${placeholders})`).run(...jobIds);
+
+  const quoteFiles = await db.prepare(`SELECT filename FROM job_quote_files WHERE job_id IN (${placeholders})`).all(...jobIds);
+  await Promise.all(quoteFiles.map((f) => deleteFile(f.filename)));
+  await db.prepare(`DELETE FROM job_quote_files WHERE job_id IN (${placeholders})`).run(...jobIds);
 
   // Stock taken off a deleted job still needs to go back on the shelf.
   const allocations = await db.prepare(`SELECT item_id, quantity FROM job_stock_allocations WHERE job_id IN (${placeholders})`).all(...jobIds);
@@ -1483,6 +1487,7 @@ router.get(
       // employee's rate (set on their Employees tab profile) instead of
       // having to know/retype it.
       const employees = await db.prepare('SELECT id, name, hourly_rate FROM users WHERE active = 1 ORDER BY sort_order, name').all();
+      const quoteFiles = await db.prepare('SELECT * FROM job_quote_files WHERE job_id = ? ORDER BY created_at DESC').all(job.id);
       costing = {
         quotedAmount,
         costItems,
@@ -1490,6 +1495,7 @@ router.get(
         profit: quotedAmount !== null ? quotedAmount - totalCost : null,
         categories: COST_CATEGORIES,
         employees,
+        quoteFiles,
       };
     }
 
@@ -1612,6 +1618,71 @@ router.post(
     await db.prepare('DELETE FROM job_cost_items WHERE id = ?').run(item.id);
 
     setFlash(req, 'success', 'Cost item removed.');
+    res.redirect(withReturnTo(`/jobs/${req.params.id}`, safeReturnTo(req.body.returnTo)));
+  })
+);
+
+function uploadQuoteFiles(req, res, next) {
+  quoteUpload.array('quote_files', 5)(req, res, (err) => {
+    if (err) {
+      setFlash(req, 'error', err.message || 'Upload failed.');
+      return res.redirect(`/jobs/${req.params.id}`);
+    }
+    next();
+  });
+}
+
+router.post(
+  '/:id/costing/quote-files',
+  requireRole('admin'),
+  uploadQuoteFiles,
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const job = await db.prepare('SELECT id FROM jobs WHERE id = ?').get(req.params.id);
+    if (!job) return res.status(404).render('error', { message: 'Job not found.' });
+
+    const files = req.files || [];
+    const insert = db.prepare(
+      `INSERT INTO job_quote_files (job_id, filename, original_name, mime_type, size_bytes, uploaded_by)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    );
+    for (const f of files) {
+      const url = await putFile(f);
+      await insert.run(job.id, url, f.originalname, f.mimetype, f.size, req.user.id);
+    }
+
+    setFlash(req, 'success', files.length ? `${files.length} quote file${files.length > 1 ? 's' : ''} uploaded.` : 'No files selected.');
+    res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
+  })
+);
+
+router.get(
+  '/:id/costing/quote-files/:fileId',
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    const file = await db.prepare('SELECT * FROM job_quote_files WHERE id = ? AND job_id = ?').get(req.params.fileId, req.params.id);
+    if (!file) return res.status(404).render('error', { message: 'File not found.' });
+
+    const stream = await fetchFile(file.filename);
+    if (!stream) return res.status(404).render('error', { message: 'File not found.' });
+    res.type(file.mime_type);
+    res.setHeader('Content-Disposition', `inline; filename="${file.original_name}"`);
+    Readable.fromWeb(stream).pipe(res);
+  })
+);
+
+router.post(
+  '/:id/costing/quote-files/:fileId/delete',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const file = await db.prepare('SELECT * FROM job_quote_files WHERE id = ? AND job_id = ?').get(req.params.fileId, req.params.id);
+    if (!file) return res.status(404).render('error', { message: 'File not found.' });
+
+    await deleteFile(file.filename);
+    await db.prepare('DELETE FROM job_quote_files WHERE id = ?').run(file.id);
+
+    setFlash(req, 'success', 'Quote file removed.');
     res.redirect(withReturnTo(`/jobs/${req.params.id}`, safeReturnTo(req.body.returnTo)));
   })
 );

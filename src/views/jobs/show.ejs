@@ -459,6 +459,97 @@
       })();
     </script>
 
+    <div class="section-heading">Quotes</div>
+    <% if (!costing.quoteFiles.length) { %>
+      <p class="text-muted">No quote files attached yet.</p>
+    <% } else { %>
+      <ul class="list">
+        <% costing.quoteFiles.forEach(function (f) { %>
+          <li>
+            <span class="list-item">
+              <span>
+                <span class="list-item-title"><%= f.original_name %></span><br>
+                <span class="list-item-meta"><%= new Date(f.created_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+              </span>
+              <span class="actions">
+                <a class="btn btn-secondary btn-sm" href="/jobs/<%= job.id %>/costing/quote-files/<%= f.id %>" target="_blank" rel="noopener">View</a>
+                <form method="post" action="/jobs/<%= job.id %>/costing/quote-files/<%= f.id %>/delete" data-confirm="Remove this quote file?" data-preserve-scroll style="margin:0;">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <input type="hidden" name="returnTo" value="<%= closeUrl %>">
+                  <button type="submit" class="btn-link">Remove</button>
+                </form>
+              </span>
+            </span>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+
+    <form method="post" action="/jobs/<%= job.id %>/costing/quote-files" enctype="multipart/form-data" id="quote-file-upload-form" data-preserve-scroll style="margin-bottom:1.5rem;">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="returnTo" value="<%= closeUrl %>">
+      <label>
+        Add quote file(s) <span style="font-weight:400;">(PDF, Word, Excel, or image)</span>
+        <input type="file" name="quote_files" accept=".pdf,.doc,.docx,.xls,.xlsx,image/*" multiple>
+      </label>
+      <button type="submit" class="btn btn-primary btn-sm">Upload</button>
+    </form>
+    <script>
+      (function () {
+        // Same one-at-a-time upload as Photos above - avoids Vercel's
+        // ~4.5MB request-body limit when more than one file is selected.
+        var form = document.getElementById('quote-file-upload-form');
+        var fileInput = form.querySelector('input[type="file"]');
+        var submitBtn = form.querySelector('button[type="submit"]');
+        var csrfInput = form.querySelector('input[name="_csrf"]');
+        var returnToInput = form.querySelector('input[name="returnTo"]');
+
+        form.addEventListener('submit', function (e) {
+          var files = fileInput.files;
+          if (!files || !files.length) return;
+
+          e.preventDefault();
+          submitBtn.disabled = true;
+          var originalText = submitBtn.textContent;
+          var failed = [];
+          var i = 0;
+
+          function uploadNext() {
+            if (i >= files.length) {
+              submitBtn.disabled = false;
+              submitBtn.textContent = originalText;
+              if (failed.length) {
+                alert(
+                  (files.length - failed.length) + ' of ' + files.length + ' file' + (files.length > 1 ? 's' : '') +
+                  ' uploaded. Failed: ' + failed.join(', ') + ' - try again, maybe one at a time if it keeps happening.'
+                );
+              }
+              window.location.reload();
+              return;
+            }
+
+            var file = files[i];
+            submitBtn.textContent = 'Uploading ' + (i + 1) + ' of ' + files.length + '…';
+
+            var fd = new FormData();
+            fd.append('_csrf', csrfInput.value);
+            if (returnToInput) fd.append('returnTo', returnToInput.value);
+            fd.append('quote_files', file);
+
+            fetch(form.action, { method: 'POST', body: fd })
+              .then(function (res) { if (!res.ok) failed.push(file.name); })
+              .catch(function () { failed.push(file.name); })
+              .finally(function () {
+                i++;
+                uploadNext();
+              });
+          }
+
+          uploadNext();
+        });
+      })();
+    </script>
+
     <div class="section-heading">Cost items</div>
     <% if (!costing.costItems.length) { %>
       <p class="text-muted">No cost items yet.</p>
