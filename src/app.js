@@ -362,9 +362,21 @@ app.get('/', (req, res) => res.redirect(homeRoute(req.user)));
 // before the permission check ever runs.
 app.use('/dashboard', requirePermission('dashboard'), require('./routes/dashboard'));
 app.use('/customers', requirePermission('customers'), require('./routes/customers'));
+// A non-admin tech needs to reach their own assigned job's card - view it,
+// log actual start/finish, toggle N/A, add/remove photos - from the
+// Schedule view. jobs.js's own getJobOr404/loadJobForAccess helpers already
+// enforce "admin, or assigned to this job" on every one of these routes;
+// this just needs to let that check run instead of blocking every
+// non-admin here first. Everything else under /jobs (edit, delete,
+// duplicate, costing, reassigning, bulk actions, etc.) stays admin-only,
+// each already guarded by its own requireRole('admin') too.
+const TECH_ACCESSIBLE_JOB_PATH = /^\/\d+(\/actual-start|\/actual-end|\/status|\/na-flags|\/attachments(\/\d+(\/delete)?)?)?(\?.*)?$/;
 app.use('/jobs', (req, res, next) => {
   // /jobs/schedule is open to all authenticated users; everything else is admin-only
   if (req.path === '/schedule' || req.path.startsWith('/schedule?') || req.path.startsWith('/schedule/')) {
+    return requireAuth(req, res, next);
+  }
+  if (TECH_ACCESSIBLE_JOB_PATH.test(req.path)) {
     return requireAuth(req, res, next);
   }
   return requireRole('admin')(req, res, next);
