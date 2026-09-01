@@ -43,13 +43,14 @@
     </label>
     <label>
       Rate <span style="font-weight:400;">(admin-only, used for labour cost totals)</span>
-      <select name="hourly_rate">
+      <select name="hourly_rate" id="user-rate-select">
         <option value="" <%= targetUser.hourly_rate == null ? 'selected' : '' %>>No rate set</option>
-        <option value="110" <%= String(targetUser.hourly_rate) === '110' ? 'selected' : '' %>>Trade &mdash; $110/hr</option>
-        <option value="80" <%= String(targetUser.hourly_rate) === '80' ? 'selected' : '' %>>4th year &mdash; $80/hr</option>
-        <option value="70" <%= String(targetUser.hourly_rate) === '70' ? 'selected' : '' %>>3rd year &mdash; $70/hr</option>
-        <option value="65" <%= String(targetUser.hourly_rate) === '65' ? 'selected' : '' %>>2nd year &mdash; $65/hr</option>
-        <option value="60" <%= String(targetUser.hourly_rate) === '60' ? 'selected' : '' %>>1st year &mdash; $60/hr</option>
+        <% rateCategories.forEach(function (c) { %>
+          <option value="<%= c.rate %>" <%= String(targetUser.hourly_rate) === String(c.rate) ? 'selected' : '' %>><%= c.label %> &mdash; $<%= c.rate %>/hr</option>
+        <% }) %>
+        <% if (currentUser.role === 'admin') { %>
+          <option value="__manage__" style="color:var(--color-primary);">+ Add rate category&hellip;</option>
+        <% } %>
       </select>
     </label>
   </div>
@@ -262,5 +263,54 @@
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <button type="submit" class="btn btn-danger btn-sm">Remove employee</button>
   </form>
+<% } %>
+
+<% if (currentUser.role === 'admin') { %>
+  <% var _rateReturnTo = targetUser.id ? `/users/${targetUser.id}/edit` : '/users/new'; %>
+  <!-- Manage Rate Categories Modal -->
+  <div id="manage-rate-cat-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manage-rate-cat-title" style="max-width:420px;">
+      <button type="button" class="modal-close" id="manage-rate-cat-close" aria-label="Close">&times;</button>
+      <h2 id="manage-rate-cat-title">Manage rate categories</h2>
+      <ul style="list-style:none;padding:0;margin:0 0 1rem;">
+        <% rateCategories.forEach(function (c) { %>
+          <li style="display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--color-border);">
+            <span><%= c.label %> &mdash; $<%= c.rate %>/hr</span>
+            <form method="post" action="/users/rate-categories/<%= c.id %>/delete"
+                  data-confirm="Delete the &quot;<%= c.label %>&quot; rate category? Employees already using it will keep their current rate." style="margin:0;">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="returnTo" value="<%= _rateReturnTo %>">
+              <button type="submit" class="context-menu-item context-menu-danger" style="padding:0.15rem 0.5rem;font-size:0.8rem;">Delete</button>
+            </form>
+          </li>
+        <% }) %>
+      </ul>
+      <form method="post" action="/users/rate-categories" style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="returnTo" value="<%= _rateReturnTo %>">
+        <input type="text" name="label" required placeholder="Category name" style="flex:1;min-width:8rem;">
+        <input type="number" name="rate" required step="0.01" min="0" placeholder="$/hr" style="width:6rem;">
+        <button type="submit" class="btn btn-primary" style="white-space:nowrap;">Add</button>
+      </form>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var manageModal = document.getElementById('manage-rate-cat-modal');
+      document.getElementById('manage-rate-cat-close').addEventListener('click', function () { manageModal.hidden = true; });
+      manageModal.addEventListener('click', function (e) { if (e.target === manageModal) manageModal.hidden = true; });
+
+      var rateSelect = document.getElementById('user-rate-select');
+      rateSelect.dataset.prev = rateSelect.value;
+      rateSelect.addEventListener('change', function () {
+        if (rateSelect.value === '__manage__') {
+          rateSelect.value = rateSelect.dataset.prev || '';
+          manageModal.hidden = false;
+        } else {
+          rateSelect.dataset.prev = rateSelect.value;
+        }
+      });
+    })();
+  </script>
 <% } %>
 <%- include('../partials/footer') %>

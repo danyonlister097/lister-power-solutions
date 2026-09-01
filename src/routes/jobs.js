@@ -1476,6 +1476,13 @@ router.get(
     if (!job) return;
     const attachments = await db.prepare('SELECT * FROM job_attachments WHERE job_id = ? ORDER BY created_at DESC').all(job.id);
     const jobForms = await db.prepare('SELECT * FROM job_forms WHERE job_id = ? ORDER BY created_at DESC').all(job.id);
+    const techNotes = await db
+      .prepare(
+        `SELECT job_tech_notes.*, users.name AS user_name
+         FROM job_tech_notes LEFT JOIN users ON users.id = job_tech_notes.user_id
+         WHERE job_tech_notes.job_id = ? ORDER BY job_tech_notes.created_at DESC`
+      )
+      .all(job.id);
 
     let costing = null;
     if (req.user.role === 'admin') {
@@ -1535,6 +1542,7 @@ router.get(
       linkedAssets,
       createdByName,
       jobHistory,
+      techNotes,
       closeUrl: safeReturnTo(req.query.returnTo) || '/jobs',
     });
   })
@@ -1932,6 +1940,43 @@ router.post(
       .run(req.body.photos_na === '1' ? 1 : 0, req.body.stock_na === '1' ? 1 : 0, job.id);
     const after = await captureJobSnapshot(job.id);
     await recordJobHistory(job.id, req.user.id, diffJobSnapshots(before, after));
+    res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
+  })
+);
+
+router.post(
+  '/:id/tech-notes',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const job = await getJobOr404(req, res);
+    if (!job) return;
+
+    const body = (req.body.body || '').trim();
+    if (!body) {
+      setFlash(req, 'error', 'Enter a note before saving.');
+      return res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
+    }
+
+    await db.prepare('INSERT INTO job_tech_notes (job_id, user_id, body) VALUES (?, ?, ?)').run(job.id, req.user.id, body);
+
+    setFlash(req, 'success', 'Note added.');
+    res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
+  })
+);
+
+router.post(
+  '/:id/tech-notes/:noteId/delete',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const job = await getJobOr404(req, res);
+    if (!job) return;
+
+    const note = await db.prepare('SELECT id FROM job_tech_notes WHERE id = ? AND job_id = ?').get(req.params.noteId, job.id);
+    if (!note) return res.status(404).render('error', { message: 'Note not found.' });
+
+    await db.prepare('DELETE FROM job_tech_notes WHERE id = ?').run(note.id);
+
+    setFlash(req, 'success', 'Note removed.');
     res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
 );

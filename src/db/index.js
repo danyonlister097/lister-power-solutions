@@ -179,6 +179,26 @@ async function ensureSeedData() {
     }
   }
 
+  // Seed rate categories with the rates that used to be hardcoded in the
+  // employee form, so switching to a managed list doesn't change anything
+  // visible on first boot.
+  const rateCats = await pool.query('SELECT id FROM rate_categories LIMIT 1');
+  if (rateCats.rowCount === 0) {
+    const rateDefaults = [
+      { label: 'Trade', rate: 110, sort_order: 10 },
+      { label: '4th year', rate: 80, sort_order: 20 },
+      { label: '3rd year', rate: 70, sort_order: 30 },
+      { label: '2nd year', rate: 65, sort_order: 40 },
+      { label: '1st year', rate: 60, sort_order: 50 },
+    ];
+    for (const c of rateDefaults) {
+      await pool.query(
+        'INSERT INTO rate_categories (label, rate, sort_order) VALUES ($1, $2, $3) ON CONFLICT (label) DO NOTHING',
+        [c.label, c.rate, c.sort_order]
+      );
+    }
+  }
+
   // Per-employee page permissions are new - any trade/apprentice that
   // predates this feature has zero rows in user_permissions yet, which
   // requirePermission() would otherwise read as "no access to anything".

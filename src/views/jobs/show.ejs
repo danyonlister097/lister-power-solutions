@@ -90,6 +90,41 @@
   }
 %>
 <div class="card">
+  <h2>Tech notes</h2>
+  <% if (!techNotes.length) { %>
+    <div class="empty-state">No notes yet.</div>
+  <% } else { %>
+    <ul class="list">
+      <% techNotes.forEach(function (n) { %>
+        <li>
+          <span class="list-item" style="display:block;">
+            <span class="list-item-meta"><%= n.user_name || 'Unknown user' %> &middot; <%= new Date(n.created_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+            <div style="margin-top:0.3rem;white-space:pre-wrap;"><%= n.body %></div>
+            <form method="post" action="/jobs/<%= job.id %>/tech-notes/<%= n.id %>/delete" data-confirm="Remove this note?" data-preserve-scroll style="margin-top:0.4rem;">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="returnTo" value="<%= closeUrl %>">
+              <button type="submit" class="btn-link" style="font-size:0.8rem;">Remove</button>
+            </form>
+          </span>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+
+  <form method="post" action="/jobs/<%= job.id %>/tech-notes" data-preserve-scroll style="margin-top:0.75rem;">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="returnTo" value="<%= closeUrl %>">
+    <label>
+      Add a note
+      <textarea name="body" rows="2" placeholder="Any comments or details about this job..." required></textarea>
+    </label>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary btn-sm">Add note</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
   <div class="page-header" style="margin-bottom:0.5rem;">
     <h2 style="margin:0;">Actual start time</h2>
     <% if (job.actual_start) { %><span class="badge badge-completed">&#10003; Logged</span><% } %>

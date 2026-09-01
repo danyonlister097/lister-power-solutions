@@ -34,6 +34,16 @@ function parsePermissionKeys(body) {
   return [].concat(body.permissions || []).filter((k) => PERMISSION_KEYS.includes(k));
 }
 
+// Only ever redirect back to the employee form the "+ Add rate category"
+// modal was opened from (new or edit) - never an arbitrary URL.
+function safeUsersReturnTo(raw) {
+  return typeof raw === 'string' && /^\/users(\/new|\/\d+\/edit)?$/.test(raw) ? raw : '/users';
+}
+
+async function loadRateCategories() {
+  return db.prepare('SELECT id, label, rate FROM rate_categories ORDER BY sort_order, label').all();
+}
+
 // Saved unconditionally, even for an admin whose access doesn't currently
 // depend on these rows (loadUser gives admins every key regardless) - so
 // that if they're ever demoted to trade/apprentice, the form's last-checked
@@ -54,16 +64,20 @@ router.get(
   })
 );
 
-router.get('/new', (req, res) => {
-  res.render('users/form', {
-    title: 'New Employee',
-    targetUser: {},
-    error: null,
-    PERMISSIONS,
-    DEFAULT_KEYS_BY_ROLE,
-    selectedPermissions: DEFAULT_KEYS_BY_ROLE.trade,
-  });
-});
+router.get(
+  '/new',
+  asyncHandler(async (req, res) => {
+    res.render('users/form', {
+      title: 'New Employee',
+      targetUser: {},
+      error: null,
+      PERMISSIONS,
+      DEFAULT_KEYS_BY_ROLE,
+      selectedPermissions: DEFAULT_KEYS_BY_ROLE.trade,
+      rateCategories: await loadRateCategories(),
+    });
+  })
+);
 
 router.post(
   '/',
@@ -71,6 +85,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const b = req.body;
     const selectedPermissions = parsePermissionKeys(b);
+    const rateCategories = await loadRateCategories();
 
     if (!b.name || !b.name.trim() || !b.email || !b.email.trim() || !b.password || b.password.length < 8) {
       return res.status(400).render('users/form', {
@@ -80,6 +95,7 @@ router.post(
         PERMISSIONS,
         DEFAULT_KEYS_BY_ROLE,
         selectedPermissions,
+        rateCategories,
       });
     }
 
@@ -94,6 +110,7 @@ router.post(
         PERMISSIONS,
         DEFAULT_KEYS_BY_ROLE,
         selectedPermissions,
+        rateCategories,
       });
     }
 
@@ -127,6 +144,48 @@ router.post(
   })
 );
 
+// Registered before the /:id routes below so "rate-categories" isn't
+// swallowed as an :id value.
+router.post(
+  '/rate-categories',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).render('error', { message: 'Forbidden.' });
+    const label = (req.body.label || '').trim();
+    const rate = Number.parseFloat(req.body.rate);
+    const returnTo = safeUsersReturnTo(req.body.returnTo);
+
+    if (!label || !Number.isFinite(rate) || rate < 0) {
+      setFlash(req, 'error', 'Enter a category name and a valid rate.');
+      return res.redirect(returnTo);
+    }
+
+    try {
+      const row = await db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM rate_categories').get();
+      await db.prepare('INSERT INTO rate_categories (label, rate, sort_order) VALUES (?, ?, ?)').run(label, rate, Number(row.m) + 10);
+      setFlash(req, 'success', `Rate category "${label}" added.`);
+    } catch (err) {
+      if (err.code === '23505') {
+        setFlash(req, 'error', 'A rate category with that name already exists.');
+      } else {
+        throw err;
+      }
+    }
+    res.redirect(returnTo);
+  })
+);
+
+router.post(
+  '/rate-categories/:catid/delete',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).render('error', { message: 'Forbidden.' });
+    await db.prepare('DELETE FROM rate_categories WHERE id = ?').run(req.params.catid);
+    setFlash(req, 'success', 'Rate category deleted.');
+    res.redirect(safeUsersReturnTo(req.body.returnTo));
+  })
+);
+
 router.get(
   '/:id/edit',
   asyncHandler(async (req, res) => {
@@ -140,6 +199,7 @@ router.get(
       PERMISSIONS,
       DEFAULT_KEYS_BY_ROLE,
       selectedPermissions: rows.map((r) => r.permission_key),
+      rateCategories: await loadRateCategories(),
     });
   })
 );
@@ -153,6 +213,7 @@ router.post(
 
     const b = req.body;
     const selectedPermissions = parsePermissionKeys(b);
+    const rateCategories = await loadRateCategories();
 
     if (!b.name || !b.name.trim() || !b.email || !b.email.trim()) {
       return res.status(400).render('users/form', {
@@ -162,6 +223,7 @@ router.post(
         PERMISSIONS,
         DEFAULT_KEYS_BY_ROLE,
         selectedPermissions,
+        rateCategories,
       });
     }
 
@@ -197,6 +259,7 @@ router.post(
           PERMISSIONS,
           DEFAULT_KEYS_BY_ROLE,
           selectedPermissions,
+          rateCategories,
         });
       }
       await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwords.hash(b.password), targetUser.id);

@@ -831,3 +831,30 @@ CREATE TABLE IF NOT EXISTS job_quote_files (
 );
 
 CREATE INDEX IF NOT EXISTS idx_job_quote_files_job_id ON job_quote_files(job_id);
+
+-- Free-text comments techs (or admins) leave on a job - "arrived, customer
+-- running late", "found extra damage behind the panel", etc. A running log,
+-- not a single overwritable field like jobs.notes - visible and addable by
+-- anyone who can already see the job (admin or an assignee, same rule as
+-- getJobOr404), same as photos/stock on the job card. user_id is nullable
+-- (ON DELETE SET NULL) so deleting a user never breaks old notes.
+CREATE TABLE IF NOT EXISTS job_tech_notes (
+  id SERIAL PRIMARY KEY,
+  job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_tech_notes_job_id ON job_tech_notes(job_id);
+
+-- Employee pay-rate categories shown in the Rate dropdown on the employee
+-- form (e.g. "Trade - $110/hr") - used to be five hardcoded <option>s,
+-- now an admin-managed list via the "+ Add rate category" tool there.
+CREATE TABLE IF NOT EXISTS rate_categories (
+  id SERIAL PRIMARY KEY,
+  label TEXT NOT NULL UNIQUE,
+  rate REAL NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
+);
