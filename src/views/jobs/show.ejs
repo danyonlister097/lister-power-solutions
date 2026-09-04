@@ -90,6 +90,40 @@
   }
 %>
 <div class="card">
+  <div class="page-header" style="margin-bottom:0.5rem;">
+    <h2 style="margin:0;">Actual start time</h2>
+    <% if (job.actual_start) { %><span class="badge badge-completed">&#10003; Logged</span><% } %>
+  </div>
+  <% if (!job.actual_start) { %>
+    <p class="text-muted" style="font-size:0.85rem;margin:0 0 0.75rem;">Log the time you arrived and started on site.</p>
+  <% } %>
+  <form method="post" action="/jobs/<%= job.id %>/actual-start" class="form-row" data-preserve-scroll>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="returnTo" value="<%= closeUrl %>">
+    <label>
+      <%= job.actual_start ? 'Update' : 'Start time' %>
+      <input type="datetime-local" name="actual_start" id="job-actual-start-input" value="<%= toLocalInput(job.actual_start) %>">
+    </label>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary btn-sm">Save start time</button>
+    </div>
+    <script>
+      (function () {
+        var input = document.getElementById('job-actual-start-input');
+        var form = input.closest('form');
+        input.addEventListener('click', function () {
+          if (typeof input.showPicker === 'function') input.showPicker();
+        });
+        input.addEventListener('change', function () {
+          if (form.requestSubmit) form.requestSubmit();
+          else form.submit();
+        });
+      })();
+    </script>
+  </form>
+</div>
+
+<div class="card">
   <h2>Tech notes</h2>
   <% if (!techNotes.length) { %>
     <div class="empty-state">No notes yet.</div>
@@ -121,40 +155,6 @@
     <div class="actions">
       <button type="submit" class="btn btn-primary btn-sm">Add note</button>
     </div>
-  </form>
-</div>
-
-<div class="card">
-  <div class="page-header" style="margin-bottom:0.5rem;">
-    <h2 style="margin:0;">Actual start time</h2>
-    <% if (job.actual_start) { %><span class="badge badge-completed">&#10003; Logged</span><% } %>
-  </div>
-  <% if (!job.actual_start) { %>
-    <p class="text-muted" style="font-size:0.85rem;margin:0 0 0.75rem;">Log the time you arrived and started on site.</p>
-  <% } %>
-  <form method="post" action="/jobs/<%= job.id %>/actual-start" class="form-row" data-preserve-scroll>
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-    <input type="hidden" name="returnTo" value="<%= closeUrl %>">
-    <label>
-      <%= job.actual_start ? 'Update' : 'Start time' %>
-      <input type="datetime-local" name="actual_start" id="job-actual-start-input" value="<%= toLocalInput(job.actual_start) %>">
-    </label>
-    <div class="actions">
-      <button type="submit" class="btn btn-primary btn-sm">Save start time</button>
-    </div>
-    <script>
-      (function () {
-        var input = document.getElementById('job-actual-start-input');
-        var form = input.closest('form');
-        input.addEventListener('click', function () {
-          if (typeof input.showPicker === 'function') input.showPicker();
-        });
-        input.addEventListener('change', function () {
-          if (form.requestSubmit) form.requestSubmit();
-          else form.submit();
-        });
-      })();
-    </script>
   </form>
 </div>
 
