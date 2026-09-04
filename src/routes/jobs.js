@@ -1503,6 +1503,7 @@ router.get(
         categories: COST_CATEGORIES,
         employees,
         quoteFiles,
+        invoicingNotes: jobCosts ? jobCosts.invoicing_notes : null,
       };
     }
 
@@ -1579,6 +1580,28 @@ router.post(
       .run(job.id, Number.isFinite(quotedAmount) ? quotedAmount : null);
 
     setFlash(req, 'success', 'Quoted amount updated.');
+    res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
+  })
+);
+
+router.post(
+  '/:id/costing/invoicing-notes',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const job = await db.prepare('SELECT id FROM jobs WHERE id = ?').get(req.params.id);
+    if (!job) return res.status(404).render('error', { message: 'Job not found.' });
+
+    const notes = (req.body.invoicing_notes || '').trim() || null;
+
+    await db
+      .prepare(
+        `INSERT INTO job_costs (job_id, invoicing_notes, updated_at) VALUES (?, ?, datetime('now'))
+         ON CONFLICT(job_id) DO UPDATE SET invoicing_notes = excluded.invoicing_notes, updated_at = excluded.updated_at`
+      )
+      .run(job.id, notes);
+
+    setFlash(req, 'success', 'Invoicing notes saved.');
     res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
 );

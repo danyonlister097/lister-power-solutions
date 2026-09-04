@@ -704,6 +704,68 @@
         cancelBtn.addEventListener('click', resetToAddMode);
       })();
     </script>
+
+    <div class="section-heading">Invoicing notes</div>
+    <form method="post" action="/jobs/<%= job.id %>/costing/invoicing-notes" id="invoicing-notes-form" data-preserve-scroll>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="returnTo" value="<%= closeUrl %>">
+      <label>
+        Anything the invoicing admin needs to know <span style="font-weight:400;">(PO numbers, special billing instructions, etc.)</span>
+        <textarea name="invoicing_notes" id="invoicing-notes-input" rows="3" placeholder="e.g. Invoice to head office, not site address. PO# 4471."><%= costing.invoicingNotes || '' %></textarea>
+      </label>
+      <div class="actions" style="align-items:center;">
+        <button type="submit" class="btn btn-secondary btn-sm">Save invoicing notes</button>
+        <span id="invoicing-notes-status" class="text-muted" style="font-size:0.8rem;"></span>
+      </div>
+    </form>
+    <script>
+      (function () {
+        // Clicking away from the notes box saves it in the background,
+        // without a full page reload - the button stays as a fallback (and
+        // for anyone who prefers it) but you don't have to remember to
+        // click it.
+        var input = document.getElementById('invoicing-notes-input');
+        var form = document.getElementById('invoicing-notes-form');
+        var status = document.getElementById('invoicing-notes-status');
+        var csrfInput = form.querySelector('input[name="_csrf"]');
+        var lastSaved = input.value;
+
+        input.addEventListener('input', function () {
+          status.textContent = '';
+        });
+
+        input.addEventListener('blur', function () {
+          if (input.value === lastSaved) return;
+          var valueToSave = input.value;
+          status.textContent = 'Saving…';
+
+          // This route has no multer middleware, so it only understands
+          // application/x-www-form-urlencoded (what a plain form submit
+          // sends) - a fetch() with a FormData body forces multipart/form-data
+          // instead, which arrives as an empty req.body and fails CSRF.
+          var body = '_csrf=' + encodeURIComponent(csrfInput.value) + '&invoicing_notes=' + encodeURIComponent(valueToSave);
+
+          fetch(form.action, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body,
+          })
+            .then(function (res) {
+              if (!res.ok) throw new Error('Save failed');
+              lastSaved = valueToSave;
+              status.textContent = 'Saved';
+            })
+            .catch(function () {
+              status.textContent = 'Could not save - try the Save button.';
+            });
+        });
+
+        form.addEventListener('submit', function () {
+          lastSaved = input.value;
+          status.textContent = '';
+        });
+      })();
+    </script>
   </div>
 
 <% } %>

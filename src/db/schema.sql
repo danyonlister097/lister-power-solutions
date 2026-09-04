@@ -858,3 +858,8 @@ CREATE TABLE IF NOT EXISTS rate_categories (
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
+
+-- Free-text notes for whoever invoices the job (PO numbers, special billing
+-- instructions, etc.) - separate from the numeric quoted_amount on this same
+-- row.
+ALTER TABLE job_costs ADD COLUMN IF NOT EXISTS invoicing_notes TEXT;
