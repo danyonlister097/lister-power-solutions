@@ -711,7 +711,7 @@
       <p class="text-muted" style="font-size:0.85rem;margin:0 0 0.75rem;">&#9432; Record actual start and finish times above before marking as completed.</p>
     <% } %>
   <% } %>
-  <form method="post" action="/jobs/<%= job.id %>/status" class="form-row form-row-2">
+  <form method="post" action="/jobs/<%= job.id %>/status" class="form-row form-row-2" data-preserve-scroll>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input type="hidden" name="returnTo" value="<%= closeUrl %>">
     <select name="status">

@@ -222,4 +222,25 @@ document.getElementById('desktop-day-picker').addEventListener('change', functio
 </div>
 
 <script src="/js/schedule.js"></script>
+<script>
+  (function () {
+    // Remembers where you were scrolled to on this exact day (keyed by the
+    // full query string, so a different day doesn't inherit this one's
+    // position) - restored when you come back via a job's Close button, or
+    // after an action on the job card (e.g. marking it completed) redirects
+    // straight back here. Same save-on-pagehide approach the Jobs list uses
+    // for its own scroll position.
+    var key = 'scheduleScroll:' + window.location.pathname + window.location.search;
+
+    var saved = sessionStorage.getItem(key);
+    if (saved !== null) {
+      sessionStorage.removeItem(key);
+      window.scrollTo(0, Number.parseInt(saved, 10));
+    }
+
+    window.addEventListener('pagehide', function () {
+      sessionStorage.setItem(key, String(window.scrollY));
+    });
+  })();
+</script>
 <%- include('../partials/footer') %>
