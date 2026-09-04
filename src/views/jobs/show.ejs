@@ -597,11 +597,16 @@
                 <span class="list-item-title"><%= i.description %></span><br>
                 <span class="list-item-meta"><%= i.category %> &middot; <%= i.quantity %> &times; $<%= i.unit_cost.toFixed(2) %> = $<%= (i.quantity * i.unit_cost).toFixed(2) %></span>
               </span>
-              <form method="post" action="/jobs/<%= job.id %>/costing/items/<%= i.id %>/delete" data-confirm="Remove this cost item?" data-preserve-scroll>
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <input type="hidden" name="returnTo" value="<%= closeUrl %>">
-                <button type="submit" class="btn-link">Remove</button>
-              </form>
+              <span class="actions">
+                <button type="button" class="btn-link cost-item-edit-btn"
+                        data-id="<%= i.id %>" data-category="<%= i.category %>"
+                        data-description="<%= i.description %>" data-quantity="<%= i.quantity %>" data-unit-cost="<%= i.unit_cost %>">Edit</button>
+                <form method="post" action="/jobs/<%= job.id %>/costing/items/<%= i.id %>/delete" data-confirm="Remove this cost item?" data-preserve-scroll style="margin:0;">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <input type="hidden" name="returnTo" value="<%= closeUrl %>">
+                  <button type="submit" class="btn-link">Remove</button>
+                </form>
+              </span>
             </span>
           </li>
         <% }) %>
@@ -634,14 +639,15 @@
       </label>
       <label>
         Quantity
-        <input type="number" name="quantity" step="any" value="1" required>
+        <input type="number" name="quantity" step="any" value="1" required id="cost-item-quantity">
       </label>
       <label>
         Unit cost ($)
         <input type="number" name="unit_cost" step="0.01" required id="cost-item-unit-cost">
       </label>
       <div class="actions" style="grid-column: 1 / -1;">
-        <button type="submit" class="btn btn-primary btn-sm">Add cost item</button>
+        <button type="submit" class="btn btn-primary btn-sm" id="cost-item-submit-btn">Add cost item</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="cost-item-cancel-btn" hidden>Cancel edit</button>
       </div>
     </form>
     <script>
@@ -664,6 +670,38 @@
         }
         categorySelect.addEventListener('change', updateDescRequired);
         updateDescRequired();
+
+        // --- Edit an existing cost item instead of deleting and re-adding ---
+        var form = document.getElementById('cost-item-form');
+        var quantityInput = document.getElementById('cost-item-quantity');
+        var submitBtn = document.getElementById('cost-item-submit-btn');
+        var cancelBtn = document.getElementById('cost-item-cancel-btn');
+        var createAction = form.action;
+
+        function resetToAddMode() {
+          form.action = createAction;
+          form.reset();
+          updateDescRequired();
+          submitBtn.textContent = 'Add cost item';
+          cancelBtn.hidden = true;
+        }
+
+        document.addEventListener('click', function (e) {
+          var btn = e.target.closest('.cost-item-edit-btn');
+          if (!btn) return;
+          form.action = '/jobs/<%= job.id %>/costing/items/' + btn.getAttribute('data-id');
+          categorySelect.value = btn.getAttribute('data-category');
+          descInput.value = btn.getAttribute('data-description');
+          quantityInput.value = btn.getAttribute('data-quantity');
+          unitCost.value = btn.getAttribute('data-unit-cost');
+          updateDescRequired();
+          submitBtn.textContent = 'Save changes';
+          cancelBtn.hidden = false;
+          form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          descInput.focus();
+        });
+
+        cancelBtn.addEventListener('click', resetToAddMode);
       })();
     </script>
   </div>

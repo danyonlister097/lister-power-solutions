@@ -1613,6 +1613,33 @@ router.post(
 );
 
 router.post(
+  '/:id/costing/items/:itemId',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const item = await db.prepare('SELECT id FROM job_cost_items WHERE id = ? AND job_id = ?').get(req.params.itemId, req.params.id);
+    if (!item) return res.status(404).render('error', { message: 'Cost item not found.' });
+
+    const category = COST_CATEGORIES.includes(req.body.category) ? req.body.category : 'other';
+    const description = (req.body.description || '').trim() || (category === 'labour' ? 'Labour' : '');
+    const quantity = Number.parseFloat(req.body.quantity);
+    const unitCost = Number.parseFloat(req.body.unit_cost);
+
+    if (!description || !Number.isFinite(quantity) || !Number.isFinite(unitCost)) {
+      setFlash(req, 'error', 'Please provide a description, quantity, and cost.');
+      return res.redirect(withReturnTo(`/jobs/${req.params.id}`, safeReturnTo(req.body.returnTo)));
+    }
+
+    await db
+      .prepare('UPDATE job_cost_items SET category = ?, description = ?, quantity = ?, unit_cost = ? WHERE id = ?')
+      .run(category, description, quantity, unitCost, item.id);
+
+    setFlash(req, 'success', 'Cost item updated.');
+    res.redirect(withReturnTo(`/jobs/${req.params.id}`, safeReturnTo(req.body.returnTo)));
+  })
+);
+
+router.post(
   '/:id/costing/items/:itemId/delete',
   requireRole('admin'),
   verifyCsrf,
