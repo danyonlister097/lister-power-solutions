@@ -1491,9 +1491,17 @@ router.get(
       const totalCost = costItems.reduce((sum, i) => sum + i.quantity * i.unit_cost, 0);
       const quotedAmount = jobCosts ? jobCosts.quoted_amount : null;
       // Lets the Add cost item form fill in Unit cost straight from an
-      // employee's rate (set on their Employees tab profile) instead of
-      // having to know/retype it.
-      const employees = await db.prepare('SELECT id, name, charge_out_rate FROM users WHERE active = 1 ORDER BY sort_order, name').all();
+      // employee's true labour cost - pay rate plus a 30% on-cost loading
+      // for leave, super, etc. - instead of having to calculate it by hand.
+      // Deliberately their pay rate, not charge-out rate: charge-out is what
+      // gets billed, and using it here would make labour show zero margin.
+      const LABOUR_ONCOST_MULTIPLIER = 1.3;
+      const employeeRows = await db.prepare('SELECT id, name, pay_rate FROM users WHERE active = 1 ORDER BY sort_order, name').all();
+      const employees = employeeRows.map((e) => ({
+        id: e.id,
+        name: e.name,
+        loadedRate: e.pay_rate != null ? Math.round(e.pay_rate * LABOUR_ONCOST_MULTIPLIER * 100) / 100 : null,
+      }));
       const quoteFiles = await db.prepare('SELECT * FROM job_quote_files WHERE job_id = ? ORDER BY created_at DESC').all(job.id);
       costing = {
         quotedAmount,
