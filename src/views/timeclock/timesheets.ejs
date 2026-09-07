@@ -4,12 +4,12 @@
   <a class="btn btn-secondary btn-sm" href="/timeclock/me">My time clock</a>
 </div>
 
-<div class="sched-view-tabs">
+<div class="timeclock-view-tabs">
   <a href="/timeclock/team">Today</a>
   <a href="/timeclock/timesheets" class="active">Timesheets</a>
 </div>
 
-<div class="sched-nav">
+<div class="timeclock-nav">
   <a class="btn btn-secondary btn-sm" href="?start=<%= prevStartIso %>">&larr; Prev</a>
   <span class="sched-week-label"><%= formatAuDate(startIso) %> &ndash; <%= formatAuDate(endIso) %></span>
   <a class="btn btn-secondary btn-sm" href="?start=<%= nextStartIso %>">Next &rarr;</a>

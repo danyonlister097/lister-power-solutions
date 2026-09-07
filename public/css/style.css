@@ -1238,6 +1238,39 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
   border-color: var(--color-primary);
 }
 
+/* Timeclock reuses the schedule tab/nav look but must stay visible on mobile
+   (unlike .sched-view-tabs/.sched-nav, which are hidden in favor of .mobile-sched). */
+.timeclock-view-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.timeclock-view-tabs a {
+  padding: 0.65rem 1.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.timeclock-view-tabs a.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.timeclock-nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
 .shift-block .shift-time { display: block; font-weight: 700; }
 .shift-block .shift-title { display: block; font-weight: 600; }
 .shift-block .shift-customer { display: block; opacity: 0.85; }
