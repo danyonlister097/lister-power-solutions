@@ -1817,7 +1817,7 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
   border: 1px dashed var(--color-danger);
 }
 
-.attachment-upload-form label { flex: 1; min-width: 200px; }
+.attachment-upload-form label { flex: 1; min-width: 200px; margin-bottom: 0; }
 
 /* Day view - time-axis calendar */
 

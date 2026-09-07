@@ -529,7 +529,7 @@
       </ul>
     <% } %>
 
-    <form method="post" action="/jobs/<%= job.id %>/costing/quote-files" enctype="multipart/form-data" id="quote-file-upload-form" data-preserve-scroll style="margin-bottom:1.5rem;">
+    <form method="post" action="/jobs/<%= job.id %>/costing/quote-files" enctype="multipart/form-data" class="attachment-upload-form" id="quote-file-upload-form" data-preserve-scroll style="margin-bottom:1.5rem;">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="returnTo" value="<%= closeUrl %>">
       <label>
