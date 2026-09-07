@@ -409,7 +409,11 @@
           var matches = items.filter(function (i) {
             return i.name.toLowerCase().indexOf(q) !== -1 ||
               (i.code && i.code.toLowerCase().indexOf(q) !== -1);
-          }).slice(0, 15);
+          });
+          // In-stock items first, so techs don't have to scroll past
+          // out-of-stock ones to find something they can actually allocate.
+          matches.sort(function (a, b) { return (a.qty > 0 ? 0 : 1) - (b.qty > 0 ? 0 : 1); });
+          matches = matches.slice(0, 15);
           if (!matches.length) {
             results.innerHTML = '<div class="autocomplete-empty">No matching items</div>';
             results.hidden = false;
