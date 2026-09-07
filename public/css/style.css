@@ -992,11 +992,13 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
   cursor: pointer;
 }
 
-/* Today's timeclock view: initials/icon stay, but the name gives up its
-   width on narrow screens so more of the clock in/out columns are visible
-   without scrolling - tapping the avatar opens the week breakdown instead. */
+/* Timeclock's Today and Timesheets views: initials/icon stay, but the name
+   gives up its width on narrow screens so more of the clock in/out and day
+   columns are visible without scrolling - tapping the avatar opens the week
+   breakdown instead. */
 @media (max-width: 768px) {
-  .team-today-table .tech-name { display: none; }
+  .team-today-table .tech-name,
+  .timesheet-grid .tech-name { display: none; }
 }
 
 .tech-stats {

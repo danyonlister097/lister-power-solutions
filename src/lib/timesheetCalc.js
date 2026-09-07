@@ -60,6 +60,7 @@ function dayStats(events) {
   let openIn = null;
   let totalMinutes = 0;
   let lastEvent = null;
+  const sessions = [];
 
   events.forEach((e) => {
     if (e.type === 'in') {
@@ -68,10 +69,12 @@ function dayStats(events) {
     } else if (e.type === 'out' && openIn) {
       lastOut = e.occurred_at;
       totalMinutes += (new Date(e.occurred_at) - new Date(openIn)) / 60000;
+      sessions.push({ in: openIn, out: e.occurred_at });
       openIn = null;
     }
     lastEvent = e;
   });
+  if (openIn) sessions.push({ in: openIn, out: null });
 
   return {
     firstIn,
@@ -79,6 +82,7 @@ function dayStats(events) {
     totalMinutes,
     stillIn: Boolean(openIn),
     lastEvent,
+    sessions,
   };
 }
 

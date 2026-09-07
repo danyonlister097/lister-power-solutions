@@ -50,10 +50,13 @@ async function buildWeekByUser(users, weekStartIso) {
       totalMinutes += stats.totalMinutes;
       regularMinutes += Math.min(stats.totalMinutes, REGULAR_MINUTES_PER_DAY);
       overtimeMinutes += Math.max(0, stats.totalMinutes - REGULAR_MINUTES_PER_DAY);
+      // Multiple clock in/out pairs in a day (e.g. a break) must each show
+      // separately - showing only the first-in and last-out would make gaps
+      // between sessions look like time worked, and wouldn't add up to total.
+      const sessions = stats.sessions.map((s) => `${fmtTime(s.in)} → ${s.out ? fmtTime(s.out) : 'Still in'}`);
       return {
         label: day.label,
-        clockIn: fmtTime(stats.firstIn),
-        clockOut: stats.stillIn ? 'Still in' : fmtTime(stats.lastOut),
+        sessions: sessions.length ? sessions : ['--'],
         total: formatHours(stats.totalMinutes),
       };
     });
@@ -239,6 +242,8 @@ router.get(
       return { id: u.id, name: u.name, cells, totalMinutes: rowTotalMinutes, timesheet: timesheetByUser[u.id] || null };
     });
 
+    const weekByUser = await buildWeekByUser(users, startIso);
+
     res.render('timeclock/timesheets', {
       title: 'Time Clock — Timesheets',
       days,
@@ -249,6 +254,7 @@ router.get(
       nextStartIso: addDays(startIso, TIMESHEET_DAYS),
       totalRegularMinutes,
       totalOvertimeMinutes,
+      weekByUser,
       formatHours,
     });
   })
