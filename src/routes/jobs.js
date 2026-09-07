@@ -661,7 +661,7 @@ async function renderGridView(req, res, numDays) {
     j.assigneeNames = j.assigneeList.map((a) => a.name).join(', ');
   });
 
-  const techs = await db.prepare('SELECT id, name, hourly_rate FROM users WHERE active = 1 ORDER BY sort_order, name').all();
+  const techs = await db.prepare('SELECT id, name, charge_out_rate FROM users WHERE active = 1 ORDER BY sort_order, name').all();
   const leaveByUser = await getApprovedLeaveInRange(rangeStartIso, rangeEndIso);
 
   function jobsFor(techId, dayIso) {
@@ -685,7 +685,7 @@ async function renderGridView(req, res, numDays) {
         shiftCount: rowJobs.length,
         hoursLabel: formatHoursLabel(minutes),
         minutes,
-        hourlyRate: t.hourly_rate,
+        chargeOutRate: t.charge_out_rate,
         utilisationPct: Math.round((minutes / 60 / 38) * 100),
       };
     }),
@@ -696,8 +696,8 @@ async function renderGridView(req, res, numDays) {
   const totalHours = (totalMinutes / 60).toFixed(2).replace(/\.00$/, '');
   const activeUsers = new Set(jobs.flatMap((j) => j.assigneeIds)).size;
   const labourCost = rows.reduce((sum, r) => {
-    if (r.id === null || !r.hourlyRate) return sum;
-    return sum + (r.minutes / 60) * r.hourlyRate;
+    if (r.id === null || !r.chargeOutRate) return sum;
+    return sum + (r.minutes / 60) * r.chargeOutRate;
   }, 0);
 
   const isDay = numDays === 1;
@@ -897,7 +897,7 @@ async function renderDayView(req, res) {
     j.assigneeNames = j.assigneeList.map((a) => a.name).join(', ');
   });
 
-  const techs = await db.prepare('SELECT id, name, hourly_rate FROM users WHERE active = 1 ORDER BY sort_order, name').all();
+  const techs = await db.prepare('SELECT id, name, charge_out_rate FROM users WHERE active = 1 ORDER BY sort_order, name').all();
   const leaveByUser = await getApprovedLeaveInRange(dayIso, dayIso);
 
   function blocksFor(techId) {
@@ -943,7 +943,7 @@ async function renderDayView(req, res) {
         shiftCount: rowJobs.length,
         hoursLabel: formatHoursLabel(minutes),
         minutes,
-        hourlyRate: t.hourly_rate,
+        chargeOutRate: t.charge_out_rate,
         utilisationPct: Math.round((minutes / 60 / 8) * 100),
       };
     }),
@@ -959,8 +959,8 @@ async function renderDayView(req, res) {
   const totalHours = (totalMinutes / 60).toFixed(2).replace(/\.00$/, '');
   const activeUsers = new Set(jobs.flatMap((j) => j.assigneeIds)).size;
   const labourCost = rows.reduce((sum, r) => {
-    if (r.id === null || !r.hourlyRate) return sum;
-    return sum + (r.minutes / 60) * r.hourlyRate;
+    if (r.id === null || !r.chargeOutRate) return sum;
+    return sum + (r.minutes / 60) * r.chargeOutRate;
   }, 0);
 
   const isAdmin = req.user.role === 'admin';
@@ -1493,7 +1493,7 @@ router.get(
       // Lets the Add cost item form fill in Unit cost straight from an
       // employee's rate (set on their Employees tab profile) instead of
       // having to know/retype it.
-      const employees = await db.prepare('SELECT id, name, hourly_rate FROM users WHERE active = 1 ORDER BY sort_order, name').all();
+      const employees = await db.prepare('SELECT id, name, charge_out_rate FROM users WHERE active = 1 ORDER BY sort_order, name').all();
       const quoteFiles = await db.prepare('SELECT * FROM job_quote_files WHERE job_id = ? ORDER BY created_at DESC').all(job.id);
       costing = {
         quotedAmount,

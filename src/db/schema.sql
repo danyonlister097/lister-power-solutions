@@ -863,3 +863,18 @@ CREATE TABLE IF NOT EXISTS rate_categories (
 -- instructions, etc.) - separate from the numeric quoted_amount on this same
 -- row.
 ALTER TABLE job_costs ADD COLUMN IF NOT EXISTS invoicing_notes TEXT;
+
+-- hourly_rate was one field doing two jobs: the rate charged to customers
+-- for this employee's time (used to price labour cost lines on a job) and
+-- what the employee is actually paid. Split them - rename the existing
+-- column so its job-costing meaning is explicit, and add pay_rate alongside
+-- it for the employee's own individual pay rate.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'hourly_rate')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'charge_out_rate') THEN
+    ALTER TABLE users RENAME COLUMN hourly_rate TO charge_out_rate;
+  END IF;
+END $$;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pay_rate REAL;

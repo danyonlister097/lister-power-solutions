@@ -625,11 +625,11 @@
         </select>
       </label>
       <label>
-        Rate <span style="font-weight:400;">(optional &mdash; fills in Unit cost)</span>
+        Charge out rate <span style="font-weight:400;">(optional &mdash; fills in Unit cost)</span>
         <select id="cost-item-rate">
           <option value="">&mdash; Select employee rate &mdash;</option>
-          <% costing.employees.forEach(function(e) { if (e.hourly_rate != null) { %>
-            <option value="<%= e.hourly_rate %>"><%= e.name %> &mdash; $<%= e.hourly_rate %>/hr</option>
+          <% costing.employees.forEach(function(e) { if (e.charge_out_rate != null) { %>
+            <option value="<%= e.charge_out_rate %>"><%= e.name %> &mdash; $<%= e.charge_out_rate %>/hr</option>
           <% } }) %>
         </select>
       </label>

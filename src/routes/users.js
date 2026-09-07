@@ -16,7 +16,7 @@ const ROLES = ['admin', 'trade', 'apprentice'];
 // has, just extended to whoever gets this checkbox.
 
 async function getUserOr404(req, res) {
-  const user = await db.prepare('SELECT id, name, email, role, active, hourly_rate, phone_personal, phone_work, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, address_street, address_city, address_state, address_postcode, date_of_birth, employment_start_date, locked_at FROM users WHERE id = ?').get(req.params.id);
+  const user = await db.prepare('SELECT id, name, email, role, active, charge_out_rate, pay_rate, phone_personal, phone_work, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, address_street, address_city, address_state, address_postcode, date_of_birth, employment_start_date, locked_at FROM users WHERE id = ?').get(req.params.id);
   if (!user) {
     res.status(404).render('error', { message: 'Employee not found.' });
     return null;
@@ -24,7 +24,7 @@ async function getUserOr404(req, res) {
   return user;
 }
 
-function parseHourlyRate(raw) {
+function parseRate(raw) {
   if (raw === undefined || raw === null || raw.trim() === '') return null;
   const n = Number(raw);
   return Number.isFinite(n) && n >= 0 ? n : null;
@@ -117,14 +117,15 @@ router.post(
     const nextSortOrder = (await db.prepare('SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM users').get()).next;
 
     const result = await db
-      .prepare('INSERT INTO users (name, email, password_hash, role, sort_order, hourly_rate, phone_personal, phone_work, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, address_street, address_city, address_state, address_postcode, date_of_birth, employment_start_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id')
+      .prepare('INSERT INTO users (name, email, password_hash, role, sort_order, charge_out_rate, pay_rate, phone_personal, phone_work, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, address_street, address_city, address_state, address_postcode, date_of_birth, employment_start_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id')
       .run(
         b.name.trim(),
         email,
         passwords.hash(b.password),
         ROLES.includes(b.role) ? b.role : 'trade',
         nextSortOrder,
-        parseHourlyRate(b.hourly_rate),
+        parseRate(b.charge_out_rate),
+        parseRate(b.pay_rate),
         (b.phone_personal || '').trim() || null,
         (b.phone_work || '').trim() || null,
         (b.emergency_contact_name || '').trim() || null,
@@ -228,13 +229,14 @@ router.post(
     }
 
     await db
-      .prepare(`UPDATE users SET name = ?, email = ?, role = ?, active = ?, hourly_rate = ?, phone_personal = ?, phone_work = ?, emergency_contact_name = ?, emergency_contact_phone = ?, emergency_contact_relation = ?, address_street = ?, address_city = ?, address_state = ?, address_postcode = ?, date_of_birth = ?, employment_start_date = ?, updated_at = datetime('now') WHERE id = ?`)
+      .prepare(`UPDATE users SET name = ?, email = ?, role = ?, active = ?, charge_out_rate = ?, pay_rate = ?, phone_personal = ?, phone_work = ?, emergency_contact_name = ?, emergency_contact_phone = ?, emergency_contact_relation = ?, address_street = ?, address_city = ?, address_state = ?, address_postcode = ?, date_of_birth = ?, employment_start_date = ?, updated_at = datetime('now') WHERE id = ?`)
       .run(
         b.name.trim(),
         b.email.trim().toLowerCase(),
         ROLES.includes(b.role) ? b.role : targetUser.role,
         b.active ? 1 : 0,
-        parseHourlyRate(b.hourly_rate),
+        parseRate(b.charge_out_rate),
+        parseRate(b.pay_rate),
         (b.phone_personal || '').trim() || null,
         (b.phone_work || '').trim() || null,
         (b.emergency_contact_name || '').trim() || null,

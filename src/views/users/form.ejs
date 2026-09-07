@@ -32,7 +32,7 @@
     <input type="email" name="email" value="<%= targetUser.email || '' %>" required>
   </label>
 
-  <div class="form-row form-row-2">
+  <div class="form-row form-row-3">
     <label>
       Role
       <select name="role">
@@ -42,16 +42,20 @@
       </select>
     </label>
     <label>
-      Rate <span style="font-weight:400;">(admin-only, used for labour cost totals)</span>
-      <select name="hourly_rate" id="user-rate-select">
-        <option value="" <%= targetUser.hourly_rate == null ? 'selected' : '' %>>No rate set</option>
+      Charge out rate <span style="font-weight:400;">(admin-only, used for labour cost totals)</span>
+      <select name="charge_out_rate" id="user-rate-select">
+        <option value="" <%= targetUser.charge_out_rate == null ? 'selected' : '' %>>No rate set</option>
         <% rateCategories.forEach(function (c) { %>
-          <option value="<%= c.rate %>" <%= String(targetUser.hourly_rate) === String(c.rate) ? 'selected' : '' %>><%= c.label %> &mdash; $<%= c.rate %>/hr</option>
+          <option value="<%= c.rate %>" <%= String(targetUser.charge_out_rate) === String(c.rate) ? 'selected' : '' %>><%= c.label %> &mdash; $<%= c.rate %>/hr</option>
         <% }) %>
         <% if (currentUser.role === 'admin') { %>
           <option value="__manage__" style="color:var(--color-primary);">+ Add rate category&hellip;</option>
         <% } %>
       </select>
+    </label>
+    <label>
+      Pay rate <span style="font-weight:400;">(admin-only, their individual pay rate)</span>
+      <input type="number" name="pay_rate" step="0.01" min="0" placeholder="e.g. 45.00" value="<%= targetUser.pay_rate != null ? targetUser.pay_rate : '' %>">
     </label>
   </div>
 
