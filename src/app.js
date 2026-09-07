@@ -10,6 +10,7 @@ const { loadUser, requireAuth, requireRole, requirePermission, attachCsrf } = re
 const { homeRoute } = require('./lib/homeRoute');
 const { formatAuDate } = require('./lib/dates');
 const { formatMoney } = require('./lib/money');
+const { linkifyPhoneNumbers } = require('./lib/linkify');
 const { asyncHandler } = require('./lib/asyncHandler');
 const { generateWeeklyTimesheets } = require('./lib/timesheetGen');
 const { brisbaneTodayIso, addDays } = require('./lib/timesheetCalc');
@@ -73,6 +74,7 @@ app.use((req, res, next) => {
   res.locals.currentPath = req.path;
   res.locals.formatAuDate = formatAuDate;
   res.locals.formatMoney = formatMoney;
+  res.locals.linkifyPhoneNumbers = linkifyPhoneNumbers;
   res.locals.homeUrl = homeRoute(req.user);
   res.locals.vapidPublicKey = config.push.publicKey;
   next();

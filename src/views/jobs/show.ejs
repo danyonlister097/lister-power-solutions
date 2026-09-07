@@ -17,6 +17,15 @@
         <%= job.customer_name %>
       <% } %>
     </dd>
+    <% if (job.contact_name || job.phone) { %>
+      <dt>Contact</dt>
+      <dd style="display:flex;align-items:baseline;gap:6rem;flex-wrap:wrap;">
+        <span><%= job.contact_name || '—' %></span>
+        <% if (job.phone) { %>
+          <span><span>Phone No.</span> <a href="tel:<%= job.phone.replace(/[^\d+]/g, '') %>"><%= job.phone %></a></span>
+        <% } %>
+      </dd>
+    <% } %>
     <% if (job.category) { %>
       <dt>Category</dt>
       <dd><%= job.category.replace(/-/g, ' ') %></dd>
@@ -53,8 +62,8 @@
     </dd>
     <dt>Assigned to</dt>
     <dd><%= job.assigneeNames || 'Unassigned' %></dd>
-    <% if (job.description) { %><dt>Description</dt><dd><%= job.description %></dd><% } %>
-    <% if (job.notes) { %><dt>Notes</dt><dd><%= job.notes %></dd><% } %>
+    <% if (job.description) { %><dt>Description</dt><dd><%- linkifyPhoneNumbers(job.description) %></dd><% } %>
+    <% if (job.notes) { %><dt>Notes</dt><dd><%- linkifyPhoneNumbers(job.notes) %></dd><% } %>
     <% if (linkedAssets.length) { %>
       <dt>Assets serviced</dt>
       <dd>

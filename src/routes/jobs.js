@@ -277,7 +277,7 @@ function leaveOnDay(leaveByUser, userId, dayIso) {
 async function getJobOr404(req, res) {
   const job = await db
     .prepare(
-      `SELECT jobs.*, customers.name AS customer_name
+      `SELECT jobs.*, customers.name AS customer_name, customers.contact_name, customers.phone
        FROM jobs JOIN customers ON customers.id = jobs.customer_id
        WHERE jobs.id = ?`
     )
