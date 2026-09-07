@@ -22,8 +22,10 @@
   <div id="team-map" class="team-map"></div>
 <% } %>
 
+<script type="application/json" id="team-week-data"><%- JSON.stringify(weekByUser).replace(/</g, '\\u003c') %></script>
+
 <div class="timesheet-scroll">
-  <table class="timesheet-table">
+  <table class="timesheet-table team-today-table">
     <thead>
       <tr>
         <th>Employee</th>
@@ -45,10 +47,10 @@
       <% rows.forEach(function (r) { %>
         <tr>
           <td>
-            <div class="tech-row-info">
+            <button type="button" class="tech-row-info tech-row-info-btn" data-week-user="<%= r.id %>">
               <span class="tech-avatar" style="background: <%= colorFor(r.id) %>;"><%= initialsFor(r.name) %></span>
               <span class="tech-name"><%= r.name %></span>
-            </div>
+            </button>
           </td>
           <td><%= r.clockIn ? new Date(r.clockIn).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) : '--' %></td>
           <td>
@@ -76,6 +78,66 @@
     </tbody>
   </table>
 </div>
+
+<div id="week-modal" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="week-modal-title">
+    <button type="button" class="modal-close" id="week-modal-close" aria-label="Close">&times;</button>
+    <h2 id="week-modal-title"></h2>
+    <p class="text-muted" id="week-modal-range" style="margin-top:-0.5rem;"></p>
+    <ul id="week-modal-days" style="list-style:none;padding:0;margin:0 0 1rem;"></ul>
+    <div class="leave-stats">
+      <div class="leave-stat leave-stat-approved">
+        <span class="leave-stat-value" id="week-modal-regular"></span>
+        <span class="leave-stat-label">Regular</span>
+      </div>
+      <div class="leave-stat leave-stat-declined">
+        <span class="leave-stat-value" id="week-modal-overtime"></span>
+        <span class="leave-stat-label">Overtime</span>
+      </div>
+      <div class="leave-stat leave-stat-pending">
+        <span class="leave-stat-value" id="week-modal-total"></span>
+        <span class="leave-stat-label">Total paid</span>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var weekData = JSON.parse(document.getElementById('team-week-data').textContent || '{}');
+    var modal = document.getElementById('week-modal');
+    var daysList = document.getElementById('week-modal-days');
+
+    document.querySelectorAll('[data-week-user]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var week = weekData[btn.dataset.weekUser];
+        if (!week) return;
+
+        document.getElementById('week-modal-title').textContent = week.name;
+        document.getElementById('week-modal-range').textContent = week.rangeLabel;
+        document.getElementById('week-modal-regular').textContent = week.regularLabel;
+        document.getElementById('week-modal-overtime').textContent = week.overtimeLabel;
+        document.getElementById('week-modal-total').textContent = week.totalLabel;
+
+        daysList.innerHTML = '';
+        week.days.forEach(function (day) {
+          var li = document.createElement('li');
+          li.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.75rem;padding:0.4rem 0;border-bottom:1px solid var(--color-border);';
+          li.innerHTML =
+            '<span style="font-weight:600;min-width:4.5rem;">' + day.label + '</span>' +
+            '<span style="flex:1;text-align:center;">' + day.clockIn + ' &rarr; ' + day.clockOut + '</span>' +
+            '<span>' + day.total + '</span>';
+          daysList.appendChild(li);
+        });
+
+        modal.hidden = false;
+      });
+    });
+
+    document.getElementById('week-modal-close').addEventListener('click', function () { modal.hidden = true; });
+    modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
+  })();
+</script>
+
 <% if (mapMarkers.length) { %>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

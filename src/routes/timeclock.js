@@ -15,6 +15,60 @@ function getLastEvent(userId) {
   return db.prepare('SELECT * FROM clock_events WHERE user_id = ? ORDER BY occurred_at DESC, id DESC LIMIT 1').get(userId);
 }
 
+// Per-employee week breakdown (Mon-Sun containing weekStartIso), shown in a
+// modal when tapping their avatar on the Today view - so clock in/out times
+// stay visible on narrow screens without losing access to the week's history.
+async function buildWeekByUser(users, weekStartIso) {
+  const weekEndIso = addDays(weekStartIso, TIMESHEET_DAYS - 1);
+  const dayMetas = [];
+  for (let i = 0; i < TIMESHEET_DAYS; i += 1) {
+    const iso = addDays(weekStartIso, i);
+    const d = new Date(`${iso}T00:00:00`);
+    dayMetas.push({ iso, label: d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'numeric' }) });
+  }
+
+  const events = await db
+    .prepare('SELECT * FROM clock_events WHERE (occurred_at)::date BETWEEN (?)::date AND (?)::date ORDER BY user_id, occurred_at ASC')
+    .all(weekStartIso, weekEndIso);
+  const eventsByUserDay = {};
+  events.forEach((e) => {
+    const day = e.occurred_at.slice(0, 10);
+    eventsByUserDay[e.user_id] = eventsByUserDay[e.user_id] || {};
+    eventsByUserDay[e.user_id][day] = eventsByUserDay[e.user_id][day] || [];
+    eventsByUserDay[e.user_id][day].push(e);
+  });
+
+  const fmtTime = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) : '--');
+  const weekByUser = {};
+  users.forEach((u) => {
+    let totalMinutes = 0;
+    let regularMinutes = 0;
+    let overtimeMinutes = 0;
+    const days = dayMetas.map((day) => {
+      const dayEvents = (eventsByUserDay[u.id] && eventsByUserDay[u.id][day.iso]) || [];
+      const stats = dayStats(dayEvents);
+      totalMinutes += stats.totalMinutes;
+      regularMinutes += Math.min(stats.totalMinutes, REGULAR_MINUTES_PER_DAY);
+      overtimeMinutes += Math.max(0, stats.totalMinutes - REGULAR_MINUTES_PER_DAY);
+      return {
+        label: day.label,
+        clockIn: fmtTime(stats.firstIn),
+        clockOut: stats.stillIn ? 'Still in' : fmtTime(stats.lastOut),
+        total: formatHours(stats.totalMinutes),
+      };
+    });
+    weekByUser[u.id] = {
+      name: u.name,
+      rangeLabel: `${dayMetas[0].label} – ${dayMetas[TIMESHEET_DAYS - 1].label}`,
+      days,
+      totalLabel: formatHours(totalMinutes, true),
+      regularLabel: formatHours(regularMinutes, true),
+      overtimeLabel: formatHours(overtimeMinutes, true),
+    };
+  });
+  return weekByUser;
+}
+
 // Geolocation is captured client-side (browser Geolocation API) at the
 // moment someone taps clock in/out - it's a snapshot, not continuous
 // tracking. Location is mandatory: the client blocks submission without it,
@@ -120,6 +174,7 @@ router.get(
     });
 
     const dayAnchor = new Date(`${dayIso}T00:00:00`);
+    const weekByUser = await buildWeekByUser(users, mondayOf(dayIso));
 
     res.render('timeclock/team', {
       title: 'Time Clock — Today',
@@ -130,6 +185,7 @@ router.get(
       todayIso: brisbaneTodayIso(),
       rows,
       mapMarkers,
+      weekByUser,
       formatHours,
     });
   })
