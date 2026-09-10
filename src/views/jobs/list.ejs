@@ -211,6 +211,10 @@
               <span class="list-item-title"><%= j.title %></span><br>
               <span class="list-item-meta">
                 <%= j.customer_name %>
+                <%
+                  const jobSite = [j.site_address_street, j.site_address_city, j.site_address_state, j.site_address_postcode].filter(Boolean).join(', ');
+                %>
+                <% if (jobSite) { %> &middot; <%= jobSite %><% } %>
                 <% if (j.category) { %> &middot; <%= j.category.replace(/-/g, ' ') %><% } %>
                 <% if (j.all_day) { %> &middot; All day
                 <% } else if (j.scheduled_start) { %> &middot; <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) %><% } %>
