@@ -512,11 +512,11 @@
       </div>
       <div class="leave-stat leave-stat-declined">
         <span class="leave-stat-value"><%= formatMoney(costing.totalCost) %></span>
-        <span class="leave-stat-label">Total cost</span>
+        <span class="leave-stat-label">Total cost (ex GST)</span>
       </div>
       <div class="leave-stat leave-stat-approved">
         <span class="leave-stat-value"><%= formatMoney(costing.profit) %></span>
-        <span class="leave-stat-label">Profit</span>
+        <span class="leave-stat-label">Profit (ex GST)</span>
       </div>
     </div>
 
@@ -693,7 +693,7 @@
         <input type="number" name="quantity" step="any" value="1" required id="cost-item-quantity">
       </label>
       <label>
-        Unit cost ($)
+        Unit cost ($) <span style="font-weight:400;">&mdash; ex GST</span>
         <input type="number" name="unit_cost" step="0.01" required id="cost-item-unit-cost">
       </label>
       <div class="actions" style="grid-column: 1 / -1;">
