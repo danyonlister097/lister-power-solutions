@@ -14,7 +14,7 @@
 
   <% if (targetUser.locked_at) { %>
     <div class="flash flash-error" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
-      <span>This account is locked after too many failed login attempts.</span>
+      <span>This account is locked. It will not be usable again until they use the emailed link to reset the password.</span>
       <form method="post" action="/users/<%= targetUser.id %>/unlock" style="margin:0;">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <button type="submit" class="btn btn-secondary btn-sm">Unlock account</button>
@@ -262,6 +262,28 @@
 <% } %>
 
 <% if (targetUser.id) { %>
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+    <span class="text-muted" style="font-size:0.85rem;">Account access</span>
+    <div class="actions">
+      <form method="post" action="/users/<%= targetUser.id %>/logout-everywhere"
+            data-confirm="Log <%= targetUser.name %> out on every device they are currently signed in on?"
+            data-confirm-ok-label="Log out everywhere" data-confirm-variant="secondary"
+            style="margin:0;display:inline-block;">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-secondary btn-sm">Log out everywhere</button>
+      </form>
+      <% if (!targetUser.locked_at) { %>
+        <form method="post" action="/users/<%= targetUser.id %>/lock"
+              data-confirm="Lock this account for <%= targetUser.name %>? They will be logged out everywhere immediately and will not be able to log back in until they use the emailed link to reset their password."
+              data-confirm-ok-label="Lock account"
+              style="margin:0;display:inline-block;">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-danger btn-sm">Lock account</button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+
   <form method="post" action="/users/<%= targetUser.id %>/delete" class="card"
         data-confirm="Remove this employee? They will no longer be able to log in or be assigned jobs.">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">

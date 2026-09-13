@@ -174,3 +174,5 @@ router.post(
 );
 
 module.exports = router;
+module.exports.createResetToken = createResetToken;
+module.exports.resetUrlFor = resetUrlFor;

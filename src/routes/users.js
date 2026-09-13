@@ -5,6 +5,12 @@ const { verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
 const { PERMISSIONS, PERMISSION_KEYS, DEFAULT_KEYS_BY_ROLE } = require('../lib/permissions');
+const { createResetToken, resetUrlFor } = require('./auth');
+const { sendAccountLockedEmail } = require('../lib/email');
+
+async function destroyAllSessions(userId) {
+  await db.prepare(`DELETE FROM session WHERE (sess->>'userId')::int = ?`).run(userId);
+}
 
 const router = express.Router();
 
@@ -269,6 +275,42 @@ router.post(
 
     setFlash(req, 'success', 'Employee updated.');
     res.redirect('/users');
+  })
+);
+
+router.post(
+  '/:id/lock',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const targetUser = await getUserOr404(req, res);
+    if (!targetUser) return;
+
+    if (targetUser.id === req.user.id) {
+      setFlash(req, 'error', 'You cannot lock your own account.');
+      return res.redirect(`/users/${targetUser.id}/edit`);
+    }
+
+    await db.prepare("UPDATE users SET locked_at = datetime('now') WHERE id = ?").run(targetUser.id);
+    await destroyAllSessions(targetUser.id);
+    const token = await createResetToken(targetUser.id);
+    await sendAccountLockedEmail(targetUser, resetUrlFor(token));
+
+    setFlash(req, 'success', `${targetUser.name}'s account has been locked and logged out everywhere. An email has been sent with a link to reset their password and unlock it.`);
+    res.redirect(`/users/${targetUser.id}/edit`);
+  })
+);
+
+router.post(
+  '/:id/logout-everywhere',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const targetUser = await getUserOr404(req, res);
+    if (!targetUser) return;
+
+    await destroyAllSessions(targetUser.id);
+
+    setFlash(req, 'success', `${targetUser.name} has been logged out on all devices.`);
+    res.redirect(`/users/${targetUser.id}/edit`);
   })
 );
 
