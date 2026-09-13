@@ -372,7 +372,7 @@ app.use('/customers', requirePermission('customers'), require('./routes/customer
 // every non-admin here first. Everything else under /jobs (edit, delete,
 // duplicate, costing, reassigning, bulk actions, etc.) stays admin-only,
 // each already guarded by its own requireRole('admin') too.
-const TECH_ACCESSIBLE_JOB_PATH = /^\/\d+(\/actual-start|\/actual-end|\/status|\/na-flags|\/attachments(\/\d+(\/delete)?)?|\/tech-notes(\/\d+\/delete)?)?(\?.*)?$/;
+const TECH_ACCESSIBLE_JOB_PATH = /^\/\d+(\/actual-start|\/actual-end|\/status|\/na-flags|\/attachments(\/\d+(\/delete)?)?|\/tech-notes(\/\d+(\/delete)?)?)?(\?.*)?$/;
 app.use('/jobs', (req, res, next) => {
   // /jobs/schedule is open to all authenticated users; everything else is admin-only
   if (req.path === '/schedule' || req.path.startsWith('/schedule?') || req.path.startsWith('/schedule/')) {

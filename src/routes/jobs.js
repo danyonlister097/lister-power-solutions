@@ -2023,6 +2023,29 @@ router.post(
 );
 
 router.post(
+  '/:id/tech-notes/:noteId',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const job = await getJobOr404(req, res);
+    if (!job) return;
+
+    const note = await db.prepare('SELECT id FROM job_tech_notes WHERE id = ? AND job_id = ?').get(req.params.noteId, job.id);
+    if (!note) return res.status(404).render('error', { message: 'Note not found.' });
+
+    const body = (req.body.body || '').trim();
+    if (!body) {
+      setFlash(req, 'error', 'Enter a note before saving.');
+      return res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
+    }
+
+    await db.prepare('UPDATE job_tech_notes SET body = ? WHERE id = ?').run(body, note.id);
+
+    setFlash(req, 'success', 'Note updated.');
+    res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
+  })
+);
+
+router.post(
   '/:id/tech-notes/:noteId/delete',
   verifyCsrf,
   asyncHandler(async (req, res) => {

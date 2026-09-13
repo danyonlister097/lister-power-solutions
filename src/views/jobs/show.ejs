@@ -141,30 +141,68 @@
       <% techNotes.forEach(function (n) { %>
         <li>
           <span class="list-item" style="display:block;">
-            <span class="list-item-meta"><%= n.user_name || 'Unknown user' %> &middot; <%= new Date(n.created_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+            <span style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;">
+              <span class="list-item-meta"><%= n.user_name || 'Unknown user' %> &middot; <%= new Date(n.created_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+              <span class="row-menu-cell" style="position:relative;flex-shrink:0;">
+                <button type="button" class="row-menu-btn" aria-label="More actions" aria-expanded="false">&#8942;</button>
+                <div class="context-menu" hidden>
+                  <button type="button" class="context-menu-item tech-note-edit-btn" data-id="<%= n.id %>" data-body="<%= n.body %>">Edit</button>
+                  <form method="post" action="/jobs/<%= job.id %>/tech-notes/<%= n.id %>/delete" data-confirm="Remove this note?" data-preserve-scroll style="margin:0;">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="returnTo" value="<%= closeUrl %>">
+                    <button type="submit" class="context-menu-item context-menu-danger">Delete</button>
+                  </form>
+                </div>
+              </span>
+            </span>
             <div style="margin-top:0.3rem;white-space:pre-wrap;"><%= n.body %></div>
-            <form method="post" action="/jobs/<%= job.id %>/tech-notes/<%= n.id %>/delete" data-confirm="Remove this note?" data-preserve-scroll style="margin-top:0.4rem;">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <input type="hidden" name="returnTo" value="<%= closeUrl %>">
-              <button type="submit" class="btn-link" style="font-size:0.8rem;">Remove</button>
-            </form>
           </span>
         </li>
       <% }) %>
     </ul>
   <% } %>
 
-  <form method="post" action="/jobs/<%= job.id %>/tech-notes" data-preserve-scroll style="margin-top:0.75rem;">
+  <form method="post" action="/jobs/<%= job.id %>/tech-notes" data-preserve-scroll style="margin-top:0.75rem;" id="tech-note-form">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input type="hidden" name="returnTo" value="<%= closeUrl %>">
     <label>
       Add a note
-      <textarea name="body" rows="2" placeholder="Any comments or details about this job..." required></textarea>
+      <textarea name="body" rows="2" placeholder="Any comments or details about this job..." required id="tech-note-body"></textarea>
     </label>
     <div class="actions">
-      <button type="submit" class="btn btn-primary btn-sm">Add note</button>
+      <button type="submit" class="btn btn-primary btn-sm" id="tech-note-submit-btn">Add note</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="tech-note-cancel-btn" hidden>Cancel edit</button>
     </div>
   </form>
+  <script>
+    (function () {
+      var form = document.getElementById('tech-note-form');
+      var bodyInput = document.getElementById('tech-note-body');
+      var submitBtn = document.getElementById('tech-note-submit-btn');
+      var cancelBtn = document.getElementById('tech-note-cancel-btn');
+      var createAction = form.action;
+
+      function resetToAddMode() {
+        form.action = createAction;
+        form.reset();
+        submitBtn.textContent = 'Add note';
+        cancelBtn.hidden = true;
+      }
+
+      document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.tech-note-edit-btn');
+        if (!btn) return;
+        form.action = '/jobs/<%= job.id %>/tech-notes/' + btn.getAttribute('data-id');
+        bodyInput.value = btn.getAttribute('data-body');
+        submitBtn.textContent = 'Save changes';
+        cancelBtn.hidden = false;
+        form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        bodyInput.focus();
+      });
+
+      cancelBtn.addEventListener('click', resetToAddMode);
+    })();
+  </script>
 </div>
 
 <div class="card">
