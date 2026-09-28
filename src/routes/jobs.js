@@ -128,6 +128,69 @@ async function getAssigneeNames(jobId) {
   return rows.map((r) => r.name);
 }
 
+// Keeps one labour cost item per assigned tech in sync with the job's actual
+// start/finish times - 1 quantity = 1 hour, priced at the tech's pay rate
+// plus the same 30% on-cost used everywhere else labour is costed. Runs
+// after every actual-start/actual-end save so correcting a mis-logged time
+// updates cost items instead of leaving them stale or duplicating them.
+// Only ever touches rows it created itself (auto_for_user_id) - anything an
+// admin added or edited by hand is a normal, untagged cost item.
+const LABOUR_ONCOST_MULTIPLIER = 1.3;
+
+async function syncAutoLabourCostItems(jobId, actingUserId) {
+  const job = await db.prepare('SELECT actual_start, actual_end FROM jobs WHERE id = ?').get(jobId);
+  const durationHours = job.actual_start && job.actual_end
+    ? (new Date(job.actual_end) - new Date(job.actual_start)) / 3600000
+    : 0;
+
+  const existingAuto = await db
+    .prepare('SELECT id, auto_for_user_id FROM job_cost_items WHERE job_id = ? AND auto_for_user_id IS NOT NULL')
+    .all(jobId);
+
+  if (!(durationHours > 0)) {
+    for (const row of existingAuto) await db.prepare('DELETE FROM job_cost_items WHERE id = ?').run(row.id);
+    return;
+  }
+
+  const quantity = Math.round(durationHours * 100) / 100;
+  const assignees = await db
+    .prepare(
+      `SELECT users.id, users.name, users.pay_rate FROM job_assignees
+       JOIN users ON users.id = job_assignees.user_id
+       WHERE job_assignees.job_id = ?`
+    )
+    .all(jobId);
+  const assigneeIds = new Set(assignees.map((a) => a.id));
+
+  for (const row of existingAuto) {
+    if (!assigneeIds.has(row.auto_for_user_id)) {
+      await db.prepare('DELETE FROM job_cost_items WHERE id = ?').run(row.id);
+    }
+  }
+
+  for (const tech of assignees) {
+    if (tech.pay_rate == null) {
+      await db.prepare('DELETE FROM job_cost_items WHERE job_id = ? AND auto_for_user_id = ?').run(jobId, tech.id);
+      continue;
+    }
+    const unitCost = Math.round(tech.pay_rate * LABOUR_ONCOST_MULTIPLIER * 100) / 100;
+    const description = `${tech.name} - actual hours worked`;
+    const existing = await db.prepare('SELECT id FROM job_cost_items WHERE job_id = ? AND auto_for_user_id = ?').get(jobId, tech.id);
+    if (existing) {
+      await db
+        .prepare('UPDATE job_cost_items SET quantity = ?, unit_cost = ?, description = ? WHERE id = ?')
+        .run(quantity, unitCost, description, existing.id);
+    } else {
+      await db
+        .prepare(
+          `INSERT INTO job_cost_items (job_id, category, description, quantity, unit_cost, created_by, auto_for_user_id)
+           VALUES (?, 'labour', ?, ?, ?, ?, ?)`
+        )
+        .run(jobId, description, quantity, unitCost, actingUserId, tech.id);
+    }
+  }
+}
+
 function truncateForHistory(v, max = 200) {
   if (!v) return v;
   return v.length > max ? `${v.slice(0, max)}…` : v;
@@ -1504,7 +1567,6 @@ router.get(
       // for leave, super, etc. - instead of having to calculate it by hand.
       // Deliberately their pay rate, not charge-out rate: charge-out is what
       // gets billed, and using it here would make labour show zero margin.
-      const LABOUR_ONCOST_MULTIPLIER = 1.3;
       const employeeRows = await db.prepare('SELECT id, name, pay_rate FROM users WHERE active = 1 ORDER BY sort_order, name').all();
       const employees = employeeRows.map((e) => ({
         id: e.id,
@@ -1931,6 +1993,7 @@ router.post(
     const toIso = (v) => { if (!v || !v.trim()) return null; const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d.toISOString(); };
     const actualStart = toIso(req.body.actual_start);
     await db.prepare(`UPDATE jobs SET actual_start = @actualStart, updated_at = datetime('now') WHERE id = @id`).run({ id: job.id, actualStart });
+    await syncAutoLabourCostItems(job.id, req.user.id);
     const after = await captureJobSnapshot(job.id);
     await recordJobHistory(job.id, req.user.id, diffJobSnapshots(before, after));
     setFlash(req, 'success', 'Start time saved.');
@@ -1948,6 +2011,7 @@ router.post(
     const toIso = (v) => { if (!v || !v.trim()) return null; const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d.toISOString(); };
     const actualEnd = toIso(req.body.actual_end);
     await db.prepare(`UPDATE jobs SET actual_end = @actualEnd, updated_at = datetime('now') WHERE id = @id`).run({ id: job.id, actualEnd });
+    await syncAutoLabourCostItems(job.id, req.user.id);
     const after = await captureJobSnapshot(job.id);
     await recordJobHistory(job.id, req.user.id, diffJobSnapshots(before, after));
     setFlash(req, 'success', 'Finish time saved.');

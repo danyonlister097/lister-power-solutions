@@ -683,7 +683,9 @@
           <li>
             <span class="list-item">
               <span>
-                <span class="list-item-title"><%= i.description %></span><br>
+                <span class="list-item-title"><%= i.description %></span>
+                <% if (i.auto_for_user_id) { %><span class="badge" title="Auto-generated from actual start/finish time - updates automatically if those change">Auto</span><% } %>
+                <br>
                 <span class="list-item-meta"><%= i.category %> &middot; <%= i.quantity %> &times; $<%= i.unit_cost.toFixed(2) %> = $<%= (i.quantity * i.unit_cost).toFixed(2) %></span>
               </span>
               <span class="actions">

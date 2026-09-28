@@ -878,3 +878,9 @@ BEGIN
 END $$;
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS pay_rate REAL;
+
+-- Marks a labour cost item as auto-generated for this assigned tech from the
+-- job's actual start/finish times, rather than entered by hand - lets the
+-- sync that keeps it current find and update its own rows without touching
+-- anything an admin added or edited manually. NULL for every manual entry.
+ALTER TABLE job_cost_items ADD COLUMN IF NOT EXISTS auto_for_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
