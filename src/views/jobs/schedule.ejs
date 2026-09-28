@@ -88,6 +88,9 @@
               <div class="mobile-job-time">
                 <% if (j.all_day) { %>All day<% } else if (j.scheduled_start) { %>
                   <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %>
+                  <% if (j.scheduled_end) { %>
+                    <br><%= new Date(j.scheduled_end).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %>
+                  <% } %>
                 <% } else { %>—<% } %>
               </div>
               <div class="mobile-job-body">
