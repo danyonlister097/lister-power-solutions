@@ -227,9 +227,9 @@
       }
     });
 
-    // If the chosen duration is shorter than the start/finish window already
-    // set, shrink the finish time to match - otherwise the schedule shows a
-    // slot longer than the job is actually expected to take.
+    // Keep the finish time in sync with start + expected duration whenever
+    // duration changes, shrinking or extending it as needed - the schedule
+    // should always reflect how long the job is actually expected to take.
     var durationSelect = document.getElementById('job-duration');
     function timeToMinutes(t) {
       if (!t) return null;
@@ -237,6 +237,7 @@
       return Number(parts[0]) * 60 + Number(parts[1]);
     }
     function minutesToTime(mins) {
+      mins = ((mins % 1440) + 1440) % 1440;
       var h = Math.floor(mins / 60);
       var m = mins % 60;
       return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
@@ -245,11 +246,8 @@
       var durationMin = Number(durationSelect.value);
       if (!durationMin) return;
       var startMin = timeToMinutes(startTime.value);
-      var endMin = timeToMinutes(endTime.value);
-      if (startMin === null || endMin === null) return;
-      if (endMin - startMin > durationMin) {
-        endTime.value = minutesToTime(startMin + durationMin);
-      }
+      if (startMin === null) return;
+      endTime.value = minutesToTime(startMin + durationMin);
     });
 
     // Unscheduled: hides/disables the date+time fields so they submit empty
