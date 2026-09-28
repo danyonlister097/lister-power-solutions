@@ -389,6 +389,7 @@ router.get(
     const category = req.query.category || '';
     const customerId = req.query.customer || '';
     const range = req.query.range || 'all';
+    const sort = req.query.sort === 'created' ? 'created' : 'scheduled';
     const assignedTo = isAdmin ? req.query.assignedTo || '' : String(req.user.id);
     const dupeReasons = await findDuplicateJobIds();
     // Non-admin-visible duplicate jobs still get flagged on their own rows,
@@ -442,7 +443,14 @@ router.get(
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     // Invoiced jobs are historical - most recent first is more useful than
     // the closest-upcoming-first order every other status view wants.
-    const orderBy = status === 'invoiced' ? 'jobs.scheduled_start DESC NULLS LAST' : 'jobs.scheduled_start ASC NULLS LAST';
+    // "Date created" is its own sort so work orders can be booked in in the
+    // order they came in, regardless of what's already been scheduled.
+    let orderBy;
+    if (sort === 'created') {
+      orderBy = 'jobs.created_at ASC';
+    } else {
+      orderBy = status === 'invoiced' ? 'jobs.scheduled_start DESC NULLS LAST' : 'jobs.scheduled_start ASC NULLS LAST';
+    }
     const jobs = await db
       .prepare(
         `SELECT jobs.*, customers.name AS customer_name
@@ -498,6 +506,7 @@ router.get(
       category,
       customerId,
       range,
+      sort,
       assignedTo,
       isAdmin,
       STATUSES,

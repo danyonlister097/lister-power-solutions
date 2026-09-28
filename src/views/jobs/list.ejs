@@ -28,7 +28,7 @@
     // findDuplicateJobIds in routes/jobs.js). Everyone else keeps the
     // normal 6-status row.
     if (isAdmin && s === 'in_progress') { %>
-      <a href="?range=all&status=&assignedTo=&category=&customer=&dupes=1"
+      <a href="?range=all&status=&assignedTo=&category=&customer=&dupes=1&sort=<%= sort %>"
          class="leave-stat leave-stat-warning"
          style="text-decoration:none;<%= dupesOnly ? 'outline:2px solid currentColor;outline-offset:2px;' : '' %>"
          title="Jobs sharing a work-order number or an identical description with another job">
@@ -39,7 +39,7 @@
       const meta = statMeta[s] || { label: s, cls: '' };
       const isActive = !dupesOnly && status === s;
     %>
-      <a href="?range=all&status=<%= s %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>"
+      <a href="?range=all&status=<%= s %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>&sort=<%= sort %>"
          class="leave-stat <%= meta.cls %>"
          style="text-decoration:none;<%= isActive ? 'outline:2px solid currentColor;outline-offset:2px;' : '' %>">
         <span class="leave-stat-value"><%= statusCounts[s] %></span>
@@ -50,10 +50,10 @@
 </div>
 
 <div class="filters">
-  <a href="?range=all&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>" class="<%= range === 'all' ? 'active' : '' %>">All</a>
-  <a href="?range=today&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>" class="<%= range === 'today' ? 'active' : '' %>">Day</a>
-  <a href="?range=week&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>" class="<%= range === 'week' ? 'active' : '' %>">Week</a>
-  <a href="?range=upcoming&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>" class="<%= range === 'upcoming' ? 'active' : '' %>">Upcoming</a>
+  <a href="?range=all&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>&sort=<%= sort %>" class="<%= range === 'all' ? 'active' : '' %>">All</a>
+  <a href="?range=today&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>&sort=<%= sort %>" class="<%= range === 'today' ? 'active' : '' %>">Day</a>
+  <a href="?range=week&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>&sort=<%= sort %>" class="<%= range === 'week' ? 'active' : '' %>">Week</a>
+  <a href="?range=upcoming&status=<%= status %>&assignedTo=<%= assignedTo %>&category=<%= category %>&customer=<%= customerId %>&sort=<%= sort %>" class="<%= range === 'upcoming' ? 'active' : '' %>">Upcoming</a>
 </div>
 
 <form method="get" id="jobs-filter-form" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">
@@ -74,6 +74,13 @@
       <% JOB_CATEGORIES.forEach(c => { %>
         <option value="<%= c %>" <%= category === c ? 'selected' : '' %>><%= c.replace(/-/g, ' ') %></option>
       <% }) %>
+    </select>
+  </label>
+  <label style="flex:1;min-width:160px;">
+    Sort by
+    <select name="sort">
+      <option value="" <%= sort !== 'created' ? 'selected' : '' %>>Scheduled date</option>
+      <option value="created" <%= sort === 'created' ? 'selected' : '' %>>Date created (oldest first)</option>
     </select>
   </label>
   <% if (isAdmin) { %>
@@ -179,7 +186,7 @@
 <% if (jobs.length === 0) { %>
   <div class="empty-state"><%= dupesOnly ? 'No duplicate jobs found.' : 'No jobs match these filters.' %></div>
 <% } else { %>
-  <% var _returnTo = '/jobs?range=' + range + '&status=' + status + '&assignedTo=' + (assignedTo || '') + '&category=' + (category || '') + '&customer=' + (customerId || '') + (dupesOnly ? '&dupes=1' : ''); %>
+  <% var _returnTo = '/jobs?range=' + range + '&status=' + status + '&assignedTo=' + (assignedTo || '') + '&category=' + (category || '') + '&customer=' + (customerId || '') + '&sort=' + sort + (dupesOnly ? '&dupes=1' : ''); %>
   <div class="card" style="margin-bottom:1rem;">
     <label>
       Search
@@ -192,9 +199,14 @@
       let lastDay = null;
       let openGroup = false;
       jobs.forEach(j => {
-        const day = j.scheduled_start
-          ? new Date(j.scheduled_start).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-          : 'Not scheduled';
+        // Grouping follows whichever date is being sorted on - grouping by
+        // scheduled date while ordering by created date would scatter jobs
+        // across repeated, out-of-order headings instead of a clean queue.
+        const day = sort === 'created'
+          ? 'Created ' + new Date(j.created_at).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+          : (j.scheduled_start
+              ? new Date(j.scheduled_start).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+              : 'Not scheduled');
         if (day !== lastDay) {
           lastDay = day;
           if (openGroup) { %></div><% }
@@ -216,7 +228,11 @@
                 %>
                 <% if (jobSite) { %> &middot; <%= jobSite %><% } %>
                 <% if (j.category) { %> &middot; <%= j.category.replace(/-/g, ' ') %><% } %>
-                <% if (j.all_day) { %> &middot; All day
+                <% if (sort === 'created') { %>
+                  &middot; Created <%= new Date(j.created_at).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) %>
+                  <% if (j.scheduled_start) { %> &middot; Scheduled <%= formatAuDate(j.scheduled_start) %>
+                  <% } else { %> &middot; Not yet scheduled<% } %>
+                <% } else if (j.all_day) { %> &middot; All day
                 <% } else if (j.scheduled_start) { %> &middot; <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) %><% } %>
                 <% if (j.duration_minutes) { %><span style="margin-left:0.5rem;">&middot; Estimated duration: <%= j.duration_minutes < 60 ? j.duration_minutes + ' min' : (Math.round(j.duration_minutes / 6) / 10) + 'h' %></span><% } %>
                 <% if (j.assigneeNames) { %> &middot; <%= j.assigneeNames %><% } %>
