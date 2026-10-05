@@ -199,6 +199,26 @@ async function ensureSeedData() {
     }
   }
 
+  // Seed the Forms tool's sections. Templates that predate sections are
+  // filed by the keyword in their name - only on this first seed, so it can
+  // never re-file something an admin has since moved elsewhere.
+  const formCats = await pool.query('SELECT id FROM form_categories LIMIT 1');
+  if (formCats.rowCount === 0) {
+    const formDefaults = [
+      { label: 'SWMS', sort_order: 10, match: '%SWMS%' },
+      { label: 'Reports', sort_order: 20, match: '%report%' },
+      { label: 'Policies', sort_order: 30, match: '%polic%' },
+      { label: 'Certificates', sort_order: 40, match: '%certificate%' },
+    ];
+    for (const c of formDefaults) {
+      const inserted = await pool.query(
+        'INSERT INTO form_categories (label, sort_order) VALUES ($1, $2) ON CONFLICT (label) DO UPDATE SET label = EXCLUDED.label RETURNING id',
+        [c.label, c.sort_order]
+      );
+      await pool.query('UPDATE form_templates SET category_id = $1 WHERE category_id IS NULL AND name ILIKE $2', [inserted.rows[0].id, c.match]);
+    }
+  }
+
   // Per-employee page permissions are new - any trade/apprentice that
   // predates this feature has zero rows in user_permissions yet, which
   // requirePermission() would otherwise read as "no access to anything".

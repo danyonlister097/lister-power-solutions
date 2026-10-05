@@ -8,6 +8,7 @@
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <button type="submit" class="btn btn-danger btn-sm">Delete</button>
     </form>
+    <a class="page-close" href="<%= jobForm.job_id ? '/jobs/' + jobForm.job_id : '/forms' %>" aria-label="Close" title="Close">&times;</a>
   </div>
 </div>
 

@@ -8,10 +8,25 @@ const { asyncHandler } = require('../lib/asyncHandler');
 
 const router = express.Router();
 
+// Drag-and-drop uploads and moves are fetch() calls that want JSON back
+// rather than a redirect to a re-rendered page.
+const acceptsJson = (req) => (req.get('Accept') || '').includes('application/json');
+
+// '' / missing means "no section"; anything else must be a real section id.
+async function parseCategoryId(raw) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return { id: null };
+  const id = Number.parseInt(raw, 10);
+  if (!Number.isInteger(id)) return { error: 'Unknown section.' };
+  const row = await db.prepare('SELECT id FROM form_categories WHERE id = ?').get(id);
+  return row ? { id: row.id } : { error: 'Unknown section.' };
+}
+
 function uploadTemplateFile(req, res, next) {
   uploadForm.single('file')(req, res, (err) => {
     if (err) {
-      setFlash(req, 'error', err.message || 'Upload failed.');
+      const message = err.code === 'LIMIT_FILE_SIZE' ? 'That file is over the 20MB limit.' : err.message || 'Upload failed.';
+      if (acceptsJson(req)) return res.status(400).json({ error: message });
+      setFlash(req, 'error', message);
       return res.redirect('/forms');
     }
     next();
@@ -62,7 +77,9 @@ router.get(
           )
           .all();
 
-    res.render('forms/index', { title: 'Forms & Certificates', templates, forJob, drafts });
+    const categories = await db.prepare('SELECT id, label FROM form_categories ORDER BY sort_order, label').all();
+
+    res.render('forms/index', { title: 'Forms & Certificates', templates, categories, forJob, drafts });
   })
 );
 
@@ -72,24 +89,90 @@ router.post(
   uploadTemplateFile,
   verifyCsrf,
   asyncHandler(async (req, res) => {
-    const name = (req.body.name || '').trim();
-    const file = req.file;
-
-    if (!name || !file) {
-      setFlash(req, 'error', 'Template name and file are required.');
+    const json = acceptsJson(req);
+    const fail = (message) => {
+      if (json) return res.status(400).json({ error: message });
+      setFlash(req, 'error', message);
       return res.redirect('/forms');
-    }
+    };
+
+    const name = (req.body.name || '').trim().slice(0, 120);
+    const file = req.file;
+    if (!name || !file) return fail('Template name and file are required.');
+
+    const category = await parseCategoryId(req.body.category_id);
+    if (category.error) return fail(category.error);
 
     const url = await putFile(file);
 
-    await db
+    const result = await db
       .prepare(
-        `INSERT INTO form_templates (name, filename, original_name, mime_type, size_bytes, uploaded_by)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO form_templates (name, filename, original_name, mime_type, size_bytes, uploaded_by, category_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         RETURNING id`
       )
-      .run(name, url, file.originalname, file.mimetype, file.size, req.user.id);
+      .run(name, url, file.originalname, file.mimetype, file.size, req.user.id, category.id);
 
+    if (json) return res.json({ ok: true, id: result.lastInsertRowid, name });
     setFlash(req, 'success', `Template "${name}" uploaded.`);
+    res.redirect('/forms');
+  })
+);
+
+// Sections are registered before the /:id routes below so "categories"
+// isn't swallowed as an :id value.
+router.post(
+  '/categories',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const label = (req.body.label || '').trim().slice(0, 60);
+    if (!label) {
+      setFlash(req, 'error', 'Enter a section name.');
+      return res.redirect('/forms');
+    }
+
+    // The table's UNIQUE is case-sensitive, which would let "swms" sit
+    // beside "SWMS" - check ignoring case first, keep the constraint as the
+    // backstop for two admins adding the same name at once.
+    const existing = await db.prepare('SELECT id FROM form_categories WHERE LOWER(label) = LOWER(?)').get(label);
+    if (existing) {
+      setFlash(req, 'error', 'A section with that name already exists.');
+      return res.redirect('/forms');
+    }
+
+    try {
+      const row = await db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM form_categories').get();
+      await db.prepare('INSERT INTO form_categories (label, sort_order) VALUES (?, ?)').run(label, Number(row.m) + 10);
+      setFlash(req, 'success', `Section "${label}" added.`);
+    } catch (err) {
+      if (err.code === '23505') {
+        setFlash(req, 'error', 'A section with that name already exists.');
+      } else {
+        throw err;
+      }
+    }
+    res.redirect('/forms');
+  })
+);
+
+router.post(
+  '/categories/:id/delete',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const category = Number.isInteger(Number(req.params.id))
+      ? await db.prepare('SELECT id, label FROM form_categories WHERE id = ?').get(req.params.id)
+      : null;
+    if (!category) {
+      setFlash(req, 'error', 'Section not found.');
+      return res.redirect('/forms');
+    }
+
+    // Its templates aren't deleted - the column's ON DELETE SET NULL drops
+    // them back to "Uncategorised".
+    await db.prepare('DELETE FROM form_categories WHERE id = ?').run(category.id);
+    setFlash(req, 'success', `Section "${category.label}" deleted. Its templates are now uncategorised.`);
     res.redirect('/forms');
   })
 );
@@ -120,7 +203,53 @@ router.get(
       )
       .all(template.id);
 
-    res.render('forms/show', { title: template.name, template, jobs, history, error: null });
+    const categories = await db.prepare('SELECT id, label FROM form_categories ORDER BY sort_order, label').all();
+
+    res.render('forms/show', { title: template.name, template, categories, jobs, history, error: null });
+  })
+);
+
+// Rename a template and/or move it to another section. Each field is only
+// touched if the request actually includes it, so dragging a card between
+// sections (category only) can't blank its name, and vice versa.
+router.post(
+  '/:id/update',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const json = acceptsJson(req);
+    const template = Number.isInteger(Number(req.params.id))
+      ? await db.prepare('SELECT * FROM form_templates WHERE id = ?').get(req.params.id)
+      : null;
+    if (!template) {
+      if (json) return res.status(404).json({ error: 'Template not found.' });
+      return res.status(404).render('error', { message: 'Template not found.' });
+    }
+
+    const fail = (message) => {
+      if (json) return res.status(400).json({ error: message });
+      setFlash(req, 'error', message);
+      return res.redirect(`/forms/${template.id}`);
+    };
+
+    let name = template.name;
+    if (req.body.name !== undefined) {
+      name = String(req.body.name).trim().slice(0, 120);
+      if (!name) return fail('Template name cannot be blank.');
+    }
+
+    let categoryId = template.category_id;
+    if (Object.prototype.hasOwnProperty.call(req.body, 'category_id')) {
+      const category = await parseCategoryId(req.body.category_id);
+      if (category.error) return fail(category.error);
+      categoryId = category.id;
+    }
+
+    await db.prepare('UPDATE form_templates SET name = ?, category_id = ? WHERE id = ?').run(name, categoryId, template.id);
+
+    if (json) return res.json({ ok: true });
+    setFlash(req, 'success', 'Template updated.');
+    res.redirect(`/forms/${template.id}`);
   })
 );
 

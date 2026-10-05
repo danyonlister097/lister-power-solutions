@@ -10,6 +10,7 @@
         <button type="submit" class="btn btn-danger btn-sm">Delete template</button>
       </form>
     <% } %>
+    <a class="page-close" href="/forms" aria-label="Close" title="Close">&times;</a>
   </div>
 </div>
 
@@ -32,6 +33,31 @@
     </div>
   </form>
 </div>
+
+<% if (currentUser.role === 'admin') { %>
+  <div class="card card-narrow">
+    <h2 class="leave-form-title">Template details</h2>
+    <form method="post" action="/forms/<%= template.id %>/update">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>
+        Name
+        <input type="text" name="name" value="<%= template.name %>" required maxlength="120">
+      </label>
+      <label>
+        Section
+        <select name="category_id">
+          <option value="" <%= !template.category_id ? 'selected' : '' %>>Uncategorised</option>
+          <% categories.forEach(c => { %>
+            <option value="<%= c.id %>" <%= template.category_id === c.id ? 'selected' : '' %>><%= c.label %></option>
+          <% }) %>
+        </select>
+      </label>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Save details</button>
+      </div>
+    </form>
+  </div>
+<% } %>
 
 <div class="section-heading">Used on (<%= history.length %>)</div>
 <% if (!history.length) { %>

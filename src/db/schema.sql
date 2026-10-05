@@ -890,3 +890,17 @@ ALTER TABLE job_cost_items ADD COLUMN IF NOT EXISTS auto_for_user_id INTEGER REF
 -- one auto line per tier on the same job. NULL on auto lines created before
 -- tiers existed, which were all ordinary time.
 ALTER TABLE job_cost_items ADD COLUMN IF NOT EXISTS auto_tier TEXT;
+
+-- Sections within the Forms tool (SWMS, Reports, Policies, ...) - an
+-- admin-managed list, same idea as rate_categories / renewal_categories.
+CREATE TABLE IF NOT EXISTS form_categories (
+  id SERIAL PRIMARY KEY,
+  label TEXT NOT NULL UNIQUE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+-- Which section a template lives in. NULL = uncategorised, which is also
+-- where a template lands if its section is deleted.
+ALTER TABLE form_templates ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES form_categories(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_form_templates_category_id ON form_templates(category_id);

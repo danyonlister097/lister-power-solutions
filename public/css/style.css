@@ -2748,6 +2748,7 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
 .form-template-card {
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: 0.5rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -2780,9 +2781,62 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
 
 .form-template-icon { font-size: 1.8rem; flex-shrink: 0; }
 .form-template-body { flex: 1; min-width: 0; }
-.form-template-name { font-weight: 700; display: block; }
+.form-template-name { font-weight: 700; display: block; overflow-wrap: anywhere; }
 .form-template-meta { color: var(--color-muted); font-size: 0.8rem; margin-top: 0.15rem; display: block; }
 .form-template-manage-link { font-size: 0.78rem; flex-shrink: 0; margin-right: 1rem; }
+
+/* Forms tool sections - each is a drop zone for files dragged in from the
+   computer and for template cards dragged between sections. */
+.form-section {
+  position: relative;
+  margin-bottom: 1.75rem;
+  border-radius: var(--radius);
+  transition: background 0.12s;
+}
+.form-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0 0.6rem;
+}
+.form-section-head .section-heading { margin: 0; }
+.form-section-drop-hint {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+.form-section-upload { margin-left: auto; cursor: pointer; }
+.form-section-empty {
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  padding: 1.1rem;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+.form-section.drop-active {
+  outline: 2px dashed var(--color-primary);
+  outline-offset: 6px;
+  background: var(--color-primary-tint);
+}
+.form-section-status { margin-top: 0.6rem; font-size: 0.85rem; color: var(--color-muted); }
+
+.form-drag-hint { margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--color-muted); }
+/* The whole card is the drag source; this is just the visual cue for it. */
+.form-template-grip {
+  flex-shrink: 0;
+  padding: 0 0 0 0.75rem;
+  color: var(--color-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  letter-spacing: -0.35em;
+  cursor: grab;
+  user-select: none;
+}
+.form-template-card.dragging { opacity: 0.4; }
+/* Touch screens can't drag these anyway - sections have an Upload button and
+   the template's Manage page has a section picker instead. */
+@media (hover: none) { .form-template-grip { display: none; } }
 
 .tools-card { text-decoration: none; color: inherit; }
 .tools-card:hover { border-color: var(--color-primary); background: var(--color-primary-tint); }

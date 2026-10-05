@@ -1,7 +1,29 @@
 <%- include('../partials/header', { title: 'Forms & Certificates', wide: true }) %>
+<%
+  // Admin controls (upload, drag to move, manage sections) are hidden while
+  // someone is just picking a template to add to a job.
+  var canManage = currentUser.role === 'admin' && !forJob;
+  var FORM_FILE_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png';
+
+  var sections = categories.map(function (c) {
+    return { id: c.id, label: c.label, templates: templates.filter(function (t) { return t.category_id === c.id; }) };
+  });
+  var uncategorised = templates.filter(function (t) { return !t.category_id; });
+  if (uncategorised.length) sections.push({ id: null, label: 'Uncategorised', templates: uncategorised });
+%>
 <div class="page-header">
   <h1>Forms &amp; Certificates</h1>
+  <% if (canManage) { %>
+    <div class="actions">
+      <button type="button" class="btn btn-secondary" id="manage-sections-open">Manage sections</button>
+      <button type="button" class="btn btn-primary" id="add-template-open">+ Add template</button>
+    </div>
+  <% } %>
 </div>
+
+<% if (canManage) { %>
+  <p class="form-drag-hint">Drag a template onto another section to move it, or drop files onto a section to upload them.</p>
+<% } %>
 
 <% if (forJob) { %>
   <div class="flash flash-success">
@@ -10,36 +32,57 @@
   </div>
 <% } %>
 
-<div class="section-heading">Templates (<%= templates.length %>)</div>
-<% if (!templates.length) { %>
+<% if (!templates.length && !canManage) { %>
   <p class="text-muted">No form templates yet.</p>
-<% } else { %>
-  <div class="form-template-grid">
-    <% templates.forEach(t => { %>
-      <div class="form-template-card form-template-card-clickable">
-        <form method="post" action="/forms/<%= t.id %>/duplicate" class="form-template-card-form">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <% if (forJob) { %><input type="hidden" name="job_id" value="<%= forJob.id %>"><% } %>
-          <button
-            type="submit"
-            class="form-template-card-btn"
-            title="<%= forJob ? 'Use this template for ' + forJob.title : 'Create a new blank copy' %>"
-            aria-label="<%= forJob ? 'Use ' + t.name + ' for ' + forJob.title : 'Create a new blank copy from ' + t.name %>"
-          >
-            <span class="form-template-icon">&#128196;</span>
-            <span class="form-template-body">
-              <span class="form-template-name"><%= t.name %></span>
-              <span class="form-template-meta"><%= t.use_count %> job<%= t.use_count === 1 ? '' : 's' %> using this</span>
-            </span>
-          </button>
-        </form>
-        <% if (!forJob) { %>
-          <a class="btn-link form-template-manage-link" href="/forms/<%= t.id %>">Manage</a>
-        <% } %>
-      </div>
-    <% }) %>
-  </div>
 <% } %>
+
+<% sections.forEach(function (s) {
+     if (!s.templates.length && !canManage) return; %>
+  <section class="form-section" data-category-id="<%= s.id === null ? '' : s.id %>" data-category-label="<%= s.label %>">
+    <div class="form-section-head">
+      <div class="section-heading"><%= s.label %> (<%= s.templates.length %>)</div>
+      <span class="form-section-drop-hint" hidden></span>
+      <% if (canManage) { %>
+        <label class="btn btn-secondary btn-sm form-section-upload" title="Upload files into <%= s.label %>">
+          Upload
+          <input type="file" multiple hidden accept="<%= FORM_FILE_ACCEPT %>">
+        </label>
+      <% } %>
+    </div>
+
+    <% if (!s.templates.length) { %>
+      <div class="form-section-empty">Drag a file here to add it to <%= s.label %>.</div>
+    <% } else { %>
+      <div class="form-template-grid">
+        <% s.templates.forEach(t => { %>
+          <div class="form-template-card form-template-card-clickable" data-template-id="<%= t.id %>"<% if (canManage) { %> draggable="true"<% } %>>
+            <% if (canManage) { %><span class="form-template-grip" title="Drag this card to another section" aria-hidden="true">&#8942;&#8942;</span><% } %>
+            <form method="post" action="/forms/<%= t.id %>/duplicate" class="form-template-card-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <% if (forJob) { %><input type="hidden" name="job_id" value="<%= forJob.id %>"><% } %>
+              <button
+                type="submit"
+                class="form-template-card-btn"
+                title="<%= forJob ? 'Use this template for ' + forJob.title : 'Create a new blank copy' %>"
+                aria-label="<%= forJob ? 'Use ' + t.name + ' for ' + forJob.title : 'Create a new blank copy from ' + t.name %>"
+              >
+                <span class="form-template-icon">&#128196;</span>
+                <span class="form-template-body">
+                  <span class="form-template-name"><%= t.name %></span>
+                  <span class="form-template-meta"><%= t.use_count %> job<%= t.use_count === 1 ? '' : 's' %> using this</span>
+                </span>
+              </button>
+            </form>
+            <% if (!forJob) { %>
+              <a class="btn-link form-template-manage-link" href="/forms/<%= t.id %>" draggable="false">Manage</a>
+            <% } %>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+    <div class="form-section-status" role="status" hidden></div>
+  </section>
+<% }) %>
 
 <% if (forJob) { %>
   <script>
@@ -99,10 +142,13 @@
       <% }) %>
     </ul>
   <% } %>
+<% } %>
 
-  <% if (currentUser.role === 'admin') { %>
-    <div class="section-heading">Upload a blank template</div>
-    <div class="card card-narrow">
+<% if (canManage) { %>
+  <div id="add-template-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="add-template-title" style="max-width:440px;">
+      <button type="button" class="modal-close" id="add-template-close" aria-label="Close">&times;</button>
+      <h2 id="add-template-title">Add a template</h2>
       <form method="post" action="/forms" enctype="multipart/form-data">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <label>
@@ -110,14 +156,238 @@
           <input type="text" name="name" required maxlength="120" placeholder="e.g. Certificate of Electrical Safety">
         </label>
         <label>
+          Section
+          <select name="category_id">
+            <option value="">Uncategorised</option>
+            <% categories.forEach(c => { %>
+              <option value="<%= c.id %>"><%= c.label %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label>
           File
-          <input type="file" name="file" accept=".pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png" required>
+          <input type="file" name="file" accept="<%= FORM_FILE_ACCEPT %>" required>
         </label>
         <div class="actions">
           <button type="submit" class="btn btn-primary">Upload template</button>
         </div>
       </form>
     </div>
-  <% } %>
+  </div>
+
+  <div id="manage-sections-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manage-sections-title" style="max-width:420px;">
+      <button type="button" class="modal-close" id="manage-sections-close" aria-label="Close">&times;</button>
+      <h2 id="manage-sections-title">Manage sections</h2>
+      <% if (!categories.length) { %>
+        <p class="text-muted">No sections yet. Add one below.</p>
+      <% } else { %>
+        <ul style="list-style:none;padding:0;margin:0 0 1rem;">
+          <% categories.forEach(c => {
+               var count = templates.filter(function (t) { return t.category_id === c.id; }).length; %>
+            <li style="display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--color-border);">
+              <span><%= c.label %> <span class="text-muted">(<%= count %>)</span></span>
+              <form method="post" action="/forms/categories/<%= c.id %>/delete"
+                    data-confirm="Delete the &quot;<%= c.label %>&quot; section?<% if (count) { %> Its <%= count %> template<%= count === 1 ? '' : 's' %> won't be deleted - they'll just become uncategorised.<% } %>" style="margin:0;">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="context-menu-item context-menu-danger" style="padding:0.15rem 0.5rem;font-size:0.8rem;">Delete</button>
+              </form>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+      <form method="post" action="/forms/categories" style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="text" name="label" required maxlength="60" placeholder="New section name" style="flex:1;min-width:10rem;">
+        <button type="submit" class="btn btn-primary" style="white-space:nowrap;">Add</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var CSRF = '<%= csrfToken %>';
+      var MAX_BYTES = 20 * 1024 * 1024;
+      var ALLOWED_EXT = /\.(pdf|docx?|xlsx?|jpe?g|png)$/i;
+      // Id of the template card currently being dragged (null for a file
+      // dragged in from the computer).
+      var draggedId = null;
+
+      function wireModal(openId, modalId, closeId) {
+        var modal = document.getElementById(modalId);
+        document.getElementById(openId).addEventListener('click', function () { modal.hidden = false; });
+        document.getElementById(closeId).addEventListener('click', function () { modal.hidden = true; });
+        modal.addEventListener('click', function (e) { if (e.target === modal) modal.hidden = true; });
+      }
+      wireModal('add-template-open', 'add-template-modal', 'add-template-close');
+      wireModal('manage-sections-open', 'manage-sections-modal', 'manage-sections-close');
+
+      function isFileDrag(e) {
+        return !!e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') !== -1;
+      }
+
+      // Dropping a file with no section under it would make the browser
+      // navigate away to open it, losing the page - swallow those.
+      ['dragover', 'drop'].forEach(function (type) {
+        window.addEventListener(type, function (e) { if (isFileDrag(e)) e.preventDefault(); });
+      });
+
+      var resetters = [];
+      function resetAll() { resetters.forEach(function (fn) { fn(); }); }
+      window.addEventListener('drop', resetAll);
+      window.addEventListener('dragend', resetAll);
+
+      function deriveName(filename) {
+        var name = filename.replace(/\.[^.]+$/, '').replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
+        return (name || filename).slice(0, 120);
+      }
+
+      function uploadFiles(files, categoryId, section) {
+        var status = section.querySelector('.form-section-status');
+        var failed = [];
+        var i = 0;
+
+        function next() {
+          if (i >= files.length) {
+            if (failed.length) {
+              alert((files.length - failed.length) + ' of ' + files.length + ' uploaded.\nCould not upload:\n' + failed.join('\n'));
+            }
+            if (failed.length < files.length) window.location.reload();
+            else status.hidden = true;
+            return;
+          }
+
+          var file = files[i];
+          status.hidden = false;
+          status.textContent = 'Uploading ' + (i + 1) + ' of ' + files.length + ': ' + file.name + '…';
+
+          if (!ALLOWED_EXT.test(file.name)) {
+            failed.push(file.name + ' (only PDF, Word, Excel or image files)');
+            i++;
+            return next();
+          }
+          if (file.size > MAX_BYTES) {
+            failed.push(file.name + ' (over the 20MB limit)');
+            i++;
+            return next();
+          }
+
+          var fd = new FormData();
+          fd.append('_csrf', CSRF);
+          fd.append('name', deriveName(file.name));
+          fd.append('category_id', categoryId);
+          fd.append('file', file);
+
+          fetch('/forms', { method: 'POST', headers: { Accept: 'application/json' }, body: fd })
+            .then(function (res) {
+              if (res.ok) return null;
+              if (res.status === 413) return 'too large for the server to accept';
+              return res.json().then(
+                function (data) { return data.error || 'error ' + res.status; },
+                function () { return 'error ' + res.status; }
+              );
+            })
+            .then(function (problem) { if (problem) failed.push(file.name + ' (' + problem + ')'); })
+            .catch(function () { failed.push(file.name + ' (network error)'); })
+            .finally(function () {
+              i++;
+              next();
+            });
+        }
+
+        next();
+      }
+
+      function moveTemplate(id, categoryId) {
+        fetch('/forms/' + id + '/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+          body: new URLSearchParams({ _csrf: CSRF, category_id: categoryId }).toString(),
+        })
+          .then(function (res) {
+            if (!res.ok) throw new Error('move failed');
+            window.location.reload();
+          })
+          .catch(function () { alert('Could not move that template. Please try again.'); });
+      }
+
+      document.querySelectorAll('.form-section').forEach(function (section) {
+        var depth = 0;
+        var hint = section.querySelector('.form-section-drop-hint');
+        var label = section.getAttribute('data-category-label');
+        var categoryId = section.getAttribute('data-category-id');
+
+        function setActive(on, moving) {
+          section.classList.toggle('drop-active', on);
+          hint.hidden = !on;
+          if (on) hint.textContent = (moving ? 'Drop to move into ' : 'Drop to upload to ') + label;
+        }
+        function reset() { depth = 0; setActive(false); }
+        resetters.push(reset);
+
+        function relevant(e) { return isFileDrag(e) || draggedId !== null; }
+
+        // dragenter/dragleave also fire for every child element the cursor
+        // crosses, so a plain on/off would flicker - count in vs out instead.
+        section.addEventListener('dragenter', function (e) {
+          if (!relevant(e)) return;
+          e.preventDefault();
+          depth++;
+          setActive(true, draggedId !== null);
+        });
+        section.addEventListener('dragover', function (e) {
+          if (!relevant(e)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = draggedId !== null ? 'move' : 'copy';
+        });
+        section.addEventListener('dragleave', function (e) {
+          if (!relevant(e)) return;
+          depth = Math.max(0, depth - 1);
+          if (depth === 0) setActive(false);
+        });
+        section.addEventListener('drop', function (e) {
+          if (!relevant(e)) return;
+          e.preventDefault();
+          var movingId = draggedId;
+          reset();
+          if (movingId !== null) {
+            var card = document.querySelector('.form-template-card[data-template-id="' + movingId + '"]');
+            if (card && section.contains(card)) return;
+            moveTemplate(movingId, categoryId);
+          } else if (e.dataTransfer.files && e.dataTransfer.files.length) {
+            uploadFiles(Array.prototype.slice.call(e.dataTransfer.files), categoryId, section);
+          }
+        });
+
+        // The tap-friendly route into the same upload (phones can't drag
+        // files in from anywhere).
+        var picker = section.querySelector('.form-section-upload input[type="file"]');
+        if (picker) {
+          picker.addEventListener('change', function () {
+            var files = Array.prototype.slice.call(picker.files);
+            picker.value = '';
+            if (files.length) uploadFiles(files, categoryId, section);
+          });
+        }
+      });
+
+      document.querySelectorAll('.form-template-card[draggable="true"]').forEach(function (card) {
+        card.addEventListener('dragstart', function (e) {
+          draggedId = card.getAttribute('data-template-id');
+          e.dataTransfer.effectAllowed = 'move';
+          // Firefox won't start a drag without some data set.
+          e.dataTransfer.setData('text/plain', draggedId);
+          // Fade the original only after the browser has snapshotted it as
+          // the drag image, or the thing under the cursor looks faded too.
+          setTimeout(function () { card.classList.add('dragging'); }, 0);
+        });
+        card.addEventListener('dragend', function () {
+          draggedId = null;
+          card.classList.remove('dragging');
+          resetAll();
+        });
+      });
+    })();
+  </script>
 <% } %>
 <%- include('../partials/footer') %>
