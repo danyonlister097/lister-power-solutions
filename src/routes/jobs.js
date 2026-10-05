@@ -10,6 +10,7 @@ const { asyncHandler } = require('../lib/asyncHandler');
 const { geocodeAddress, buildAddress } = require('../lib/geocode');
 const { generateSchedule, nextMondayIso, addDaysToIso } = require('../lib/smartSchedule');
 const { LEAVE_TYPE_LABELS } = require('../lib/leaveTypes');
+const { LABOUR_ONCOST_MULTIPLIER, syncAutoLabourCostItems } = require('../lib/labourCosting');
 
 const router = express.Router();
 
@@ -126,69 +127,6 @@ async function getAssigneeNames(jobId) {
     )
     .all(jobId);
   return rows.map((r) => r.name);
-}
-
-// Keeps one labour cost item per assigned tech in sync with the job's actual
-// start/finish times - 1 quantity = 1 hour, priced at the tech's pay rate
-// plus the same 30% on-cost used everywhere else labour is costed. Runs
-// after every actual-start/actual-end save so correcting a mis-logged time
-// updates cost items instead of leaving them stale or duplicating them.
-// Only ever touches rows it created itself (auto_for_user_id) - anything an
-// admin added or edited by hand is a normal, untagged cost item.
-const LABOUR_ONCOST_MULTIPLIER = 1.3;
-
-async function syncAutoLabourCostItems(jobId, actingUserId) {
-  const job = await db.prepare('SELECT actual_start, actual_end FROM jobs WHERE id = ?').get(jobId);
-  const durationHours = job.actual_start && job.actual_end
-    ? (new Date(job.actual_end) - new Date(job.actual_start)) / 3600000
-    : 0;
-
-  const existingAuto = await db
-    .prepare('SELECT id, auto_for_user_id FROM job_cost_items WHERE job_id = ? AND auto_for_user_id IS NOT NULL')
-    .all(jobId);
-
-  if (!(durationHours > 0)) {
-    for (const row of existingAuto) await db.prepare('DELETE FROM job_cost_items WHERE id = ?').run(row.id);
-    return;
-  }
-
-  const quantity = Math.round(durationHours * 100) / 100;
-  const assignees = await db
-    .prepare(
-      `SELECT users.id, users.name, users.pay_rate FROM job_assignees
-       JOIN users ON users.id = job_assignees.user_id
-       WHERE job_assignees.job_id = ?`
-    )
-    .all(jobId);
-  const assigneeIds = new Set(assignees.map((a) => a.id));
-
-  for (const row of existingAuto) {
-    if (!assigneeIds.has(row.auto_for_user_id)) {
-      await db.prepare('DELETE FROM job_cost_items WHERE id = ?').run(row.id);
-    }
-  }
-
-  for (const tech of assignees) {
-    if (tech.pay_rate == null) {
-      await db.prepare('DELETE FROM job_cost_items WHERE job_id = ? AND auto_for_user_id = ?').run(jobId, tech.id);
-      continue;
-    }
-    const unitCost = Math.round(tech.pay_rate * LABOUR_ONCOST_MULTIPLIER * 100) / 100;
-    const description = `${tech.name} - actual hours worked`;
-    const existing = await db.prepare('SELECT id FROM job_cost_items WHERE job_id = ? AND auto_for_user_id = ?').get(jobId, tech.id);
-    if (existing) {
-      await db
-        .prepare('UPDATE job_cost_items SET quantity = ?, unit_cost = ?, description = ? WHERE id = ?')
-        .run(quantity, unitCost, description, existing.id);
-    } else {
-      await db
-        .prepare(
-          `INSERT INTO job_cost_items (job_id, category, description, quantity, unit_cost, created_by, auto_for_user_id)
-           VALUES (?, 'labour', ?, ?, ?, ?, ?)`
-        )
-        .run(jobId, description, quantity, unitCost, actingUserId, tech.id);
-    }
-  }
 }
 
 function truncateForHistory(v, max = 200) {
@@ -1559,7 +1497,7 @@ router.get(
     let costing = null;
     if (req.user.role === 'admin') {
       const jobCosts = await db.prepare('SELECT * FROM job_costs WHERE job_id = ?').get(job.id);
-      const costItems = await db.prepare('SELECT * FROM job_cost_items WHERE job_id = ? ORDER BY created_at ASC').all(job.id);
+      const costItems = await db.prepare('SELECT * FROM job_cost_items WHERE job_id = ? ORDER BY created_at ASC, id ASC').all(job.id);
       const totalCost = costItems.reduce((sum, i) => sum + i.quantity * i.unit_cost, 0);
       const quotedAmount = jobCosts ? jobCosts.quoted_amount : null;
       // Lets the Add cost item form fill in Unit cost straight from an

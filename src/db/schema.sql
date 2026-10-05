@@ -884,3 +884,9 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS pay_rate REAL;
 -- sync that keeps it current find and update its own rows without touching
 -- anything an admin added or edited manually. NULL for every manual entry.
 ALTER TABLE job_cost_items ADD COLUMN IF NOT EXISTS auto_for_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+
+-- Which weekend penalty-rate tier an auto-generated line covers (ordinary,
+-- Saturday time and a half, Saturday/Sunday double time) - a tech can have
+-- one auto line per tier on the same job. NULL on auto lines created before
+-- tiers existed, which were all ordinary time.
+ALTER TABLE job_cost_items ADD COLUMN IF NOT EXISTS auto_tier TEXT;
