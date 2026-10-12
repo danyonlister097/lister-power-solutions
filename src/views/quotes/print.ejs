@@ -40,7 +40,7 @@
     <div class="quote-meta">
       <div><strong>Quote</strong></div>
       <div>Quote #: <%= quote.quote_number %></div>
-      <div>Issue date: <%= formatAuDate(quote.created_at) %></div>
+      <div>Issue date: <%= formatAuDate(dbDateIso(quote.created_at)) %></div>
       <div class="status"><%= quote.status %></div>
     </div>
   </div>

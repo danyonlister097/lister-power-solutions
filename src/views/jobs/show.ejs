@@ -142,7 +142,7 @@
         <li>
           <span class="list-item" style="display:block;">
             <span style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;">
-              <span class="list-item-meta"><%= n.user_name || 'Unknown user' %> &middot; <%= new Date(n.created_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+              <span class="list-item-meta"><%= n.user_name || 'Unknown user' %> &middot; <%= formatDbDateTime(n.created_at) %></span>
               <span class="row-menu-cell" style="position:relative;flex-shrink:0;">
                 <button type="button" class="row-menu-btn" aria-label="More actions" aria-expanded="false">&#8942;</button>
                 <div class="context-menu" hidden>
@@ -361,7 +361,7 @@
           <span class="list-item">
             <span>
               <span class="list-item-title"><%= f.name %></span><br>
-              <span class="list-item-meta"><%= new Date(f.updated_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+              <span class="list-item-meta"><%= formatDbDateTime(f.updated_at) %></span>
             </span>
             <span class="actions">
               <span class="badge <%= f.completed ? 'badge-completed' : 'badge-scheduled' %>"><%= f.completed ? 'completed' : 'blank' %></span>
@@ -593,7 +593,7 @@
             <span class="list-item">
               <span>
                 <span class="list-item-title"><%= f.original_name %></span><br>
-                <span class="list-item-meta"><%= new Date(f.created_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+                <span class="list-item-meta"><%= formatDbDateTime(f.created_at) %></span>
               </span>
               <span class="actions">
                 <a class="btn btn-secondary btn-sm" href="/jobs/<%= job.id %>/costing/quote-files/<%= f.id %>" target="_blank" rel="noopener">View</a>
@@ -917,7 +917,7 @@
 <% if (currentUser.role === 'admin') { %>
   <div class="card">
     <h2>History</h2>
-    <p class="list-item-meta" style="margin:0 0 1rem;">Created by <%= createdByName || 'Unknown user' %> &middot; <%= new Date(job.created_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></p>
+    <p class="list-item-meta" style="margin:0 0 1rem;">Created by <%= createdByName || 'Unknown user' %> &middot; <%= formatDbDateTime(job.created_at) %></p>
     <% if (jobHistory.length === 0) { %>
       <div class="empty-state">No edits recorded yet.</div>
     <% } else { %>
@@ -925,7 +925,7 @@
         <% jobHistory.forEach(function (h) { %>
           <li>
             <span class="list-item" style="display:block;">
-              <span class="list-item-meta"><%= h.userName || 'Unknown user' %> &middot; <%= new Date(h.createdAt).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+              <span class="list-item-meta"><%= h.userName || 'Unknown user' %> &middot; <%= formatDbDateTime(h.createdAt) %></span>
               <ul class="job-history-changes">
                 <% h.changes.forEach(function (c) { %>
                   <li><strong><%= c.field %>:</strong> <%= c.from || '(none)' %> &rarr; <%= c.to || '(none)' %></li>

@@ -36,7 +36,7 @@
             <td><%= q.customer_name %></td>
             <td><span class="badge badge-<%= q.status %>"><%= q.status %></span></td>
             <td><%= formatMoney(q.total) %></td>
-            <td><%= formatAuDate(q.created_at) %></td>
+            <td><%= formatAuDate(dbDateIso(q.created_at)) %></td>
           </tr>
         <% }) %>
       </tbody>

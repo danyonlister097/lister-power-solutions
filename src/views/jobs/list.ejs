@@ -203,7 +203,7 @@
         // scheduled date while ordering by created date would scatter jobs
         // across repeated, out-of-order headings instead of a clean queue.
         const day = sort === 'created'
-          ? 'Created ' + new Date(j.created_at).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+          ? 'Created ' + formatDbDate(j.created_at, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
           : (j.scheduled_start
               ? new Date(j.scheduled_start).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
               : 'Not scheduled');
@@ -229,7 +229,7 @@
                 <% if (jobSite) { %> &middot; <%= jobSite %><% } %>
                 <% if (j.category) { %> &middot; <%= j.category.replace(/-/g, ' ') %><% } %>
                 <% if (sort === 'created') { %>
-                  &middot; Created <%= new Date(j.created_at).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) %>
+                  &middot; Created <%= formatDbTime(j.created_at, { hour: '2-digit', minute: '2-digit' }) %>
                   <% if (j.scheduled_start) { %> &middot; Scheduled <%= formatAuDate(j.scheduled_start) %>
                   <% } else { %> &middot; Not yet scheduled<% } %>
                 <% } else if (j.all_day) { %> &middot; All day
@@ -470,7 +470,7 @@
             <span class="list-item-meta">
               <% if (d.match_type === 'description') { %>&ldquo;<%= d.match_key.length > 70 ? d.match_key.slice(0, 70) + '…' : d.match_key %>&rdquo; &middot; <% } %>
               <% if (d.reason) { %><em><%= d.reason %></em> &middot; <% } %>
-              not a duplicate, per <%= d.decided_by_name %> on <%= formatAuDate(d.decided_at.slice(0, 10)) %>
+              not a duplicate, per <%= d.decided_by_name %> on <%= formatAuDate(dbDateIso(d.decided_at)) %>
             </span>
           </span>
           <form method="post" action="/jobs/duplicates/<%= d.id %>/undo" style="margin:0;">
@@ -558,10 +558,6 @@
   var modal = document.getElementById('job-history-modal');
   var body = document.getElementById('job-history-body');
 
-  function formatDT(v) {
-    return new Date(v).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-  }
-
   // Built with DOM methods rather than innerHTML+string-concat - several of
   // these values (title, description, notes, site address) are free-text a
   // user typed into a job, so they can't be trusted as safe HTML.
@@ -571,7 +567,7 @@
     var created = document.createElement('p');
     created.className = 'list-item-meta';
     created.style.margin = '0 0 1rem';
-    created.textContent = 'Created by ' + (data.createdByName || 'Unknown user') + ' · ' + formatDT(data.createdAt);
+    created.textContent = 'Created by ' + (data.createdByName || 'Unknown user') + ' · ' + data.createdAtLabel;
     body.appendChild(created);
 
     if (!data.history.length) {
@@ -592,7 +588,7 @@
 
       var meta = document.createElement('span');
       meta.className = 'list-item-meta';
-      meta.textContent = (h.userName || 'Unknown user') + ' · ' + formatDT(h.createdAt);
+      meta.textContent = (h.userName || 'Unknown user') + ' · ' + h.createdAtLabel;
       span.appendChild(meta);
 
       var changes = document.createElement('ul');

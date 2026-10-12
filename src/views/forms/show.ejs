@@ -69,7 +69,7 @@
         <a class="list-item" href="/jobs/<%= h.job_id %>">
           <span>
             <span class="list-item-title"><%= h.job_title %></span><br>
-            <span class="list-item-meta">Added by <%= h.created_by_name %> &middot; <%= new Date(h.created_at).toLocaleDateString('en-AU') %></span>
+            <span class="list-item-meta">Added by <%= h.created_by_name %> &middot; <%= formatDbDate(h.created_at) %></span>
           </span>
           <span class="badge <%= h.completed ? 'badge-completed' : 'badge-scheduled' %>"><%= h.completed ? 'completed' : 'blank' %></span>
         </a>

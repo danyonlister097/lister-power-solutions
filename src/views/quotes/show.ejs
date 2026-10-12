@@ -10,7 +10,7 @@
   </div>
   <p class="text-muted" style="margin-top:0;">
     <%= quote.title %> &middot; <%= quote.customer_name %><% if (quote.customer_email) { %> &middot; <%= quote.customer_email %><% } %><br>
-    Created <%= formatAuDate(quote.created_at) %><% if (quote.sent_at) { %> &middot; Sent <%= formatAuDate(quote.sent_at) %><% } %><% if (quote.decided_at) { %> &middot; Decided <%= formatAuDate(quote.decided_at) %><% } %>
+    Created <%= formatAuDate(dbDateIso(quote.created_at)) %><% if (quote.sent_at) { %> &middot; Sent <%= formatAuDate(dbDateIso(quote.sent_at)) %><% } %><% if (quote.decided_at) { %> &middot; Decided <%= formatAuDate(dbDateIso(quote.decided_at)) %><% } %>
   </p>
 
   <% if (quote.job_id) { %>

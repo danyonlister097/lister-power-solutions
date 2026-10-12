@@ -77,7 +77,7 @@
         <% messages.forEach(m => { %>
           <div class="chat-message <%= m.user_id === currentUser.id ? 'chat-message-own' : '' %>" id="msg-<%= m.id %>" data-message-id="<%= m.id %>">
             <div class="chat-message-meta">
-              <span><%= m.user_name %> &middot; <%= new Date(m.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) %></span>
+              <span><%= m.user_name %> &middot; <%= formatDbDateTime(m.created_at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) %></span>
               <span class="chat-message-actions">
                 <button type="button" class="chat-message-reply" data-message-id="<%= m.id %>" data-user-name="<%= m.user_name %>" data-preview="<%= (m.body || (m.attachment_name ? '📎 ' + m.attachment_name : '')).slice(0, 80) %>" title="Reply" aria-label="Reply to this message">↩</button>
                 <% if (currentUser.role === 'admin') { %>

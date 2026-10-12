@@ -10,7 +10,7 @@
   </div>
   <p class="text-muted" style="margin-top:0;">
     <a href="/jobs/<%= invoice.job_id %>"><%= invoice.job_title %></a> &middot; <%= invoice.customer_name %><% if (invoice.customer_email) { %> &middot; <%= invoice.customer_email %><% } %><br>
-    Issued <%= formatAuDate(invoice.issue_date) %><% if (invoice.due_date) { %> &middot; Due <%= formatAuDate(invoice.due_date) %><% } %><% if (invoice.paid_at) { %> &middot; Paid <%= formatAuDate(invoice.paid_at) %><% } %>
+    Issued <%= formatAuDate(invoice.issue_date) %><% if (invoice.due_date) { %> &middot; Due <%= formatAuDate(invoice.due_date) %><% } %><% if (invoice.paid_at) { %> &middot; Paid <%= formatAuDate(dbDateIso(invoice.paid_at)) %><% } %>
   </p>
 
   <% if (invoice.status !== 'paid' && invoice.status !== 'cancelled') { %>

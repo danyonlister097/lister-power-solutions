@@ -26,7 +26,7 @@
 
       var meta = document.createElement('div');
       meta.className = 'chat-message-meta';
-      var time = new Date(m.createdAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+      var time = m.createdAtLabel || new Date(m.createdAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
       var nameSpan = document.createElement('span');
       nameSpan.textContent = m.userName + ' · ' + time;
       meta.appendChild(nameSpan);

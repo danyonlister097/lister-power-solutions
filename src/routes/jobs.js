@@ -11,6 +11,7 @@ const { geocodeAddress, buildAddress } = require('../lib/geocode');
 const { generateSchedule, nextMondayIso, addDaysToIso } = require('../lib/smartSchedule');
 const { LEAVE_TYPE_LABELS } = require('../lib/leaveTypes');
 const { LABOUR_ONCOST_MULTIPLIER, syncAutoLabourCostItems } = require('../lib/labourCosting');
+const { formatDbDateTime } = require('../lib/dates');
 
 const router = express.Router();
 
@@ -195,7 +196,9 @@ async function recordJobHistory(jobId, userId, changes) {
 }
 
 // Shared by the job page's History card and the Jobs list's on-demand
-// History popup, so both read the exact same data the exact same way.
+// History popup, so both read the exact same data the exact same way. The
+// popup renders this JSON in the browser, so each timestamp also comes with a
+// ready-made Brisbane-time label (the raw values are UTC text).
 async function loadJobHistoryData(jobId) {
   const job = await db.prepare('SELECT created_by, created_at FROM jobs WHERE id = ?').get(jobId);
   if (!job) return null;
@@ -210,7 +213,14 @@ async function loadJobHistoryData(jobId) {
   return {
     createdByName: createdBy ? createdBy.name : null,
     createdAt: job.created_at,
-    history: historyRows.map((r) => ({ id: r.id, userName: r.user_name, createdAt: r.created_at, changes: JSON.parse(r.changes) })),
+    createdAtLabel: formatDbDateTime(job.created_at),
+    history: historyRows.map((r) => ({
+      id: r.id,
+      userName: r.user_name,
+      createdAt: r.created_at,
+      createdAtLabel: formatDbDateTime(r.created_at),
+      changes: JSON.parse(r.changes),
+    })),
   };
 }
 

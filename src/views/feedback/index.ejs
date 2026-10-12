@@ -25,7 +25,7 @@
             <% if (item.description) { %>
               <span class="list-item-meta" style="white-space:pre-wrap;"><%= item.description %></span><br>
             <% } %>
-            <span class="list-item-meta">By <%= item.submitter_name %> &middot; <%= formatAuDate(item.created_at) %></span>
+            <span class="list-item-meta">By <%= item.submitter_name %> &middot; <%= formatAuDate(dbDateIso(item.created_at)) %></span>
           </span>
           <span style="display:flex;flex-direction:column;align-items:flex-end;gap:0.4rem;flex-shrink:0;">
             <span class="badge <%= item.type === 'bug' ? 'badge-cancelled' : 'badge-pending' %>"><%= item.type === 'bug' ? 'Bug' : 'Idea' %></span>
@@ -74,7 +74,7 @@
         <span class="list-item" style="align-items:flex-start;gap:0.75rem;opacity:0.65;">
           <span style="flex:1;min-width:0;">
             <span class="list-item-title"><%= item.title %></span><br>
-            <span class="list-item-meta">By <%= item.submitter_name %> &middot; <%= formatAuDate(item.created_at) %></span>
+            <span class="list-item-meta">By <%= item.submitter_name %> &middot; <%= formatAuDate(dbDateIso(item.created_at)) %></span>
           </span>
           <span style="display:flex;flex-direction:column;align-items:flex-end;gap:0.4rem;flex-shrink:0;">
             <span class="badge <%= item.type === 'bug' ? 'badge-cancelled' : 'badge-pending' %>"><%= item.type === 'bug' ? 'Bug' : 'Idea' %></span>

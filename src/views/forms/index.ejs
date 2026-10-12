@@ -134,7 +134,7 @@
           <a class="list-item" href="/forms/job/<%= d.id %>">
             <span>
               <span class="list-item-title"><%= d.name %></span><br>
-              <span class="list-item-meta">Created by <%= d.created_by_name %> &middot; <%= new Date(d.created_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+              <span class="list-item-meta">Created by <%= d.created_by_name %> &middot; <%= formatDbDateTime(d.created_at) %></span>
             </span>
             <span class="badge badge-unscheduled">unassigned</span>
           </a>

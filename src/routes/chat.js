@@ -5,10 +5,15 @@ const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
 const { chatUpload, putFile } = require('../lib/uploads');
 const { sendPushToUsers } = require('../lib/push');
+const { formatDbDateTime } = require('../lib/dates');
 
 const router = express.Router();
 
 const INITIAL_LIMIT = 100;
+
+// created_at is UTC text, so the date-range filters compare the Brisbane
+// calendar day a message is shown under rather than its UTC day.
+const MESSAGE_DAY_SQL = `((chat_messages.created_at)::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Australia/Brisbane')::date`;
 
 function serialize(row) {
   return {
@@ -17,6 +22,9 @@ function serialize(row) {
     userId: row.user_id,
     userName: row.user_name,
     createdAt: row.created_at,
+    // Chat renders messages that arrive after page load in the browser, which
+    // shouldn't have to know createdAt is UTC text - so it gets a label.
+    createdAtLabel: formatDbDateTime(row.created_at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }),
     attachmentUrl: row.attachment_url || null,
     attachmentName: row.attachment_name || null,
     pinned: Boolean(row.pinned),
@@ -229,11 +237,11 @@ router.get(
         params.push(`%${escapeLike(q)}%`);
       }
       if (from) {
-        clauses.push('(chat_messages.created_at)::date >= (?)::date');
+        clauses.push(`${MESSAGE_DAY_SQL} >= (?)::date`);
         params.push(from);
       }
       if (to) {
-        clauses.push('(chat_messages.created_at)::date <= (?)::date');
+        clauses.push(`${MESSAGE_DAY_SQL} <= (?)::date`);
         params.push(to);
       }
       results = await db
@@ -276,11 +284,11 @@ router.get(
       const clauses = ['chat_messages.channel_id = ?'];
       const params = [channel.id];
       if (from) {
-        clauses.push('(chat_messages.created_at)::date >= (?)::date');
+        clauses.push(`${MESSAGE_DAY_SQL} >= (?)::date`);
         params.push(from);
       }
       if (to) {
-        clauses.push('(chat_messages.created_at)::date <= (?)::date');
+        clauses.push(`${MESSAGE_DAY_SQL} <= (?)::date`);
         params.push(to);
       }
       messages = await db

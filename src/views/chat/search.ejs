@@ -40,12 +40,12 @@
       <% } else { %>
         <div class="chat-search-results">
           <% results.forEach(r => { %>
-            <% var _day = r.created_at.slice(0, 10); %>
+            <% var _day = dbDateIso(r.created_at); %>
             <a class="chat-search-result" href="/chat/c/<%= r.channel_id %>?from=<%= _day %>&to=<%= _day %>#msg-<%= r.id %>">
               <div class="chat-search-result-head">
                 <span class="chat-search-result-channel">#<%= r.channel_name %></span>
                 <span class="chat-search-result-user"><%= r.user_name %></span>
-                <span class="chat-search-result-date"><%= new Date(r.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
+                <span class="chat-search-result-date"><%= formatDbDateTime(r.created_at, { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %></span>
               </div>
               <div class="chat-search-result-body"><%= r.body %></div>
             </a>
