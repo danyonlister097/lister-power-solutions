@@ -724,7 +724,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS dashboard_layout TEXT;
 
 -- Trade category (Electrical, Air Conditioning, Solar, Handyman, ...) set at
 -- job creation - lets the Jobs list be filtered by kind of work, separate
--- from status/date range. See JOB_CATEGORIES in routes/jobs.js.
+-- from status/date range. The allowed values live in job_categories (bottom
+-- of this file).
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category TEXT;
 
 -- When set, this document is also surfaced on the Renewals tab as an
@@ -904,3 +905,17 @@ CREATE TABLE IF NOT EXISTS form_categories (
 -- where a template lands if its section is deleted.
 ALTER TABLE form_templates ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES form_categories(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_form_templates_category_id ON form_templates(category_id);
+
+-- Job categories (Electrical, Air Conditioning, Plumbing, ...) - the choices
+-- on the job form's Category dropdown and the Jobs list filter. `name` is
+-- exactly what jobs.category stores: letters, numbers and hyphens only,
+-- because it rides through the returnTo query string (see safeReturnTo in
+-- routes/jobs.js) - views show hyphens back as spaces. Admins add their own
+-- with "+ Category" on the job form.
+CREATE TABLE IF NOT EXISTS job_categories (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_job_categories_name ON job_categories (lower(name));

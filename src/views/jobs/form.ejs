@@ -82,15 +82,18 @@
     <input type="text" name="title" value="<%= job.title || '' %>" required autofocus>
   </label>
 
-  <label>
-    Category <span style="font-weight:400;">(optional)</span>
-    <select name="category">
-      <option value="">No category</option>
-      <% categories.forEach(c => { %>
-        <option value="<%= c %>" <%= job.category === c ? 'selected' : '' %>><%= c.replace(/-/g, ' ') %></option>
-      <% }) %>
-    </select>
-  </label>
+  <div class="form-field">
+    <label class="form-field-label" for="job-category">Category <span style="font-weight:400;">(optional)</span></label>
+    <div style="display:flex;gap:0.5rem;align-items:center;">
+      <select name="category" id="job-category" style="flex:1;min-width:0;margin-top:0;">
+        <option value="">No category</option>
+        <% categories.forEach(c => { %>
+          <option value="<%= c %>" <%= job.category === c ? 'selected' : '' %>><%= c.replace(/-/g, ' ') %></option>
+        <% }) %>
+      </select>
+      <button type="button" class="btn btn-secondary btn-sm" id="add-category-btn" style="white-space:nowrap;">+ Category</button>
+    </div>
+  </div>
 
   <label>
     Description
@@ -214,6 +217,26 @@
     <a class="btn btn-secondary" href="<%= (typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/jobs/schedule' %>">Cancel</a>
   </div>
 </form>
+
+<!-- "+ Category" popup. Deliberately outside the job form above: a text field
+     inside it would submit the whole job when Enter is pressed. -->
+<div id="add-category-modal" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="add-category-title" style="max-width:380px;">
+    <button type="button" class="modal-close" id="add-category-close" aria-label="Close">&times;</button>
+    <h2 id="add-category-title">New category</h2>
+    <form id="add-category-form" novalidate>
+      <div id="add-category-error" class="flash flash-error" style="display:none;"></div>
+      <label>
+        Category name
+        <input type="text" id="add-category-name" maxlength="40" autocomplete="off" placeholder="e.g. Fire Protection">
+      </label>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary" id="add-category-save">Add category</button>
+        <button type="button" class="btn btn-secondary" id="add-category-cancel">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <script>
   (function () {
@@ -533,6 +556,77 @@
         btn.disabled = false;
         btn.textContent = 'Save customer';
       });
+    });
+  })();
+
+  // "+ Category": saves a new category and drops it into the dropdown without
+  // leaving the page - a reload would throw away a half-filled job.
+  (function () {
+    var modal = document.getElementById('add-category-modal');
+    var form = document.getElementById('add-category-form');
+    var nameInput = document.getElementById('add-category-name');
+    var errBox = document.getElementById('add-category-error');
+    var saveBtn = document.getElementById('add-category-save');
+    var select = document.getElementById('job-category');
+
+    function showError(message) {
+      errBox.textContent = message;
+      errBox.style.display = 'block';
+    }
+    function openModal() {
+      modal.hidden = false;
+      nameInput.focus();
+    }
+    function closeModal() {
+      modal.hidden = true;
+      errBox.style.display = 'none';
+      nameInput.value = '';
+    }
+
+    document.getElementById('add-category-btn').addEventListener('click', openModal);
+    document.getElementById('add-category-close').addEventListener('click', closeModal);
+    document.getElementById('add-category-cancel').addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var name = nameInput.value.trim();
+      if (!name) {
+        showError('Enter a category name.');
+        return;
+      }
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      errBox.style.display = 'none';
+
+      fetch('/jobs/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ _csrf: '<%= csrfToken %>', name: name }).toString(),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.error) {
+            showError(data.error);
+            return;
+          }
+          var option = Array.prototype.find.call(select.options, function (o) { return o.value === data.name; });
+          if (!option) {
+            option = document.createElement('option');
+            option.value = data.name;
+            option.textContent = data.label;
+            select.appendChild(option);
+          }
+          select.value = data.name;
+          closeModal();
+        })
+        .catch(function () { showError('Something went wrong. Please try again.'); })
+        .then(function () {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Add category';
+        });
     });
   })();
 </script>

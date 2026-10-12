@@ -219,6 +219,17 @@ async function ensureSeedData() {
     }
   }
 
+  // Seed the job categories that used to be a hardcoded list in routes/jobs.js
+  // (plus Plumbing) - only when the table is empty, so a category an admin has
+  // since added is never touched and these are never re-added.
+  const jobCats = await pool.query('SELECT id FROM job_categories LIMIT 1');
+  if (jobCats.rowCount === 0) {
+    const jobCatDefaults = ['Electrical', 'Air-Conditioning', 'Solar', 'Handyman', 'Plumbing'];
+    for (const [i, name] of jobCatDefaults.entries()) {
+      await pool.query('INSERT INTO job_categories (name, sort_order) VALUES ($1, $2) ON CONFLICT DO NOTHING', [name, (i + 1) * 10]);
+    }
+  }
+
   // Per-employee page permissions are new - any trade/apprentice that
   // predates this feature has zero rows in user_permissions yet, which
   // requirePermission() would otherwise read as "no access to anything".

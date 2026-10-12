@@ -20,11 +20,35 @@ const STATUSES = ['unscheduled', 'scheduled', 'in_progress', 'completed', 'invoi
 // done) - both count as "done" for completion-requirement checks and for
 // only scheduling follow-up emails/setting completed_at once.
 const jobIsDone = (status) => status === 'completed' || status === 'invoiced';
-// Hyphenated rather than "Air Conditioning" with a space - these values ride
-// through the returnTo query string (see safeReturnTo below), whose guard
-// only allows a strict charset with no spaces. Views display them via
-// c.replace(/-/g, ' ') (same trick STATUSES uses with underscores).
-const JOB_CATEGORIES = ['Electrical', 'Air-Conditioning', 'Solar', 'Handyman'];
+// Job categories live in the job_categories table - admins add their own with
+// "+ Category" on the job form. Values are hyphenated rather than "Air
+// Conditioning" with a space: they ride through the returnTo query string
+// (see safeReturnTo below), whose guard only allows a strict charset with no
+// spaces. Views display them via c.replace(/-/g, ' ') (same trick STATUSES
+// uses with underscores).
+async function loadJobCategories() {
+  const rows = await db.prepare('SELECT name FROM job_categories ORDER BY sort_order, name').all();
+  return rows.map((r) => r.name);
+}
+
+const MAX_JOB_CATEGORY_LENGTH = 30;
+
+// Turns what an admin typed into "+ Category" into the stored hyphenated
+// value ("pest control" -> "Pest-Control"). Anything that couldn't survive the
+// returnTo query string is rejected with a message rather than silently
+// mangled.
+function normalizeJobCategoryName(raw) {
+  const words = String(raw || '').split(/[\s-]+/).filter(Boolean);
+  if (!words.length) return { error: 'Enter a category name.' };
+  if (!words.every((w) => /^[A-Za-z0-9]+$/.test(w))) {
+    return { error: 'Category names can only use letters, numbers, spaces and hyphens.' };
+  }
+  const name = words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join('-');
+  if (name.length > MAX_JOB_CATEGORY_LENGTH) {
+    return { error: `Category names can be up to ${MAX_JOB_CATEGORY_LENGTH} characters.` };
+  }
+  return { name };
+}
 
 // The business runs out of Queensland, which doesn't observe daylight
 // saving - so this fixed IANA zone gives the same "today"/"this week"
@@ -38,8 +62,8 @@ function parseJobColor(raw) {
   return raw && JOB_COLOR_VALUES.has(raw) ? raw : null;
 }
 
-function parseJobCategory(raw) {
-  return raw && JOB_CATEGORIES.includes(raw) ? raw : null;
+function parseJobCategory(raw, categories) {
+  return raw && categories.includes(raw) ? raw : null;
 }
 
 // Only ever redirect back to a same-site URL we generated ourselves - never
@@ -521,7 +545,7 @@ router.get(
       assignedTo,
       isAdmin,
       STATUSES,
-      JOB_CATEGORIES,
+      categories: await loadJobCategories(),
       statusCounts,
       dupeReasons,
       dupesOnly,
@@ -1334,10 +1358,41 @@ router.get(
       techLeave,
       STATUSES,
       colors: JOB_COLORS,
-      categories: JOB_CATEGORIES,
+      categories: await loadJobCategories(),
       error: null,
       returnTo: safeReturnTo(req.query.returnTo),
     });
+  })
+);
+
+// Quick-add behind the job form's "+ Category" button. Registered before the
+// /:id routes so "categories" isn't swallowed as a job id. Answers with the
+// stored value so the form can drop it straight into its dropdown - a page
+// reload here would throw away a half-filled job. Naming a category that
+// already exists isn't an error; the form just selects the existing one.
+router.post(
+  '/categories',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const parsed = normalizeJobCategoryName(req.body.name);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+
+    const findExisting = () => db.prepare('SELECT name FROM job_categories WHERE lower(name) = lower(?)').get(parsed.name);
+    let existing = await findExisting();
+    if (!existing) {
+      const row = await db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM job_categories').get();
+      try {
+        await db.prepare('INSERT INTO job_categories (name, sort_order) VALUES (?, ?)').run(parsed.name, Number(row.m) + 10);
+      } catch (err) {
+        // Two admins adding the same name at the same moment.
+        if (err.code !== '23505') throw err;
+        existing = await findExisting();
+      }
+    }
+
+    const name = existing ? existing.name : parsed.name;
+    res.json({ name, label: name.replace(/-/g, ' '), existing: Boolean(existing) });
   })
 );
 
@@ -1387,6 +1442,7 @@ router.post(
     const techs = await db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY sort_order, name').all();
     const assigneeIds = parseAssigneeIds(b);
     const returnTo = safeReturnTo(b.returnTo);
+    const categories = await loadJobCategories();
 
     if (!b.title || !b.title.trim() || !b.customer_id) {
       return res.status(400).render('jobs/form', {
@@ -1397,7 +1453,7 @@ router.post(
         techLeave: await loadTechLeaveMap(),
         STATUSES,
         colors: JOB_COLORS,
-        categories: JOB_CATEGORIES,
+        categories,
         error: 'Job title and customer are required.',
         returnTo,
       });
@@ -1417,7 +1473,7 @@ router.post(
         techLeave: await loadTechLeaveMap(),
         STATUSES,
         colors: JOB_COLORS,
-        categories: JOB_CATEGORIES,
+        categories,
         error: `${leaveConflict.name} is on ${leaveConflict.label} that day and can't be assigned. Remove them or pick a different date.`,
         returnTo,
       });
@@ -1443,7 +1499,7 @@ router.post(
         all_day: schedule.all_day,
         duration_minutes: schedule.duration_minutes,
         color: parseJobColor(b.color),
-        category: parseJobCategory(b.category),
+        category: parseJobCategory(b.category, categories),
         site_address_street: b.site_address_street || customer.address_street || null,
         site_address_city: b.site_address_city || customer.address_city || null,
         site_address_state: b.site_address_state || customer.address_state || null,
@@ -1795,7 +1851,7 @@ router.get(
       techLeave: await loadTechLeaveMap(),
       STATUSES,
       colors: JOB_COLORS,
-      categories: JOB_CATEGORIES,
+      categories: await loadJobCategories(),
       error: null,
       returnTo: safeReturnTo(req.query.returnTo),
     });
@@ -1816,6 +1872,7 @@ router.post(
     const techs = await db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY sort_order, name').all();
     const assigneeIds = parseAssigneeIds(b);
     const returnTo = safeReturnTo(b.returnTo);
+    const categories = await loadJobCategories();
 
     const currentCustomer = b.customer_id
       ? (customers.find((c) => String(c.id) === String(b.customer_id)) ||
@@ -1832,7 +1889,7 @@ router.post(
         techLeave: await loadTechLeaveMap(),
         STATUSES,
         colors: JOB_COLORS,
-        categories: JOB_CATEGORIES,
+        categories,
         error: 'Job title and customer are required.',
         returnTo,
       });
@@ -1851,7 +1908,7 @@ router.post(
         techLeave: await loadTechLeaveMap(),
         STATUSES,
         colors: JOB_COLORS,
-        categories: JOB_CATEGORIES,
+        categories,
         error: `${leaveConflict.name} is on ${leaveConflict.label} that day and can't be assigned. Remove them or pick a different date.`,
         returnTo,
       });
@@ -1897,7 +1954,7 @@ router.post(
         all_day: schedule.all_day,
         duration_minutes: schedule.duration_minutes,
         color: parseJobColor(b.color),
-        category: parseJobCategory(b.category),
+        category: parseJobCategory(b.category, categories),
         site_address_street: b.site_address_street || null,
         site_address_city: b.site_address_city || null,
         site_address_state: b.site_address_state || null,
