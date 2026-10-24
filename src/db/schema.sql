@@ -489,6 +489,25 @@ FROM (
 ) sub
 WHERE business_assets.id = sub.id;
 
+-- Whether this asset category tracks vehicle/maintenance details (next
+-- service date, rego expiry, odometer) - the asset form only shows those
+-- fields when the selected category has this set, so adding a ladder or a
+-- drill doesn't prompt for an odometer reading. Only ever set true here for
+-- "Vehicles" (the one pre-existing category it obviously applies to) -
+-- guarded by column-not-exists so this never re-asserts itself over an
+-- admin's own choice made after this column already exists (e.g. if they
+-- later turn it on for "Trailers" too).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'business_asset_categories' AND column_name = 'tracks_maintenance'
+  ) THEN
+    ALTER TABLE business_asset_categories ADD COLUMN tracks_maintenance INTEGER NOT NULL DEFAULT 0;
+    UPDATE business_asset_categories SET tracks_maintenance = 1 WHERE name = 'Vehicles';
+  END IF;
+END $$;
+
 -- --- Quoting ---
 -- A quote is customer-facing pricing sent before a job exists. Accepting one
 -- creates the job (jobs.quote_id links back) and carries its total across as

@@ -140,9 +140,14 @@ function prepare(sql) {
 async function ensureSeedData() {
   const categories = await pool.query('SELECT id FROM business_asset_categories LIMIT 1');
   if (categories.rowCount === 0) {
+    // Only "Vehicles" tracks maintenance fields (next service, rego, odometer)
+    // out of the box - see tracks_maintenance in schema.sql.
     const starters = ['Power Tools', 'Ladders', 'HVAC Equipment', 'Testing Equipment', 'Vehicles', 'Safety Equipment', 'Other'];
     for (const name of starters) {
-      await pool.query('INSERT INTO business_asset_categories (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [name]);
+      await pool.query('INSERT INTO business_asset_categories (name, tracks_maintenance) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING', [
+        name,
+        name === 'Vehicles' ? 1 : 0,
+      ]);
     }
   }
 

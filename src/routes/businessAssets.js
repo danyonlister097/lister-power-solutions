@@ -16,6 +16,15 @@ async function getCategoryNames() {
   return (await getCategoryRows()).map((c) => c.name);
 }
 
+// { "Vehicles": true, "Ladders": false, ... } - which categories show the
+// next-service/rego/odometer fields on the asset form (see
+// tracks_maintenance in schema.sql). Embedded in the page so the category
+// <select>'s change handler can toggle that field group client-side.
+async function getCategoryMaintenanceMap() {
+  const rows = await getCategoryRows();
+  return Object.fromEntries(rows.map((c) => [c.name, Boolean(c.tracks_maintenance)]));
+}
+
 // "+ Add new category..." in the category <select> creates the category on
 // the fly (admin-only, since asset creation/editing already is) instead of
 // needing a separate management screen.
@@ -25,7 +34,9 @@ async function resolveCategory(body) {
     if (!newName) return 'Other';
     const existing = await db.prepare('SELECT name FROM business_asset_categories WHERE LOWER(name) = LOWER(?)').get(newName);
     if (existing) return existing.name;
-    await db.prepare('INSERT INTO business_asset_categories (name) VALUES (?)').run(newName);
+    await db
+      .prepare('INSERT INTO business_asset_categories (name, tracks_maintenance) VALUES (?, ?)')
+      .run(newName, body.new_category_tracks_maintenance ? 1 : 0);
     return newName;
   }
   return (await getCategoryNames()).includes(body.category) ? body.category : 'Other';
@@ -81,6 +92,7 @@ router.get(
       assets,
       techs,
       CATEGORIES: await getCategoryNames(),
+      CATEGORY_TRACKS_MAINTENANCE: await getCategoryMaintenanceMap(),
       STATUSES,
       category,
       status,
@@ -176,6 +188,7 @@ router.get(
       asset,
       techs,
       CATEGORIES: await getCategoryNames(),
+      CATEGORY_TRACKS_MAINTENANCE: await getCategoryMaintenanceMap(),
       STATUSES,
       error: null,
       closeUrl,

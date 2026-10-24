@@ -264,6 +264,13 @@
           New category name
           <input type="text" name="new_category" id="add-asset-new-category" maxlength="60" placeholder="e.g. Generators">
         </label>
+        <label class="toggle-label" id="add-asset-new-category-tracks-field" style="display:none;">
+          <span>Track service/rego/odometer for this category <span style="font-weight:400;">(leave off for tools, ladders, office equipment - turn on for vehicles and similar)</span></span>
+          <span class="toggle-switch">
+            <input type="checkbox" name="new_category_tracks_maintenance" value="1" id="add-asset-new-category-tracks">
+            <span class="toggle-slider"></span>
+          </span>
+        </label>
         <div class="form-row form-row-2">
           <label>
             Brand
@@ -303,25 +310,29 @@
           Location <span style="font-weight:400;">(e.g. Van 2, Workshop)</span>
           <input type="text" name="location" maxlength="80">
         </label>
-        <div class="form-row form-row-2">
-          <label>
-            Next service/inspection due
-            <input type="date" name="next_service_due">
-          </label>
-          <label>
-            Registration expiry <span style="font-weight:400;">(vehicles)</span>
-            <input type="date" name="registration_expiry">
-          </label>
-        </div>
-        <div class="form-row form-row-2">
-          <label>
-            Current odometer (km) <span style="font-weight:400;">(vehicles)</span>
-            <input type="number" name="current_odometer_km" step="1" min="0">
-          </label>
-          <label>
-            Service due at (km)
-            <input type="number" name="service_due_at_km" step="1" min="0">
-          </label>
+        <!-- Only shown for a category that tracks it (e.g. Vehicles) - see
+             ASSET_CATEGORY_TRACKS_MAINTENANCE below. -->
+        <div id="add-asset-maintenance-fields" style="display:none;">
+          <div class="form-row form-row-2">
+            <label>
+              Next service/inspection due
+              <input type="date" name="next_service_due">
+            </label>
+            <label>
+              Registration expiry <span style="font-weight:400;">(vehicles)</span>
+              <input type="date" name="registration_expiry">
+            </label>
+          </div>
+          <div class="form-row form-row-2">
+            <label>
+              Current odometer (km) <span style="font-weight:400;">(vehicles)</span>
+              <input type="number" name="current_odometer_km" step="1" min="0">
+            </label>
+            <label>
+              Service due at (km)
+              <input type="number" name="service_due_at_km" step="1" min="0">
+            </label>
+          </div>
         </div>
         <label>
           Notes
@@ -351,11 +362,29 @@
       var select = document.getElementById('add-asset-category');
       var field = document.getElementById('add-asset-new-category-field');
       var input = document.getElementById('add-asset-new-category');
+      var tracksField = document.getElementById('add-asset-new-category-tracks-field');
+      var tracksCheckbox = document.getElementById('add-asset-new-category-tracks');
+      var maintenanceFields = document.getElementById('add-asset-maintenance-fields');
+      // { "Vehicles": true, "Ladders": false, ... } - which existing
+      // categories show the maintenance fields below (see
+      // getCategoryMaintenanceMap in routes/businessAssets.js).
+      var CATEGORY_TRACKS_MAINTENANCE = <%- JSON.stringify(CATEGORY_TRACKS_MAINTENANCE) %>;
+
+      function updateMaintenanceVisibility() {
+        var isNew = select.value === '__new__';
+        var show = isNew ? tracksCheckbox.checked : Boolean(CATEGORY_TRACKS_MAINTENANCE[select.value]);
+        maintenanceFields.style.display = show ? '' : 'none';
+      }
+
       select.addEventListener('change', function () {
         var isNew = select.value === '__new__';
         field.style.display = isNew ? '' : 'none';
         input.required = isNew;
+        tracksField.style.display = isNew ? '' : 'none';
+        updateMaintenanceVisibility();
       });
+      tracksCheckbox.addEventListener('change', updateMaintenanceVisibility);
+      updateMaintenanceVisibility();
     })();
   </script>
 <% } %>
