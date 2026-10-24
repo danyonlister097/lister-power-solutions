@@ -1,3 +1,5 @@
+const path = require('path');
+const { Readable } = require('stream');
 const express = require('express');
 const multer = require('multer');
 const db = require('../db');
@@ -212,11 +214,13 @@ router.get(
     const stream = await fetchFile(bill.file_url);
     if (!stream) return res.status(404).render('error', { message: 'File not found.' });
     if (bill.file_name) {
-      const isPdf = bill.file_name.toLowerCase().endsWith('.pdf');
-      res.setHeader('Content-Disposition', `${isPdf ? 'inline' : 'inline'}; filename="${bill.file_name}"`);
-      if (isPdf) res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${bill.file_name}"`);
+      // Typed from the extension so photos (JPEG/PNG) open inline like PDFs
+      // do, rather than arriving untyped.
+      res.type(path.extname(bill.file_name));
     }
-    stream.pipe(res);
+    // fetchFile hands back a web ReadableStream, which has no .pipe().
+    Readable.fromWeb(stream).pipe(res);
   })
 );
 

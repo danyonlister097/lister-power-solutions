@@ -104,6 +104,9 @@ async function copyFile(sourceUrl, originalName) {
 
 // Streams a stored blob back out, for routes that proxy a file through the
 // app instead of exposing the underlying blob URL - see putFile above.
+// Resolves to a web ReadableStream (not a Node stream, so it has no .pipe()):
+// serve it with Readable.fromWeb(stream).pipe(res). Null if the blob can't be
+// fetched.
 async function fetchFile(url) {
   const blobRes = await fetch(url);
   if (!blobRes.ok || !blobRes.body) return null;
