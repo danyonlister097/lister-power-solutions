@@ -43,13 +43,97 @@
   <a href="/renewals?tab=documents" class="<%= tab === 'documents' ? 'active' : '' %>">Documents/Licensing</a>
 </div>
 
+<%
+  // Shared by both tabs' filter bars below. overrides can set category,
+  // employee and/or tab explicitly (including '' to clear one); anything
+  // left out keeps the page's current value instead.
+  function renewalsUrl(overrides) {
+    overrides = overrides || {};
+    var cat = 'category' in overrides ? overrides.category : category;
+    var emp = 'employee' in overrides ? overrides.employee : employee;
+    var t = 'tab' in overrides ? overrides.tab : tab;
+    var qs = [];
+    if (t === 'documents') qs.push('tab=documents');
+    if (cat) qs.push('category=' + cat);
+    if (emp) qs.push('employee=' + emp);
+    return '/renewals' + (qs.length ? '?' + qs.join('&') : '');
+  }
+%>
+
+<% if (isAdmin) { %>
+<!-- Manage Categories Modal - shared by the Renewals and Documents/Licensing
+     tabs' filter bars and "+ Add category..." selects, so it only needs to
+     exist once regardless of which tab is active. -->
+<div id="manage-cat-modal" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manage-cat-title" style="max-width:420px;">
+    <button type="button" class="modal-close" id="manage-cat-close" aria-label="Close">&times;</button>
+    <h2 id="manage-cat-title">Manage Categories</h2>
+    <ul style="list-style:none;padding:0;margin:0 0 1rem;">
+      <% CATEGORIES.forEach(c => { %>
+        <li style="display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--color-border);">
+          <span><%= c.label %></span>
+          <form method="post" action="/renewals/categories/<%= c.id %>/delete"
+                data-confirm="Delete the &quot;<%= c.label %>&quot; category? Renewals and documents already using it will keep the old value." style="margin:0;">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="context-menu-item context-menu-danger" style="padding:0.15rem 0.5rem;font-size:0.8rem;">Delete</button>
+          </form>
+        </li>
+      <% }) %>
+    </ul>
+    <form method="post" action="/renewals/categories" style="display:flex;gap:0.5rem;">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="text" name="label" required placeholder="New category name" style="flex:1;">
+      <button type="submit" class="btn btn-primary" style="white-space:nowrap;">Add</button>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var manageCatModal = document.getElementById('manage-cat-modal');
+  document.getElementById('manage-cat-close').addEventListener('click', function () { manageCatModal.hidden = true; });
+  manageCatModal.addEventListener('click', function (e) { if (e.target === manageCatModal) manageCatModal.hidden = true; });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !manageCatModal.hidden) manageCatModal.hidden = true; });
+
+  // Wires a category <select>'s "+ Add category..." option (value
+  // "__manage__") to open the modal above instead of actually selecting it -
+  // shared by the Renewal and Document add/edit forms below.
+  window.wireManageCategoryOption = function (select) {
+    select.addEventListener('change', function () {
+      if (select.value === '__manage__') {
+        select.value = select.dataset.prev || select.options[0].value;
+        var ownerModal = select.closest('.modal-backdrop');
+        if (ownerModal) ownerModal.hidden = true;
+        manageCatModal.hidden = false;
+      } else {
+        select.dataset.prev = select.value;
+      }
+    });
+  };
+})();
+</script>
+<% } %>
+
 <% if (tab !== 'documents') { %>
 <div class="filters">
-  <a class="<%= category === '' ? 'active' : '' %>" href="/renewals">All</a>
+  <a class="<%= category === '' ? 'active' : '' %>" href="<%= renewalsUrl({ category: '' }) %>">All</a>
   <% CATEGORIES.forEach(c => { %>
-    <a class="<%= category === c.key ? 'active' : '' %>" href="/renewals?category=<%= c.key %>"><%= c.label %></a>
+    <a class="<%= category === c.key ? 'active' : '' %>" href="<%= renewalsUrl({ category: c.key }) %>"><%= c.label %></a>
   <% }) %>
 </div>
+
+<form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">
+  <input type="hidden" name="category" value="<%= category %>">
+  <label style="flex:1;min-width:200px;">
+    Staff member
+    <select name="employee" onchange="this.form.requestSubmit()">
+      <option value="">Anyone</option>
+      <% users.forEach(u => { %>
+        <option value="<%= u.id %>" <%= String(employee) === String(u.id) ? 'selected' : '' %>><%= u.name %></option>
+      <% }) %>
+    </select>
+  </label>
+  <% if (employee) { %><a href="<%= renewalsUrl({ employee: '' }) %>" class="btn btn-secondary btn-sm">Clear</a><% } %>
+</form>
 
 <% if (!items.length) { %>
   <div class="empty-state">No renewal items match this filter.</div>
@@ -84,14 +168,15 @@
               <span style="min-width:0;">
                 <span class="list-item-title"><%= item.title %></span><br>
                 <span class="list-item-meta">
-                  <% if (item.user_name) { %><%= item.user_name %> &middot; <% } %>
-                  <% if (item.expiry_date) { %><%= formatAuDate(item.expiry_date) %> &middot; <% } %>
-                  <em>from Documents/Licensing</em>
+                  <%= catLabel(item.category) %>
+                  <% if (item.user_name) { %> &middot; <%= item.user_name %><% } %>
+                  <% if (item.expiry_date) { %> &middot; <%= formatAuDate(item.expiry_date) %><% } %>
+                  &middot; <em>from Documents/Licensing</em>
                 </span>
               </span>
               <button type="button" class="badge renewal-detail-btn <%= expiryClass(item.expiry_date, todayIso) %>"
                 data-title="<%= item.title %>"
-                data-category-label="License Document"
+                data-category-label="<%= catLabel(item.category) %>"
                 data-assignee="<%= item.user_name || '' %>"
                 data-expiry="<%= item.expiry_date ? formatAuDate(item.expiry_date) : '' %>"
                 data-notes="<%= item.notes || '' %>"
@@ -247,31 +332,6 @@
 </script>
 
 <% if (isAdmin) { %>
-<!-- Manage Categories Modal -->
-<div id="manage-cat-modal" class="modal-backdrop" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manage-cat-title" style="max-width:420px;">
-    <button type="button" class="modal-close" id="manage-cat-close" aria-label="Close">&times;</button>
-    <h2 id="manage-cat-title">Manage Categories</h2>
-    <ul style="list-style:none;padding:0;margin:0 0 1rem;">
-      <% CATEGORIES.forEach(c => { %>
-        <li style="display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--color-border);">
-          <span><%= c.label %></span>
-          <form method="post" action="/renewals/categories/<%= c.id %>/delete"
-                data-confirm="Delete the &quot;<%= c.label %>&quot; category? Renewals already using it will keep the old value." style="margin:0;">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <button type="submit" class="context-menu-item context-menu-danger" style="padding:0.15rem 0.5rem;font-size:0.8rem;">Delete</button>
-          </form>
-        </li>
-      <% }) %>
-    </ul>
-    <form method="post" action="/renewals/categories" style="display:flex;gap:0.5rem;">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <input type="text" name="label" required placeholder="New category name" style="flex:1;">
-      <button type="submit" class="btn btn-primary" style="white-space:nowrap;">Add</button>
-    </form>
-  </div>
-</div>
-
 <!-- Add / Edit Renewal Modal -->
 <div id="renewal-add-modal" class="modal-backdrop" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="renewal-modal-title">
@@ -333,11 +393,6 @@
 
 <script>
 (function () {
-  // ── Manage Categories modal ──
-  var manageCatModal = document.getElementById('manage-cat-modal');
-  document.getElementById('manage-cat-close').addEventListener('click', function () { manageCatModal.hidden = true; });
-  manageCatModal.addEventListener('click', function (e) { if (e.target === manageCatModal) manageCatModal.hidden = true; });
-
   // ── Add / Edit Renewal modal ──
   var modal = document.getElementById('renewal-add-modal');
   var form = document.getElementById('renewal-form');
@@ -349,16 +404,9 @@
   var idInput = form.querySelector('input[name="_id"]');
   var catSelect = document.getElementById('renewal-cat-select');
 
-  // Intercept "+ Add category…" option
-  catSelect.addEventListener('change', function () {
-    if (catSelect.value === '__manage__') {
-      catSelect.value = catSelect.dataset.prev || catSelect.options[0].value;
-      modal.hidden = true;
-      manageCatModal.hidden = false;
-    } else {
-      catSelect.dataset.prev = catSelect.value;
-    }
-  });
+  // "+ Add category…" opens the shared Manage Categories modal (see top of
+  // page) instead of actually selecting it.
+  window.wireManageCategoryOption(catSelect);
 
   function openAdd() {
     titleEl.textContent = 'Add Renewal';
@@ -392,10 +440,7 @@
   cancelBtn.addEventListener('click', closeModal);
   modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') {
-      if (!modal.hidden) closeModal();
-      if (!manageCatModal.hidden) manageCatModal.hidden = true;
-    }
+    if (e.key === 'Escape' && !modal.hidden) closeModal();
   });
 
   document.addEventListener('click', function (e) {
@@ -419,8 +464,32 @@
       return expiryLabel(dateStr, today);
     }
   %>
+  <div class="filters">
+    <a class="<%= category === '' ? 'active' : '' %>" href="<%= renewalsUrl({ category: '', tab: 'documents' }) %>">All</a>
+    <% CATEGORIES.forEach(c => { %>
+      <a class="<%= category === c.key ? 'active' : '' %>" href="<%= renewalsUrl({ category: c.key, tab: 'documents' }) %>"><%= c.label %></a>
+    <% }) %>
+  </div>
+
+  <form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">
+    <input type="hidden" name="tab" value="documents">
+    <input type="hidden" name="category" value="<%= category %>">
+    <label style="flex:1;min-width:200px;">
+      Staff member
+      <select name="employee" onchange="this.form.requestSubmit()">
+        <option value="">Anyone</option>
+        <% users.forEach(u => { %>
+          <option value="<%= u.id %>" <%= String(employee) === String(u.id) ? 'selected' : '' %>><%= u.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <% if (employee) { %><a href="<%= renewalsUrl({ employee: '', tab: 'documents' }) %>" class="btn btn-secondary btn-sm">Clear</a><% } %>
+  </form>
+
   <% if (!documents.length) { %>
-    <div class="empty-state">No documents or licenses on file yet.</div>
+    <div class="empty-state">
+      <%= (category || employee) ? 'No documents match this filter.' : 'No documents or licenses on file yet.' %>
+    </div>
   <% } else { %>
     <ul class="list">
       <% documents.forEach(doc => { %>
@@ -430,7 +499,8 @@
               <span style="min-width:0;">
                 <span class="list-item-title"><%= doc.title %></span><br>
                 <span class="list-item-meta">
-                  <% if (doc.license_number) { %><%= doc.license_number %><% } %>
+                  <%= catLabel(doc.category) %>
+                  <% if (doc.license_number) { %> &middot; <%= doc.license_number %><% } %>
                   <% if (doc.user_name) { %> &middot; <%= doc.user_name %><% } %>
                   <% if (doc.expiry_date) { %> &middot; Expires <%= formatAuDate(doc.expiry_date) %><% } %>
                   <% if (doc.notes) { %> &middot; <em><%= doc.notes %></em><% } %>
@@ -448,6 +518,7 @@
                   data-id="<%= doc.id %>"
                   data-title="<%= doc.title %>"
                   data-license_number="<%= doc.license_number || '' %>"
+                  data-category="<%= doc.category || '' %>"
                   data-user_id="<%= doc.user_id || '' %>"
                   data-expiry_date="<%= doc.expiry_date || '' %>"
                   data-notes="<%= doc.notes || '' %>"
@@ -488,6 +559,15 @@
             <input type="date" name="expiry_date">
           </label>
         </div>
+        <label>
+          Category
+          <select name="category" id="document-cat-select">
+            <% CATEGORIES.forEach(c => { %>
+              <option value="<%= c.key %>"><%= c.label %></option>
+            <% }) %>
+            <option value="__manage__" style="color:var(--color-primary);">+ Add category…</option>
+          </select>
+        </label>
         <label class="toggle-label">
           <span>Also create a renewal reminder <span style="font-weight:400;">(shows this on the Renewals tab too, using the same expiry date, instead of entering it twice)</span></span>
           <span class="toggle-switch">
@@ -531,12 +611,18 @@
     var closeBtn = document.getElementById('document-modal-close');
     var cancelBtn = document.getElementById('document-modal-cancel');
     var currentFileEl = document.getElementById('document-current-file');
+    var catSelect = document.getElementById('document-cat-select');
+
+    // "+ Add category…" opens the shared Manage Categories modal (see top of
+    // page) instead of actually selecting it.
+    window.wireManageCategoryOption(catSelect);
 
     function openAdd() {
       titleEl.textContent = 'Add Document';
       submitBtn.textContent = 'Add Document';
       form.action = '/renewals/documents';
       form.reset();
+      catSelect.dataset.prev = catSelect.value;
       currentFileEl.style.display = 'none';
       modal.hidden = false;
     }
@@ -548,6 +634,8 @@
       form.action = '/renewals/documents/' + id;
       form.querySelector('[name="title"]').value = btn.getAttribute('data-title') || '';
       form.querySelector('[name="license_number"]').value = btn.getAttribute('data-license_number') || '';
+      if (btn.getAttribute('data-category')) catSelect.value = btn.getAttribute('data-category');
+      catSelect.dataset.prev = catSelect.value;
       form.querySelector('[name="user_id"]').value = btn.getAttribute('data-user_id') || '';
       form.querySelector('[name="expiry_date"]').value = btn.getAttribute('data-expiry_date') || '';
       form.querySelector('[name="notes"]').value = btn.getAttribute('data-notes') || '';

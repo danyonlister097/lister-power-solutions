@@ -25,36 +25,59 @@ router.get(
     const todayIso = brisbaneTodayIso();
     const users = await db.prepare("SELECT id, name FROM users WHERE active = 1 ORDER BY name").all();
 
+    const CATEGORIES = await loadCategories();
+
     if (tab === 'documents') {
+      const docCat = req.query.category || '';
+      const employee = req.query.employee || '';
+
+      const clauses = [];
+      const params = [];
+      if (docCat) {
+        clauses.push('d.category = ?');
+        params.push(docCat);
+      }
+      if (employee) {
+        clauses.push('d.user_id = ?');
+        params.push(employee);
+      }
+      const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
+
       const documents = await db
         .prepare(
           `SELECT d.*, u.name AS user_name
            FROM license_documents d
-           LEFT JOIN users u ON u.id = d.user_id
+           LEFT JOIN users u ON u.id = d.user_id${where}
            ORDER BY (d.expiry_date IS NULL), d.expiry_date ASC, d.title ASC`
         )
-        .all();
+        .all(...params);
       return res.render('renewals/index', {
         title: 'Documents/Licensing',
         tab,
         documents,
         users,
+        CATEGORIES,
+        category: docCat,
+        employee,
         todayIso,
         isAdmin: req.user.role === 'admin',
       });
     }
 
     const cat = req.query.category || '';
-    const CATEGORIES = await loadCategories();
+    const employee = req.query.employee || '';
 
+    const clauses = [];
     const params = [];
-    let where = '';
-    if (cat && cat !== 'vehicle_rego') {
-      where = ' WHERE r.category = ?';
+    if (cat) {
+      clauses.push('r.category = ?');
       params.push(cat);
-    } else if (cat === 'vehicle_rego') {
-      where = " WHERE r.category = 'vehicle_rego'";
     }
+    if (employee) {
+      clauses.push('r.user_id = ?');
+      params.push(employee);
+    }
+    const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
 
     const renewals = await db
       .prepare(
@@ -67,8 +90,11 @@ router.get(
       )
       .all(...params);
 
+    // Asset Register vehicle-rego rows have no linked employee, so an
+    // employee filter excludes them entirely rather than showing every
+    // vehicle regardless of who's selected.
     let assetRegos = [];
-    if (!cat || cat === 'vehicle_rego') {
+    if ((!cat || cat === 'vehicle_rego') && !employee) {
       assetRegos = await db
         .prepare(
           `SELECT id, name, registration_expiry AS expiry_date
@@ -94,25 +120,34 @@ router.get(
     // Documents/Licensing items with "create a renewal" ticked - live-joined
     // (not copied) so there's nothing to keep in sync: ticking/unticking the
     // box on the document is the only thing that controls whether it shows
-    // up here.
-    let flaggedDocuments = [];
-    if (!cat || cat === 'license_document') {
-      flaggedDocuments = await db
-        .prepare(
-          `SELECT ld.id, ld.title, ld.expiry_date, ld.notes, ld.file_url, u.name AS user_name
-           FROM license_documents ld
-           LEFT JOIN users u ON u.id = ld.user_id
-           WHERE ld.create_renewal = 1 AND ld.expiry_date IS NOT NULL
-           ORDER BY ld.expiry_date ASC`
-        )
-        .all();
+    // up here. Filtered by the document's own category/employee, same as
+    // the renewals above, so these land under the right category tab
+    // instead of only ever appearing on "All".
+    const flaggedClauses = ['ld.create_renewal = 1', 'ld.expiry_date IS NOT NULL'];
+    const flaggedParams = [];
+    if (cat) {
+      flaggedClauses.push('ld.category = ?');
+      flaggedParams.push(cat);
     }
+    if (employee) {
+      flaggedClauses.push('ld.user_id = ?');
+      flaggedParams.push(employee);
+    }
+    const flaggedDocuments = await db
+      .prepare(
+        `SELECT ld.id, ld.title, ld.category, ld.expiry_date, ld.notes, ld.file_url, u.name AS user_name
+         FROM license_documents ld
+         LEFT JOIN users u ON u.id = ld.user_id
+         WHERE ${flaggedClauses.join(' AND ')}
+         ORDER BY ld.expiry_date ASC`
+      )
+      .all(...flaggedParams);
 
     const documentItems = flaggedDocuments.map((d) => ({
       id: null,
       document_id: d.id,
       title: d.title,
-      category: 'license_document',
+      category: d.category || 'other',
       expiry_date: d.expiry_date,
       user_name: d.user_name,
       asset_name: null,
@@ -140,6 +175,7 @@ router.get(
       tab,
       items: allItems,
       category: cat,
+      employee,
       CATEGORIES,
       users,
       assets,
@@ -250,8 +286,8 @@ router.post(
 
     await db
       .prepare(
-        `INSERT INTO license_documents (title, license_number, user_id, expiry_date, notes, file_url, file_name, create_renewal, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO license_documents (title, license_number, user_id, expiry_date, notes, file_url, file_name, category, create_renewal, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         b.title.trim(),
@@ -261,6 +297,7 @@ router.post(
         (b.notes || '').trim() || null,
         fileUrl,
         fileName,
+        (b.category || 'other').trim(),
         b.create_renewal ? 1 : 0,
         req.user.id
       );
@@ -313,7 +350,7 @@ router.post(
     await db
       .prepare(
         `UPDATE license_documents SET title = ?, license_number = ?, user_id = ?, expiry_date = ?, notes = ?,
-           file_url = ?, file_name = ?, create_renewal = ?, updated_at = datetime('now') WHERE id = ?`
+           file_url = ?, file_name = ?, category = ?, create_renewal = ?, updated_at = datetime('now') WHERE id = ?`
       )
       .run(
         (b.title || '').trim() || doc.title,
@@ -323,6 +360,7 @@ router.post(
         (b.notes || '').trim() || null,
         fileUrl,
         fileName,
+        (b.category || '').trim() || doc.category,
         b.create_renewal ? 1 : 0,
         doc.id
       );

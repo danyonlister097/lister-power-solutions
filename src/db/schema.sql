@@ -733,6 +733,20 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category TEXT;
 -- licence/document only has to be entered once instead of twice.
 ALTER TABLE license_documents ADD COLUMN IF NOT EXISTS create_renewal INTEGER NOT NULL DEFAULT 0;
 
+-- Which renewal_categories.key this document belongs to (Staff Licence,
+-- Training, Insurance, ...) - the same categories the Renewals tab filters
+-- by, so a document surfaced there via create_renewal above lands under the
+-- right category tab instead of only ever showing under "All". Plain text,
+-- not a foreign key, matching renewals.category - deleting a category
+-- leaves existing documents holding its old key rather than clearing it.
+ALTER TABLE license_documents ADD COLUMN IF NOT EXISTS category TEXT;
+
+-- One-time backfill for documents added before this column existed - never
+-- touches a document that already has a category (including one explicitly
+-- set to "Other"), so this is safe to leave running on every boot.
+UPDATE license_documents SET category = 'insurance' WHERE category IS NULL AND (title ILIKE '%insurance%' OR title ILIKE '%liability%');
+UPDATE license_documents SET category = 'licence' WHERE category IS NULL;
+
 -- "Invoiced" job status - sales invoicing now happens solely through MYOB,
 -- so there's no more in-app invoice record to auto-detect a job's been
 -- billed. This is a manually-set terminal status after Completed instead.
