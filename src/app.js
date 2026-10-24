@@ -17,6 +17,7 @@ const { brisbaneTodayIso, addDays } = require('./lib/timesheetCalc');
 const { sendPushToAdmins } = require('./lib/push');
 const { getUnreadSupplierEmails, getEmailAttachments, markAsRead } = require('./lib/graph');
 const { parseCnwDocument } = require('./lib/cnwParser');
+const { parseSherriffDocument } = require('./lib/sherriffParser');
 const { sendFollowUpEmail } = require('./lib/email');
 const chatRouter = require('./routes/chat');
 
@@ -122,16 +123,33 @@ app.get(
 
     const results = { processed: 0, skipped: 0, autoAdded: 0, markReadFailed: 0, errors: [] };
 
-    // Loaded once per run so the parser can split each PDF's mashed-together
-    // "productCode+description" text against real codes, and so the per-line
-    // stock update below doesn't need a query per line item.
-    const codeRows = await db.prepare(`SELECT id, supplier_code FROM inventory_items WHERE supplier_code IS NOT NULL`).all();
-    const knownCodes = codeRows.map((r) => r.supplier_code);
-    const codeToItemId = new Map(codeRows.map((r) => [r.supplier_code, r.id]));
+    // Each supplier's invoices/credit notes come from any address at their
+    // domain (see getUnreadSupplierEmails), get parsed by their own format-
+    // specific parser, and auto-match against their own product-code column
+    // - the two suppliers use unrelated code schemes for the same physical
+    // stock, so sharing one column would mean whichever supplier was
+    // matched most recently overwrites the other's code.
+    const SUPPLIERS = [
+      { key: 'CNW', domain: '@cnw.com.au', codeColumn: 'supplier_code', parse: parseCnwDocument },
+      { key: 'Sherriff', domain: '@sherriff.com.au', codeColumn: 'supplier_code_sherriff', parse: parseSherriffDocument },
+    ];
+
+    // Loaded once per run (one map per supplier) so each parser can split
+    // its PDF's mashed-together "productCode+description" text against real
+    // codes, and so the per-line stock update below doesn't need a query
+    // per line item.
+    const codeMapsBySupplier = new Map();
+    for (const s of SUPPLIERS) {
+      const rows = await db.prepare(`SELECT id, ${s.codeColumn} AS code FROM inventory_items WHERE ${s.codeColumn} IS NOT NULL`).all();
+      codeMapsBySupplier.set(s.key, {
+        knownCodes: rows.map((r) => r.code),
+        codeToItemId: new Map(rows.map((r) => [r.code, r.id])),
+      });
+    }
 
     let emails;
     try {
-      emails = await getUnreadSupplierEmails();
+      emails = await getUnreadSupplierEmails(SUPPLIERS.map((s) => s.domain));
     } catch (err) {
       logger.error('Invoice cron: failed to fetch emails', { error: err.message });
       return res.status(500).json({ ok: false, error: err.message });
@@ -154,6 +172,18 @@ app.get(
 
     for (const email of emails) {
       try {
+        const senderAddress = ((email.from && email.from.emailAddress && email.from.emailAddress.address) || '').toLowerCase();
+        const supplierConfig = SUPPLIERS.find((s) => senderAddress.endsWith(s.domain));
+        if (!supplierConfig) {
+          // Shouldn't happen - getUnreadSupplierEmails only ever returns
+          // mail from these same domains - but a future allowlist drift
+          // between the two lists shouldn't crash the whole run.
+          logger.warn('Invoice cron: email from unrecognised supplier domain (left unread)', { subject: email.subject, sender: senderAddress });
+          results.skipped++;
+          continue;
+        }
+        const { knownCodes, codeToItemId } = codeMapsBySupplier.get(supplierConfig.key);
+
         const attachments = await getEmailAttachments(email.id);
         const pdfAttachment = attachments.find(
           (a) => a.contentType === 'application/pdf' || (a.name || '').toLowerCase().endsWith('.pdf')
@@ -166,14 +196,15 @@ app.get(
         }
 
         const pdfBuffer = Buffer.from(pdfAttachment.contentBytes, 'base64');
-        const { type, invoiceNumber, lineItems } = await parseCnwDocument(pdfBuffer, knownCodes);
+        const { type, invoiceNumber, lineItems } = await supplierConfig.parse(pdfBuffer, knownCodes);
         const isCredit = type === 'credit';
-        const supplier = isCredit ? 'CNW-CREDIT' : 'CNW';
+        const supplier = isCredit ? `${supplierConfig.key}-CREDIT` : supplierConfig.key;
 
         if (!invoiceNumber) {
-          // Could be a quote, packing slip, or other document — leave unread
-          // so it stays visible and doesn't get silently swallowed.
-          logger.info('Invoice cron: skipping email - not an invoice or credit note (left unread)', { subject: email.subject });
+          // Could be a quote, packing slip, credit note we can't parse yet,
+          // or other document — leave unread so it stays visible and
+          // doesn't get silently swallowed.
+          logger.info('Invoice cron: skipping email - not a recognised invoice or credit note (left unread)', { subject: email.subject, supplier: supplierConfig.key });
           results.skipped++;
           continue;
         }
@@ -215,7 +246,7 @@ app.get(
             try {
               const insertResult = await db
                 .prepare(
-                  `INSERT INTO inventory_items (name, supplier_code, unit, quantity_on_hand, unit_cost, updated_at)
+                  `INSERT INTO inventory_items (name, ${supplierConfig.codeColumn}, unit, quantity_on_hand, unit_cost, updated_at)
                    VALUES (?, ?, ?, ?, ?, now_utc_text())
                    RETURNING id`
                 )
@@ -232,6 +263,7 @@ app.get(
               }
               autoAdded++;
               logger.info('Invoice cron: auto-added new inventory item', {
+                supplier: supplierConfig.key,
                 code: line.productCode,
                 description: line.description,
                 quantity: line.supplied,
@@ -240,13 +272,14 @@ app.get(
             } catch (insertErr) {
               unmatched++;
               logger.warn('Invoice cron: could not auto-add inventory item', {
+                supplier: supplierConfig.key,
                 code: line.productCode,
                 error: insertErr.message,
               });
             }
           } else {
             unmatched++;
-            logger.info('Invoice cron: credit note unmatched product code', { code: line.productCode });
+            logger.info('Invoice cron: credit note unmatched product code', { supplier: supplierConfig.key, code: line.productCode });
           }
         }
 
@@ -260,7 +293,7 @@ app.get(
         await tryMarkAsRead(email.id);
         results.processed++;
         results.autoAdded += autoAdded;
-        logger.info('Invoice cron: processed CNW document', { type, invoiceNumber, matched, autoAdded, unmatched });
+        logger.info('Invoice cron: processed document', { supplier: supplierConfig.key, type, invoiceNumber, matched, autoAdded, unmatched });
       } catch (err) {
         logger.error('Invoice cron: error processing email', { subject: email.subject, error: err.message });
         results.errors.push(err.message);

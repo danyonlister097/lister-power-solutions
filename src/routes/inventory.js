@@ -340,7 +340,7 @@ router.post(
 
     await db
       .prepare(
-        `UPDATE inventory_items SET name = ?, category = ?, unit = ?, reorder_threshold = ?, minimum_stock = ?, unit_cost = ?, unit_cost_inc_gst = ?, supplier_code = ?, updated_at = datetime('now')
+        `UPDATE inventory_items SET name = ?, category = ?, unit = ?, reorder_threshold = ?, minimum_stock = ?, unit_cost = ?, unit_cost_inc_gst = ?, supplier_code = ?, supplier_code_sherriff = ?, updated_at = datetime('now')
          WHERE id = ?`
       )
       .run(
@@ -352,6 +352,7 @@ router.post(
         req.body.unit_cost ? Number.parseFloat(req.body.unit_cost) : null,
         req.body.unit_cost_inc_gst ? Number.parseFloat(req.body.unit_cost_inc_gst) : null,
         (req.body.supplier_code || '').trim() || null,
+        (req.body.supplier_code_sherriff || '').trim() || null,
         item.id
       );
 
@@ -397,10 +398,10 @@ router.post(
     const newName = `${item.name} (copy)`;
     await db
       .prepare(
-        `INSERT INTO inventory_items (name, supplier_code, category, unit, quantity_on_hand, reorder_threshold, unit_cost, unit_cost_inc_gst)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO inventory_items (name, supplier_code, supplier_code_sherriff, category, unit, quantity_on_hand, reorder_threshold, unit_cost, unit_cost_inc_gst)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(newName, item.supplier_code, item.category, item.unit, 0, item.reorder_threshold, item.unit_cost, item.unit_cost_inc_gst);
+      .run(newName, item.supplier_code, item.supplier_code_sherriff, item.category, item.unit, 0, item.reorder_threshold, item.unit_cost, item.unit_cost_inc_gst);
 
     setFlash(req, 'success', `"${newName}" created — edit it to update the details.`);
     res.redirect('/inventory');

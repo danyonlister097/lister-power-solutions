@@ -38,22 +38,25 @@ async function graphPatch(path, body) {
   });
 }
 
-// Any address at cnw.com.au can send an invoice or credit note - branch
-// mailboxes (ipswich@, enoggera@, ...) and individual sales reps
-// (brodie@cnw.com.au etc.) alike. That match happens here in JS rather than
-// in the Graph $filter: endswith()/contains() on from/emailAddress/address
-// is widely reported as unsupported by the /messages filter (it only
-// reliably supports eq on that property), so a domain-suffix match can't be
-// expressed server-side. Pages through every unread message with an
-// attachment (not just the first page) so a busy shared mailbox can't bury
-// a CNW email before it's ever checked - the content parser
-// (parseCnwDocument) is still what actually decides whether a given PDF is
-// an invoice/credit note, so widening this match doesn't risk misreading
-// some other sender's PDF as one.
-const CNW_DOMAIN = '@cnw.com.au';
-
-async function getUnreadSupplierEmails() {
+// Any address at a known supplier domain can send an invoice or credit note
+// - branch mailboxes (ipswich@cnw.com.au, plainland@sherriff.com.au, ...)
+// and individual sales reps (brodie@cnw.com.au, dvanvegchel@sherriff.com.au,
+// ...) alike. `domains` is owned by the caller (see SUPPLIERS in app.js) -
+// this function doesn't know or care which supplier a domain belongs to,
+// only which domains are worth fetching mail from at all.
+//
+// The domain match happens here in JS rather than in the Graph $filter:
+// endswith()/contains() on from/emailAddress/address is widely reported as
+// unsupported by the /messages filter (it only reliably supports eq on that
+// property), so a domain-suffix match can't be expressed server-side. Pages
+// through every unread message with an attachment (not just the first page)
+// so a busy shared mailbox can't bury a supplier email before it's ever
+// checked - each supplier's own content parser is still what actually
+// decides whether a given PDF is an invoice/credit note, so widening this
+// match doesn't risk misreading some other sender's PDF as one.
+async function getUnreadSupplierEmails(domains) {
   const mailbox = config.graph.mailbox;
+  const lowerDomains = domains.map((d) => d.toLowerCase());
   const filter = encodeURIComponent('isRead eq false and hasAttachments eq true');
   let path = `/users/${mailbox}/messages?$filter=${filter}&$select=id,subject,from,receivedDateTime&$top=999`;
   const matches = [];
@@ -61,7 +64,7 @@ async function getUnreadSupplierEmails() {
     const data = await graphGet(path);
     for (const m of data.value || []) {
       const address = ((m.from && m.from.emailAddress && m.from.emailAddress.address) || '').toLowerCase();
-      if (address.endsWith(CNW_DOMAIN)) matches.push(m);
+      if (lowerDomains.some((d) => address.endsWith(d))) matches.push(m);
     }
     // @odata.nextLink is a full URL; graphGet only takes a path.
     const next = data['@odata.nextLink'];

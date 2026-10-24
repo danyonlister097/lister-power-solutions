@@ -378,6 +378,21 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS idx_inventory_items_supplier_code ON inventory_items(supplier_code);
 
+-- Same idea, but for Sherriff Electrical's own product codes - a separate
+-- column rather than reusing supplier_code because the two suppliers use
+-- unrelated code schemes for the same physical stock item (e.g. the same
+-- cable could be "CBL1.5TEF" at CNW and a different code at Sherriff);
+-- sharing one column would mean whichever supplier was matched most
+-- recently overwrites the other's code, breaking future auto-match for it.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'inventory_items' AND column_name = 'supplier_code_sherriff') THEN
+    ALTER TABLE inventory_items ADD COLUMN supplier_code_sherriff TEXT;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_inventory_items_supplier_code_sherriff ON inventory_items(supplier_code_sherriff);
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'inventory_items' AND column_name = 'minimum_stock') THEN

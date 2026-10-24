@@ -95,10 +95,16 @@
           <input type="number" name="unit_cost_inc_gst" id="edit-item-unit-cost-inc" value="<%= item.unit_cost_inc_gst !== null ? item.unit_cost_inc_gst : '' %>" step="0.01">
         </label>
       </div>
-      <label>
-        Item #
-        <input type="text" name="supplier_code" value="<%= item.supplier_code || '' %>" maxlength="80" placeholder="e.g. CLI9020TCM20GY">
-      </label>
+      <div class="form-row form-row-2">
+        <label>
+          Item # (CNW)
+          <input type="text" name="supplier_code" value="<%= item.supplier_code || '' %>" maxlength="80" placeholder="e.g. CLI9020TCM20GY">
+        </label>
+        <label>
+          Item # (Sherriff)
+          <input type="text" name="supplier_code_sherriff" value="<%= item.supplier_code_sherriff || '' %>" maxlength="80" placeholder="e.g. CLI900/25/25WE">
+        </label>
+      </div>
       <div class="actions">
         <button type="submit" class="btn btn-secondary">Save changes</button>
       </div>
