@@ -404,8 +404,10 @@ async function checkCompletionRequirements(jobId) {
   const flags = await db.prepare('SELECT photos_na, stock_na, actual_start, actual_end FROM jobs WHERE id = ?').get(jobId);
   const missing = [];
   if (!flags?.photos_na) {
-    const photoCount = Number((await db.prepare('SELECT COUNT(*) AS n FROM job_attachments WHERE job_id = ?').get(jobId)).n);
-    if (photoCount === 0) missing.push('at least one photo must be added (or mark Photos as N/A)');
+    // Only completion photos count toward this - before-job photos are
+    // always optional and never satisfy the requirement on their own.
+    const photoCount = Number((await db.prepare("SELECT COUNT(*) AS n FROM job_attachments WHERE job_id = ? AND category = 'completion'").get(jobId)).n);
+    if (photoCount === 0) missing.push('at least one completion photo must be added (or mark Photos as N/A)');
   }
   if (!flags?.stock_na) {
     const stockCount = Number((await db.prepare('SELECT COUNT(*) AS n FROM job_stock_allocations WHERE job_id = ?').get(jobId)).n);
@@ -1550,7 +1552,9 @@ router.get(
   asyncHandler(async (req, res) => {
     const job = await getJobOr404(req, res);
     if (!job) return;
-    const attachments = await db.prepare('SELECT * FROM job_attachments WHERE job_id = ? ORDER BY created_at DESC').all(job.id);
+    const jobAttachments = await db.prepare('SELECT * FROM job_attachments WHERE job_id = ? ORDER BY created_at DESC').all(job.id);
+    const beforePhotos = jobAttachments.filter((a) => a.category === 'before');
+    const completionPhotos = jobAttachments.filter((a) => a.category !== 'before');
     const jobForms = await db.prepare('SELECT * FROM job_forms WHERE job_id = ? ORDER BY created_at DESC').all(job.id);
     const techNotes = await db
       .prepare(
@@ -1618,7 +1622,8 @@ router.get(
       title: job.title,
       job,
       STATUSES,
-      attachments,
+      beforePhotos,
+      completionPhotos,
       jobForms,
       costing,
       inventoryItems,
@@ -2245,17 +2250,19 @@ router.post(
   uploadPhotos,
   verifyCsrf,
   asyncHandler(async (req, res) => {
+    const category = req.body.category === 'before' ? 'before' : 'completion';
     const files = req.files || [];
     const insert = db.prepare(
-      `INSERT INTO job_attachments (job_id, filename, original_name, mime_type, size_bytes, uploaded_by)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO job_attachments (job_id, filename, original_name, mime_type, size_bytes, uploaded_by, category)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     );
     for (const f of files) {
       const url = await putFile(f);
-      await insert.run(req.job.id, url, f.originalname, f.mimetype, f.size, req.user.id);
+      await insert.run(req.job.id, url, f.originalname, f.mimetype, f.size, req.user.id, category);
     }
 
-    setFlash(req, 'success', files.length ? `${files.length} photo${files.length > 1 ? 's' : ''} uploaded.` : 'No photos selected.');
+    const label = category === 'before' ? 'Before' : 'Completion';
+    setFlash(req, 'success', files.length ? `${files.length} ${label.toLowerCase()} photo${files.length > 1 ? 's' : ''} uploaded.` : 'No photos selected.');
     res.redirect(withReturnTo(`/jobs/${req.job.id}`, safeReturnTo(req.body.returnTo)));
   })
 );

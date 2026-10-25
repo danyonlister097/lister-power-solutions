@@ -141,6 +141,14 @@ CREATE TABLE IF NOT EXISTS job_attachments (
 
 CREATE INDEX IF NOT EXISTS idx_job_attachments_job_id ON job_attachments(job_id);
 
+-- Which stage of the job these photos are from. "completion" is today's
+-- existing mandatory Photos requirement, unchanged - every photo already on
+-- file defaults to it, and checkCompletionRequirements in routes/jobs.js
+-- only ever counts this category. "before" is new: optional photos received
+-- from the client/property manager (or taken on arrival) documenting the
+-- property before work starts - never required, never counted.
+ALTER TABLE job_attachments ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'completion' CHECK (category IN ('before', 'completion'));
+
 -- No "sessions" table here - connect-pg-simple owns and creates its own
 -- session table (see src/app.js).
 
