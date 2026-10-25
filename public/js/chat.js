@@ -117,6 +117,15 @@
         div.appendChild(att);
       }
 
+      var reactionBtn = document.createElement('button');
+      reactionBtn.type = 'button';
+      reactionBtn.className = 'chat-message-reaction' + (m.reactedByMe ? ' chat-message-reaction-active' : '');
+      reactionBtn.setAttribute('data-message-id', m.id);
+      reactionBtn.title = (m.reactionNames || []).join(', ');
+      reactionBtn.hidden = !m.reactionCount;
+      reactionBtn.innerHTML = '👍 <span class="chat-message-reaction-count">' + (m.reactionCount || 0) + '</span>';
+      div.appendChild(reactionBtn);
+
       messagesEl.appendChild(div);
       lastId = Math.max(lastId, m.id);
     }
@@ -209,6 +218,94 @@
         .then(function (data) { applyPinState(messageId, data.pinned, data.message); })
         .catch(function () { alert('Could not update that pin. Please try again.'); });
     }
+
+    // --- Thumbs-up reaction: tap-and-hold a message, or tap the badge once
+    // it's showing, to toggle your own 👍 on it. ---
+
+    function applyReactionState(messageId, data) {
+      var btn = document.querySelector('.chat-message-reaction[data-message-id="' + messageId + '"]');
+      if (!btn) return;
+      btn.hidden = !data.count;
+      btn.classList.toggle('chat-message-reaction-active', data.reactedByMe);
+      btn.title = (data.userNames || []).join(', ');
+      btn.querySelector('.chat-message-reaction-count').textContent = data.count;
+    }
+
+    function toggleReaction(messageId) {
+      fetch('/chat/messages/' + messageId + '/react', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '_csrf=' + encodeURIComponent(csrf),
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error('React failed');
+          return res.json();
+        })
+        .then(function (data) { applyReactionState(messageId, data); })
+        .catch(function () { /* silent - a failed tap-and-hold isn't worth an alert() interrupting the chat */ });
+    }
+
+    // Pointer Events cover touch (tap-and-hold) and mouse (click-and-hold)
+    // with the same code. Starts the timer only when the press begins on
+    // the message bubble itself, not on one of its buttons/links (reply,
+    // pin, delete, quote, attachment) - those keep working as plain taps.
+    // Cancelled by releasing early, or by moving far enough that it reads
+    // as a scroll/drag rather than a hold in place.
+    var LONG_PRESS_MS = 500;
+    var LONG_PRESS_MOVE_TOLERANCE = 10;
+    var longPressTimer = null;
+    var longPressEl = null;
+    var longPressStartX = 0;
+    var longPressStartY = 0;
+    var longPressJustFired = false;
+
+    function cancelLongPress() {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      if (longPressEl) { longPressEl.classList.remove('chat-message-pressing'); longPressEl = null; }
+    }
+
+    messagesEl.addEventListener('pointerdown', function (e) {
+      if (e.target.closest('button, a')) return;
+      var messageEl = e.target.closest('.chat-message');
+      if (!messageEl) return;
+      cancelLongPress();
+      longPressEl = messageEl;
+      longPressStartX = e.clientX;
+      longPressStartY = e.clientY;
+      longPressEl.classList.add('chat-message-pressing');
+      longPressTimer = setTimeout(function () {
+        longPressTimer = null;
+        if (longPressEl) longPressEl.classList.remove('chat-message-pressing');
+        longPressJustFired = true;
+        // On touch, the OS's own contextmenu follows shortly after and the
+        // handler below clears this flag. A mouse click-and-hold never
+        // fires one at all - this bounds the window either way, so an
+        // unrelated later right-click is never wrongly swallowed.
+        setTimeout(function () { longPressJustFired = false; }, 800);
+        if (navigator.vibrate) navigator.vibrate(15);
+        toggleReaction(messageEl.getAttribute('data-message-id'));
+      }, LONG_PRESS_MS);
+    });
+
+    messagesEl.addEventListener('pointermove', function (e) {
+      if (!longPressTimer || !longPressEl) return;
+      if (Math.abs(e.clientX - longPressStartX) > LONG_PRESS_MOVE_TOLERANCE || Math.abs(e.clientY - longPressStartY) > LONG_PRESS_MOVE_TOLERANCE) {
+        cancelLongPress();
+      }
+    });
+
+    messagesEl.addEventListener('pointerup', cancelLongPress);
+    messagesEl.addEventListener('pointercancel', cancelLongPress);
+
+    // The long-press firing on touch devices also pops up the OS's own
+    // text-selection/copy context menu right after - suppress just that one,
+    // not a normal right-click/long-press anywhere else in the message.
+    messagesEl.addEventListener('contextmenu', function (e) {
+      if (longPressJustFired) {
+        e.preventDefault();
+        longPressJustFired = false;
+      }
+    });
 
     // The highlight ring stays on a message (animation-fill-mode: forwards)
     // rather than fading out on its own, so it's still there whenever the
@@ -363,7 +460,13 @@
       var replyBtn = e.target.closest('.chat-message-reply');
       if (replyBtn) {
         showReplyBanner(replyBtn.getAttribute('data-message-id'), replyBtn.getAttribute('data-user-name'), replyBtn.getAttribute('data-preview'));
+        return;
       }
+      // Once a 👍 badge is showing (someone's already reacted), tapping it
+      // is the quick way to add/remove your own - no need to hold the
+      // whole message down again.
+      var reactionBtn = e.target.closest('.chat-message-reaction');
+      if (reactionBtn) { toggleReaction(reactionBtn.getAttribute('data-message-id')); }
     });
 
     if (isAdmin) {

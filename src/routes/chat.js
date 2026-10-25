@@ -15,7 +15,11 @@ const INITIAL_LIMIT = 100;
 // calendar day a message is shown under rather than its UTC day.
 const MESSAGE_DAY_SQL = `((chat_messages.created_at)::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Australia/Brisbane')::date`;
 
-function serialize(row) {
+// `reaction` is the { count, reactedByMe, userNames } entry for this row
+// from loadReactionsForMessages, if the caller loaded one - omitted (or for
+// a message that just got sent, which can't have any reactions yet) it's
+// plain zero/false, matching a message nobody's reacted to yet.
+function serialize(row, reaction) {
   return {
     id: row.id,
     body: row.body,
@@ -31,7 +35,39 @@ function serialize(row) {
     replyTo: row.reply_to_id
       ? { id: row.reply_to_id, userName: row.reply_user_name, body: row.reply_body, attachmentName: row.reply_attachment_name }
       : null,
+    reactionCount: reaction ? reaction.count : 0,
+    reactedByMe: reaction ? reaction.reactedByMe : false,
+    reactionNames: reaction ? reaction.userNames : [],
   };
+}
+
+// Thumbs-up only for now (see chat_message_reactions in schema.sql).
+const THUMBS_UP = '👍';
+
+// One query for a whole batch of messages (a channel's initial load, or a
+// page of polled messages) rather than one per message - returns a Map
+// keyed by message_id, only containing entries for messages that have at
+// least one reaction (a message with none just isn't in the map).
+async function loadReactionsForMessages(messageIds, viewerId) {
+  const map = new Map();
+  if (!messageIds.length) return map;
+  const placeholders = messageIds.map(() => '?').join(',');
+  const rows = await db
+    .prepare(
+      `SELECT chat_message_reactions.message_id, chat_message_reactions.user_id, users.name AS user_name
+       FROM chat_message_reactions JOIN users ON users.id = chat_message_reactions.user_id
+       WHERE chat_message_reactions.message_id IN (${placeholders}) AND chat_message_reactions.emoji = ?
+       ORDER BY chat_message_reactions.created_at ASC`
+    )
+    .all(...messageIds, THUMBS_UP);
+  for (const r of rows) {
+    if (!map.has(r.message_id)) map.set(r.message_id, { count: 0, reactedByMe: false, userNames: [] });
+    const entry = map.get(r.message_id);
+    entry.count++;
+    entry.userNames.push(r.user_name);
+    if (String(r.user_id) === String(viewerId)) entry.reactedByMe = true;
+  }
+  return map;
 }
 
 // Shared fragment joining back to the message being replied to (and its
@@ -316,6 +352,14 @@ router.get(
 
     await markRead(req.user.id, channel.id);
 
+    const reactionsMap = await loadReactionsForMessages(messages.map((m) => m.id), req.user.id);
+    for (const m of messages) {
+      const r = reactionsMap.get(m.id) || { count: 0, reactedByMe: false, userNames: [] };
+      m.reaction_count = r.count;
+      m.reacted_by_me = r.reactedByMe;
+      m.reaction_names = r.userNames;
+    }
+
     const pinnedMessages = await db
       .prepare(
         `SELECT chat_messages.*, users.name AS user_name
@@ -356,7 +400,47 @@ router.get(
 
     if (messages.length) await markRead(req.user.id, channel.id);
 
-    res.json({ messages: messages.map(serialize) });
+    const reactionsMap = await loadReactionsForMessages(messages.map((m) => m.id), req.user.id);
+    res.json({ messages: messages.map((m) => serialize(m, reactionsMap.get(m.id))) });
+  })
+);
+
+// Toggle (not add/remove separately - a long-press or a tap on the badge
+// both just flip the current user's thumbs-up on this message) - open to
+// any active user, not just admins, same visibility rule as reading the
+// channel itself.
+router.post(
+  '/messages/:id/react',
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const message = await db
+      .prepare(
+        `SELECT chat_messages.id, chat_channels.admin_only
+         FROM chat_messages JOIN chat_channels ON chat_channels.id = chat_messages.channel_id
+         WHERE chat_messages.id = ?`
+      )
+      .get(req.params.id);
+    if (!message) return res.status(404).json({ error: 'Message not found.' });
+    if (message.admin_only && req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden.' });
+
+    const existing = await db
+      .prepare('SELECT id FROM chat_message_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?')
+      .get(message.id, req.user.id, THUMBS_UP);
+    if (existing) {
+      await db.prepare('DELETE FROM chat_message_reactions WHERE id = ?').run(existing.id);
+    } else {
+      try {
+        await db.prepare('INSERT INTO chat_message_reactions (message_id, user_id, emoji) VALUES (?, ?, ?)').run(message.id, req.user.id, THUMBS_UP);
+      } catch (err) {
+        // Two taps racing each other (e.g. a double-fire on a flaky touch
+        // event) - already reacted, nothing more to do.
+        if (err.code !== '23505') throw err;
+      }
+    }
+
+    const reactionsMap = await loadReactionsForMessages([message.id], req.user.id);
+    const r = reactionsMap.get(message.id) || { count: 0, reactedByMe: false, userNames: [] };
+    res.json({ ok: true, count: r.count, reactedByMe: r.reactedByMe, userNames: r.userNames });
   })
 );
 

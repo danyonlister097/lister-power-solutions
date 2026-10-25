@@ -967,3 +967,19 @@ CREATE TABLE IF NOT EXISTS job_categories (
   created_at TEXT NOT NULL DEFAULT now_utc_text()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_job_categories_name ON job_categories (lower(name));
+
+-- Tap-and-hold a chat message to react to it (currently only a thumbs-up,
+-- but `emoji` isn't hardcoded so more could be added later without a
+-- migration). One row per user per emoji per message - the UNIQUE lets the
+-- toggle route insert-or-ignore instead of needing a SELECT-then-branch
+-- race condition check. ON DELETE CASCADE so deleting a message takes its
+-- reactions with it instead of leaving orphaned rows.
+CREATE TABLE IF NOT EXISTS chat_message_reactions (
+  id SERIAL PRIMARY KEY,
+  message_id INTEGER NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  emoji TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT now_utc_text(),
+  UNIQUE (message_id, user_id, emoji)
+);
+CREATE INDEX IF NOT EXISTS idx_chat_message_reactions_message_id ON chat_message_reactions(message_id);

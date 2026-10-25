@@ -104,6 +104,10 @@
                 <% } %>
               </div>
             <% } %>
+            <button type="button" class="chat-message-reaction <%= m.reacted_by_me ? 'chat-message-reaction-active' : '' %>"
+              data-message-id="<%= m.id %>" title="<%= (m.reaction_names || []).join(', ') %>" <%= m.reaction_count ? '' : 'hidden' %>>
+              👍 <span class="chat-message-reaction-count"><%= m.reaction_count || 0 %></span>
+            </button>
           </div>
         <% }) %>
       </div>
