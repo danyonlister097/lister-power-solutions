@@ -251,8 +251,12 @@
     });
 
     // Keep the finish time in sync with start + expected duration whenever
-    // duration changes, shrinking or extending it as needed - the schedule
-    // should always reflect how long the job is actually expected to take.
+    // either one changes, shrinking or extending it as needed - the
+    // schedule should always reflect how long the job is actually expected
+    // to take. Moving the start time is the common case when editing an
+    // already-scheduled job (e.g. pushing an 8:15am job back to 9:30am) -
+    // with a duration already set, the finish time needs to move with it,
+    // not stay stuck at the old finish time.
     var durationSelect = document.getElementById('job-duration');
     function timeToMinutes(t) {
       if (!t) return null;
@@ -265,13 +269,15 @@
       var m = mins % 60;
       return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
     }
-    durationSelect.addEventListener('change', function () {
+    function syncEndTimeFromDuration() {
       var durationMin = Number(durationSelect.value);
       if (!durationMin) return;
       var startMin = timeToMinutes(startTime.value);
       if (startMin === null) return;
       endTime.value = minutesToTime(startMin + durationMin);
-    });
+    }
+    durationSelect.addEventListener('change', syncEndTimeFromDuration);
+    startTime.addEventListener('change', syncEndTimeFromDuration);
 
     // Unscheduled: hides/disables the date+time fields so they submit empty
     // (the server already treats a blank date as unscheduled) instead of
