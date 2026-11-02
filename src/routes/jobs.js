@@ -401,15 +401,20 @@ async function findDuplicateJobIds() {
 }
 
 async function checkCompletionRequirements(jobId) {
-  const flags = await db.prepare('SELECT photos_na, stock_na, actual_start, actual_end FROM jobs WHERE id = ?').get(jobId);
+  const flags = await db.prepare('SELECT category, photos_na, stock_na, actual_start, actual_end FROM jobs WHERE id = ?').get(jobId);
   const missing = [];
-  if (!flags?.photos_na) {
+  // A "Quote" job is a site visit to work up a quote, not completed work -
+  // it never requires stock use or completion photos regardless of the N/A
+  // toggles (it has its own, always-optional "Photos for quotation" section
+  // instead - see category = 'quote' on job_attachments).
+  const isQuoteJob = flags?.category === 'Quote';
+  if (!isQuoteJob && !flags?.photos_na) {
     // Only completion photos count toward this - before-job photos are
     // always optional and never satisfy the requirement on their own.
     const photoCount = Number((await db.prepare("SELECT COUNT(*) AS n FROM job_attachments WHERE job_id = ? AND category = 'completion'").get(jobId)).n);
     if (photoCount === 0) missing.push('at least one completion photo must be added (or mark Photos as N/A)');
   }
-  if (!flags?.stock_na) {
+  if (!isQuoteJob && !flags?.stock_na) {
     const stockCount = Number((await db.prepare('SELECT COUNT(*) AS n FROM job_stock_allocations WHERE job_id = ?').get(jobId)).n);
     if (stockCount === 0) missing.push('stock used must be populated (or mark Stock as N/A)');
   }
@@ -1554,7 +1559,8 @@ router.get(
     if (!job) return;
     const jobAttachments = await db.prepare('SELECT * FROM job_attachments WHERE job_id = ? ORDER BY created_at DESC').all(job.id);
     const beforePhotos = jobAttachments.filter((a) => a.category === 'before');
-    const completionPhotos = jobAttachments.filter((a) => a.category !== 'before');
+    const completionPhotos = jobAttachments.filter((a) => a.category === 'completion');
+    const quotePhotos = jobAttachments.filter((a) => a.category === 'quote');
     const jobForms = await db.prepare('SELECT * FROM job_forms WHERE job_id = ? ORDER BY created_at DESC').all(job.id);
     const techNotes = await db
       .prepare(
@@ -1624,6 +1630,7 @@ router.get(
       STATUSES,
       beforePhotos,
       completionPhotos,
+      quotePhotos,
       jobForms,
       costing,
       inventoryItems,
@@ -2250,7 +2257,7 @@ router.post(
   uploadPhotos,
   verifyCsrf,
   asyncHandler(async (req, res) => {
-    const category = req.body.category === 'before' ? 'before' : 'completion';
+    const category = ['before', 'quote'].includes(req.body.category) ? req.body.category : 'completion';
     const files = req.files || [];
     const insert = db.prepare(
       `INSERT INTO job_attachments (job_id, filename, original_name, mime_type, size_bytes, uploaded_by, category)
@@ -2261,7 +2268,7 @@ router.post(
       await insert.run(req.job.id, url, f.originalname, f.mimetype, f.size, req.user.id, category);
     }
 
-    const label = category === 'before' ? 'Before' : 'Completion';
+    const label = category === 'before' ? 'Before' : category === 'quote' ? 'Quote' : 'Completion';
     setFlash(req, 'success', files.length ? `${files.length} ${label.toLowerCase()} photo${files.length > 1 ? 's' : ''} uploaded.` : 'No photos selected.');
     res.redirect(withReturnTo(`/jobs/${req.job.id}`, safeReturnTo(req.body.returnTo)));
   })

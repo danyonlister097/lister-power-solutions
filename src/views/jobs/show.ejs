@@ -205,6 +205,42 @@
   </script>
 </div>
 
+<% if (job.category === 'Quote') { %>
+<div class="card">
+  <h2>Photos for quotation</h2>
+  <p class="text-muted" style="font-size:0.85rem;margin:0 0 0.75rem;">Photos to support this quote. Optional - a Quote job doesn't need stock or completion photos to be marked as completed.</p>
+  <% if (quotePhotos.length === 0) { %>
+    <div class="empty-state">No photos yet.</div>
+  <% } else { %>
+    <div class="attachment-grid">
+      <% quotePhotos.forEach(a => { %>
+        <div class="attachment-item">
+          <a href="/jobs/<%= job.id %>/attachments/<%= a.id %>" target="_blank" rel="noopener">
+            <img src="/jobs/<%= job.id %>/attachments/<%= a.id %>" alt="<%= a.original_name %>">
+          </a>
+          <form method="post" action="/jobs/<%= job.id %>/attachments/<%= a.id %>/delete"
+                data-confirm="Remove this photo?" data-preserve-scroll>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="returnTo" value="<%= closeUrl %>">
+            <button type="submit" class="attachment-delete" aria-label="Remove photo">&times;</button>
+          </form>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <form method="post" action="/jobs/<%= job.id %>/attachments" enctype="multipart/form-data" class="attachment-upload-form job-photo-upload-form" data-preserve-scroll>
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="returnTo" value="<%= closeUrl %>">
+    <input type="hidden" name="category" value="quote">
+    <label>
+      Add photos for quotation
+      <input type="file" name="photos" accept="image/*" multiple>
+    </label>
+    <button type="submit" class="btn btn-primary btn-sm">Upload</button>
+  </form>
+</div>
+<% } else { %>
 <div class="card">
   <h2>Before job photos <span style="font-weight:400;">(optional)</span></h2>
   <p class="text-muted" style="font-size:0.85rem;margin:0 0 0.75rem;">Any photos of the property from before work starts - received from the client/property manager, or taken on arrival.</p>
@@ -285,6 +321,7 @@
     </label>
   </form>
 </div>
+<% } %>
 <script>
   (function () {
     // Vercel's serverless functions reject any request body over ~4.5MB
@@ -430,6 +467,7 @@
   <% } %>
 </div>
 
+<% if (job.category !== 'Quote') { %>
 <div class="card">
   <h2>Stock used</h2>
   <% if (stockAllocations.length === 0) { %>
@@ -581,6 +619,7 @@
     </script>
   <% } %>
 </div>
+<% } %>
 
 <% if (currentUser.role === 'admin') { %>
   <div class="card">

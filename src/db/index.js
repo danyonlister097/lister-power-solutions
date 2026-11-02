@@ -235,6 +235,13 @@ async function ensureSeedData() {
     }
   }
 
+  // "Quote" added later, after the table above was already seeded on
+  // existing installs - a standalone insert rather than folded into the
+  // empty-table block above, so it still lands on a database that already
+  // has categories. ON CONFLICT DO NOTHING makes it safe to leave running on
+  // every boot, including the very first one.
+  await pool.query("INSERT INTO job_categories (name, sort_order) VALUES ('Quote', 60) ON CONFLICT DO NOTHING");
+
   // Per-employee page permissions are new - any trade/apprentice that
   // predates this feature has zero rows in user_permissions yet, which
   // requirePermission() would otherwise read as "no access to anything".
