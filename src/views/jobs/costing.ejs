@@ -15,6 +15,7 @@
           <th>Customer</th>
           <th>Quoted (ex GST)</th>
           <th>Quoted (inc GST)</th>
+          <th>Quoted Cash</th>
           <th>Cost</th>
           <th>Profit</th>
           <th>Margin</th>
@@ -22,17 +23,19 @@
       </thead>
       <tbody>
         <% rows.forEach(r => { %>
+          <% var revenue = (r.quoted_amount || 0) + (r.cash_quoted_amount || 0); %>
           <tr>
             <td><a href="/jobs/<%= r.id %>"><%= r.title %></a></td>
             <td><%= r.customer_name %></td>
             <td><%= formatMoney(r.quoted_amount) %></td>
             <td><%= formatMoney(r.quoted_amount !== null ? r.quoted_amount * 1.1 : null) %></td>
+            <td><%= formatMoney(r.cash_quoted_amount) %></td>
             <td><%= formatMoney(r.total_cost) %></td>
             <td class="<%= r.profit !== null && r.profit < 0 ? 'timesheet-overtime' : '' %>">
               <%= formatMoney(r.profit) %>
             </td>
             <td>
-              <%= r.profit !== null && r.quoted_amount ? Math.round((r.profit / r.quoted_amount) * 100) + '%' : '—' %>
+              <%= r.profit !== null && revenue ? Math.round((r.profit / revenue) * 100) + '%' : '—' %>
             </td>
           </tr>
         <% }) %>

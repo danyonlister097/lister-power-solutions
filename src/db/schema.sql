@@ -999,4 +999,10 @@ CREATE TABLE IF NOT EXISTS chat_message_reactions (
   created_at TEXT NOT NULL DEFAULT now_utc_text(),
   UNIQUE (message_id, user_id, emoji)
 );
+
+-- A flat cash price for the job - no GST added on top, unlike quoted_amount
+-- which is ex GST and gets *1.1 added in the view. Separate column rather
+-- than reusing quoted_amount so a job can have either (or, oddly, both)
+-- without one overwriting the other.
+ALTER TABLE job_costs ADD COLUMN IF NOT EXISTS cash_quoted_amount REAL;
 CREATE INDEX IF NOT EXISTS idx_chat_message_reactions_message_id ON chat_message_reactions(message_id);

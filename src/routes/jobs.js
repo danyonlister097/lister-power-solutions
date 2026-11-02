@@ -1535,7 +1535,7 @@ router.get(
       await db
         .prepare(
           `SELECT jobs.id, jobs.title, jobs.status, customers.name AS customer_name,
-             job_costs.quoted_amount,
+             job_costs.quoted_amount, job_costs.cash_quoted_amount,
              COALESCE((SELECT SUM(quantity * unit_cost) FROM job_cost_items WHERE job_cost_items.job_id = jobs.id), 0) AS total_cost
            FROM jobs
            JOIN customers ON customers.id = jobs.customer_id
@@ -1545,7 +1545,10 @@ router.get(
         .all()
     ).map((r) => ({
       ...r,
-      profit: r.quoted_amount !== null ? r.quoted_amount - r.total_cost : null,
+      profit:
+        r.quoted_amount !== null || r.cash_quoted_amount !== null
+          ? (r.quoted_amount || 0) + (r.cash_quoted_amount || 0) - r.total_cost
+          : null,
     }));
 
     res.render('jobs/costing', { title: 'Job Costing', rows });
@@ -1576,6 +1579,7 @@ router.get(
       const costItems = await db.prepare('SELECT * FROM job_cost_items WHERE job_id = ? ORDER BY created_at ASC, id ASC').all(job.id);
       const totalCost = costItems.reduce((sum, i) => sum + i.quantity * i.unit_cost, 0);
       const quotedAmount = jobCosts ? jobCosts.quoted_amount : null;
+      const cashQuotedAmount = jobCosts ? jobCosts.cash_quoted_amount : null;
       // Lets the Add cost item form fill in Unit cost straight from an
       // employee's true labour cost - pay rate plus a 30% on-cost loading
       // for leave, super, etc. - instead of having to calculate it by hand.
@@ -1590,9 +1594,13 @@ router.get(
       const quoteFiles = await db.prepare('SELECT * FROM job_quote_files WHERE job_id = ? ORDER BY created_at DESC').all(job.id);
       costing = {
         quotedAmount,
+        cashQuotedAmount,
         costItems,
         totalCost,
-        profit: quotedAmount !== null ? quotedAmount - totalCost : null,
+        profit:
+          quotedAmount !== null || cashQuotedAmount !== null
+            ? (quotedAmount || 0) + (cashQuotedAmount || 0) - totalCost
+            : null,
         categories: COST_CATEGORIES,
         employees,
         quoteFiles,
@@ -1666,13 +1674,18 @@ router.post(
     if (!job) return res.status(404).render('error', { message: 'Job not found.' });
 
     const quotedAmount = req.body.quoted_amount === '' ? null : Number.parseFloat(req.body.quoted_amount);
+    const cashQuotedAmount = req.body.cash_quoted_amount === '' ? null : Number.parseFloat(req.body.cash_quoted_amount);
 
     await db
       .prepare(
-        `INSERT INTO job_costs (job_id, quoted_amount, updated_at) VALUES (?, ?, datetime('now'))
-         ON CONFLICT(job_id) DO UPDATE SET quoted_amount = excluded.quoted_amount, updated_at = excluded.updated_at`
+        `INSERT INTO job_costs (job_id, quoted_amount, cash_quoted_amount, updated_at) VALUES (?, ?, ?, datetime('now'))
+         ON CONFLICT(job_id) DO UPDATE SET quoted_amount = excluded.quoted_amount, cash_quoted_amount = excluded.cash_quoted_amount, updated_at = excluded.updated_at`
       )
-      .run(job.id, Number.isFinite(quotedAmount) ? quotedAmount : null);
+      .run(
+        job.id,
+        Number.isFinite(quotedAmount) ? quotedAmount : null,
+        Number.isFinite(cashQuotedAmount) ? cashQuotedAmount : null
+      );
 
     setFlash(req, 'success', 'Quoted amount updated.');
     res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));

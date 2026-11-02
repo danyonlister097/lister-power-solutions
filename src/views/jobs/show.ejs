@@ -633,6 +633,10 @@
         <span class="leave-stat-value"><%= formatMoney(costing.quotedAmount !== null ? costing.quotedAmount * 1.1 : null) %></span>
         <span class="leave-stat-label">Quoted (inc GST)</span>
       </div>
+      <div class="leave-stat leave-stat-invoiced">
+        <span class="leave-stat-value"><%= formatMoney(costing.cashQuotedAmount) %></span>
+        <span class="leave-stat-label">Quoted Cash (flat, no GST)</span>
+      </div>
       <div class="leave-stat leave-stat-declined">
         <span class="leave-stat-value"><%= formatMoney(costing.totalCost) %></span>
         <span class="leave-stat-label">Total cost (ex GST)</span>
@@ -651,7 +655,11 @@
         <input type="number" name="quoted_amount" id="job-quoted-amount" step="0.01" value="<%= costing.quotedAmount !== null ? costing.quotedAmount : '' %>">
         <span id="job-quoted-amount-incgst" class="text-muted" style="font-size:0.8rem;display:block;margin-top:0.25rem;"></span>
       </label>
-      <div class="actions">
+      <label>
+        Quoted Cash amount ($) &mdash; flat price, no GST
+        <input type="number" name="cash_quoted_amount" step="0.01" value="<%= costing.cashQuotedAmount !== null ? costing.cashQuotedAmount : '' %>">
+      </label>
+      <div class="actions" style="grid-column: 1 / -1;">
         <button type="submit" class="btn btn-secondary btn-sm">Save quote</button>
       </div>
     </form>
