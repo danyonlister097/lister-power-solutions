@@ -1,0 +1,11 @@
+<%- include('../partials/header', { title }) %>
+<div class="page-header">
+  <h1><%= title %></h1>
+  <div class="actions">
+    <a class="btn btn-secondary btn-sm" href="<%= downloadUrl %>" target="_blank" rel="noopener">Open in another app</a>
+    <a class="page-close" href="<%= closeUrl %>" aria-label="Close" title="Close">&times;</a>
+  </div>
+</div>
+
+<iframe src="<%= downloadUrl %>" class="form-viewer-frame" title="<%= title %>"></iframe>
+<%- include('../partials/footer') %>

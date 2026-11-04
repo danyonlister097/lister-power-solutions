@@ -3,7 +3,7 @@
   <h1><%= jobForm.name %></h1>
   <div class="actions">
     <a class="btn btn-secondary btn-sm" href="/forms">All templates</a>
-    <a class="btn btn-secondary btn-sm" href="/forms/job/<%= jobForm.id %>/download" target="_blank" rel="noopener">Download</a>
+    <a class="btn btn-secondary btn-sm" href="/forms/job/<%= jobForm.id %>/view">Download</a>
     <form method="post" action="/forms/job/<%= jobForm.id %>/delete" data-confirm="Delete this form?">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <button type="submit" class="btn btn-danger btn-sm">Delete</button>

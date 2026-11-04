@@ -448,7 +448,7 @@
             </span>
             <span class="actions">
               <span class="badge <%= f.completed ? 'badge-completed' : 'badge-scheduled' %>"><%= f.completed ? 'completed' : 'blank' %></span>
-              <a class="btn btn-secondary btn-sm" href="/forms/job/<%= f.id %>/download" target="_blank" rel="noopener">View</a>
+              <a class="btn btn-secondary btn-sm" href="/forms/job/<%= f.id %>/view">View</a>
               <button type="button" class="btn btn-secondary btn-sm job-form-upload-toggle" data-target="job-form-upload-<%= f.id %>">Upload completed</button>
               <form method="post" action="/forms/job/<%= f.id %>/delete" data-confirm="Remove this form from the job?" data-preserve-scroll>
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">

@@ -267,6 +267,29 @@ router.get(
   })
 );
 
+// Wraps the raw /download in our own page with a Close button, for PDFs and
+// images - on a phone (especially an installed home-screen app, which has
+// no browser chrome at all), opening the file straight up otherwise strands
+// the user on it with no way back. Word/Excel files can't be embedded like
+// this, so those fall straight through to the plain download instead.
+router.get(
+  '/:id/view',
+  asyncHandler(async (req, res) => {
+    const template = await db.prepare('SELECT * FROM form_templates WHERE id = ?').get(req.params.id);
+    if (!template) return res.status(404).render('error', { message: 'Template not found.' });
+
+    if (!/^(application\/pdf|image\/)/.test(template.mime_type)) {
+      return res.redirect(`/forms/${template.id}/download`);
+    }
+
+    res.render('forms/viewer', {
+      title: template.name,
+      downloadUrl: `/forms/${template.id}/download`,
+      closeUrl: `/forms/${template.id}`,
+    });
+  })
+);
+
 // Duplicating a template with a job_id attaches it straight to that job -
 // the "+ Add form" flow from a job page already knows which job, so it goes
 // straight back there where the new form is now listed, ready to open and
@@ -373,6 +396,25 @@ router.get(
     res.type(jobForm.mime_type);
     res.setHeader('Content-Disposition', `inline; filename="${jobForm.name}"`);
     Readable.fromWeb(stream).pipe(res);
+  })
+);
+
+// Same Close-button wrapper as /:id/view above, for a job's own copy of a form.
+router.get(
+  '/job/:id/view',
+  asyncHandler(async (req, res) => {
+    const jobForm = await db.prepare('SELECT * FROM job_forms WHERE id = ?').get(req.params.id);
+    if (!jobForm) return res.status(404).render('error', { message: 'Form not found.' });
+
+    if (!/^(application\/pdf|image\/)/.test(jobForm.mime_type)) {
+      return res.redirect(`/forms/job/${jobForm.id}/download`);
+    }
+
+    res.render('forms/viewer', {
+      title: jobForm.name,
+      downloadUrl: `/forms/job/${jobForm.id}/download`,
+      closeUrl: `/forms/job/${jobForm.id}`,
+    });
   })
 );
 

@@ -3,7 +3,7 @@
   <h1><%= template.name %></h1>
   <div class="actions">
     <a class="btn btn-secondary btn-sm" href="/forms">All templates</a>
-    <a class="btn btn-secondary btn-sm" href="/forms/<%= template.id %>/download" target="_blank" rel="noopener">Download blank</a>
+    <a class="btn btn-secondary btn-sm" href="/forms/<%= template.id %>/view">Download blank</a>
     <% if (currentUser.role === 'admin') { %>
       <form method="post" action="/forms/<%= template.id %>/delete" data-confirm="Delete this template? Copies already created for jobs will be unaffected.">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
