@@ -1021,7 +1021,11 @@
               <span class="list-item-meta"><%= h.userName || 'Unknown user' %> &middot; <%= formatDbDateTime(h.createdAt) %></span>
               <ul class="job-history-changes">
                 <% h.changes.forEach(function (c) { %>
-                  <li><strong><%= c.field %>:</strong> <%= c.from || '(none)' %> &rarr; <%= c.to || '(none)' %></li>
+                  <% if (c.from === undefined) { %>
+                    <li><strong><%= c.field %>:</strong> <%= c.to %></li>
+                  <% } else { %>
+                    <li><strong><%= c.field %>:</strong> <%= c.from || '(none)' %> &rarr; <%= c.to || '(none)' %></li>
+                  <% } %>
                 <% }) %>
               </ul>
             </span>

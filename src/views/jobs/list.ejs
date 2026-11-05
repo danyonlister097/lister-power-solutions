@@ -598,7 +598,11 @@
         var strong = document.createElement('strong');
         strong.textContent = c.field + ':';
         cli.appendChild(strong);
-        cli.appendChild(document.createTextNode(' ' + (c.from || '(none)') + ' → ' + (c.to || '(none)')));
+        if (c.from === undefined) {
+          cli.appendChild(document.createTextNode(' ' + c.to));
+        } else {
+          cli.appendChild(document.createTextNode(' ' + (c.from || '(none)') + ' → ' + (c.to || '(none)')));
+        }
         changes.appendChild(cli);
       });
       span.appendChild(changes);

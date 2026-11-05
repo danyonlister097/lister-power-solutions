@@ -5,6 +5,7 @@ const { requireRole, verifyCsrf } = require('../middleware/auth');
 const { uploadForm, putFile, copyFile, fetchFile, deleteFile } = require('../lib/formUploads');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
+const { logJobEvent } = require('../lib/jobHistory');
 
 const router = express.Router();
 
@@ -327,6 +328,10 @@ router.post(
       )
       .run(job ? job.id : null, template.id, template.name, newUrl, template.mime_type, template.size_bytes, req.user.id);
 
+    if (job) {
+      await logJobEvent(job.id, req.user.id, 'Forms', `Added "${template.name}"`);
+    }
+
     setFlash(
       req,
       'success',
@@ -462,6 +467,10 @@ router.post(
       .run(newUrl, file ? file.mimetype : null, file ? file.size : null, file ? 1 : 0, job ? job.id : null, jobForm.id);
 
     const finalJobId = job ? job.id : jobForm.job_id;
+    if (finalJobId) {
+      const detail = file && job ? 'completed and assigned' : file ? 'marked completed' : 'assigned';
+      await logJobEvent(finalJobId, req.user.id, 'Forms', `"${jobForm.name}" ${detail}`);
+    }
     setFlash(req, 'success', `"${jobForm.name}" updated.`);
     res.redirect(finalJobId ? `/jobs/${finalJobId}` : `/forms/job/${jobForm.id}`);
   })
@@ -476,6 +485,10 @@ router.post(
 
     await deleteFile(jobForm.filename);
     await db.prepare('DELETE FROM job_forms WHERE id = ?').run(jobForm.id);
+
+    if (jobForm.job_id) {
+      await logJobEvent(jobForm.job_id, req.user.id, 'Forms', `Removed "${jobForm.name}"`);
+    }
 
     setFlash(req, 'success', 'Form removed.');
     res.redirect(jobForm.job_id ? `/jobs/${jobForm.job_id}` : '/forms');

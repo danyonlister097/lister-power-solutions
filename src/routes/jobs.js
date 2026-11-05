@@ -12,6 +12,7 @@ const { generateSchedule, nextMondayIso, addDaysToIso } = require('../lib/smartS
 const { LEAVE_TYPE_LABELS } = require('../lib/leaveTypes');
 const { LABOUR_ONCOST_MULTIPLIER, syncAutoLabourCostItems } = require('../lib/labourCosting');
 const { formatDbDateTime } = require('../lib/dates');
+const { recordJobHistory, logJobEvent } = require('../lib/jobHistory');
 
 const router = express.Router();
 
@@ -159,6 +160,10 @@ function truncateForHistory(v, max = 200) {
   return v.length > max ? `${v.slice(0, max)}…` : v;
 }
 
+function formatMoneyForHistory(v) {
+  return v === null || v === undefined ? null : `$${Number(v).toFixed(2)}`;
+}
+
 function formatScheduleForHistory(job) {
   if (!job.scheduled_start) return 'Not scheduled';
   const start = new Date(job.scheduled_start);
@@ -212,11 +217,6 @@ function diffJobSnapshots(before, after) {
     if (before[field] !== after[field]) changes.push({ field, from: before[field], to: after[field] });
   }
   return changes;
-}
-
-async function recordJobHistory(jobId, userId, changes) {
-  if (!changes || !changes.length) return;
-  await db.prepare('INSERT INTO job_history (job_id, user_id, changes) VALUES (?, ?, ?)').run(jobId, userId || null, JSON.stringify(changes));
 }
 
 // Shared by the job page's History card and the Jobs list's on-demand
@@ -1673,19 +1673,29 @@ router.post(
     const job = await db.prepare('SELECT id FROM jobs WHERE id = ?').get(req.params.id);
     if (!job) return res.status(404).render('error', { message: 'Job not found.' });
 
+    const before = await db.prepare('SELECT quoted_amount, cash_quoted_amount FROM job_costs WHERE job_id = ?').get(job.id);
     const quotedAmount = req.body.quoted_amount === '' ? null : Number.parseFloat(req.body.quoted_amount);
     const cashQuotedAmount = req.body.cash_quoted_amount === '' ? null : Number.parseFloat(req.body.cash_quoted_amount);
+    const newQuotedAmount = Number.isFinite(quotedAmount) ? quotedAmount : null;
+    const newCashQuotedAmount = Number.isFinite(cashQuotedAmount) ? cashQuotedAmount : null;
 
     await db
       .prepare(
         `INSERT INTO job_costs (job_id, quoted_amount, cash_quoted_amount, updated_at) VALUES (?, ?, ?, datetime('now'))
          ON CONFLICT(job_id) DO UPDATE SET quoted_amount = excluded.quoted_amount, cash_quoted_amount = excluded.cash_quoted_amount, updated_at = excluded.updated_at`
       )
-      .run(
-        job.id,
-        Number.isFinite(quotedAmount) ? quotedAmount : null,
-        Number.isFinite(cashQuotedAmount) ? cashQuotedAmount : null
-      );
+      .run(job.id, newQuotedAmount, newCashQuotedAmount);
+
+    const changes = [];
+    const beforeQuoted = before ? before.quoted_amount : null;
+    const beforeCash = before ? before.cash_quoted_amount : null;
+    if (beforeQuoted !== newQuotedAmount) {
+      changes.push({ field: 'Quoted amount', from: formatMoneyForHistory(beforeQuoted), to: formatMoneyForHistory(newQuotedAmount) });
+    }
+    if (beforeCash !== newCashQuotedAmount) {
+      changes.push({ field: 'Quoted Cash', from: formatMoneyForHistory(beforeCash), to: formatMoneyForHistory(newCashQuotedAmount) });
+    }
+    await recordJobHistory(job.id, req.user.id, changes);
 
     setFlash(req, 'success', 'Quoted amount updated.');
     res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
@@ -1700,6 +1710,7 @@ router.post(
     const job = await db.prepare('SELECT id FROM jobs WHERE id = ?').get(req.params.id);
     if (!job) return res.status(404).render('error', { message: 'Job not found.' });
 
+    const before = await db.prepare('SELECT invoicing_notes FROM job_costs WHERE job_id = ?').get(job.id);
     const notes = (req.body.invoicing_notes || '').trim() || null;
 
     await db
@@ -1708,6 +1719,13 @@ router.post(
          ON CONFLICT(job_id) DO UPDATE SET invoicing_notes = excluded.invoicing_notes, updated_at = excluded.updated_at`
       )
       .run(job.id, notes);
+
+    const beforeNotes = before ? before.invoicing_notes : null;
+    if (beforeNotes !== notes) {
+      await recordJobHistory(job.id, req.user.id, [
+        { field: 'Invoicing notes', from: truncateForHistory(beforeNotes), to: truncateForHistory(notes) },
+      ]);
+    }
 
     setFlash(req, 'success', 'Invoicing notes saved.');
     res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
@@ -1738,6 +1756,8 @@ router.post(
       .prepare(`INSERT INTO job_cost_items (job_id, category, description, quantity, unit_cost, created_by) VALUES (?, ?, ?, ?, ?, ?)`)
       .run(job.id, category, description, quantity, unitCost, req.user.id);
 
+    await logJobEvent(job.id, req.user.id, 'Cost item added', `${description} — ${quantity} x ${formatMoneyForHistory(unitCost)} (${category})`);
+
     setFlash(req, 'success', 'Cost item added.');
     res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
@@ -1748,7 +1768,7 @@ router.post(
   requireRole('admin'),
   verifyCsrf,
   asyncHandler(async (req, res) => {
-    const item = await db.prepare('SELECT id FROM job_cost_items WHERE id = ? AND job_id = ?').get(req.params.itemId, req.params.id);
+    const item = await db.prepare('SELECT * FROM job_cost_items WHERE id = ? AND job_id = ?').get(req.params.itemId, req.params.id);
     if (!item) return res.status(404).render('error', { message: 'Cost item not found.' });
 
     const category = COST_CATEGORIES.includes(req.body.category) ? req.body.category : 'other';
@@ -1764,6 +1784,13 @@ router.post(
     await db
       .prepare('UPDATE job_cost_items SET category = ?, description = ?, quantity = ?, unit_cost = ? WHERE id = ?')
       .run(category, description, quantity, unitCost, item.id);
+
+    await logJobEvent(
+      req.params.id,
+      req.user.id,
+      'Cost item edited',
+      `${item.description} (${item.category}, ${item.quantity} x ${formatMoneyForHistory(item.unit_cost)}) → ${description} (${category}, ${quantity} x ${formatMoneyForHistory(unitCost)})`
+    );
 
     setFlash(req, 'success', 'Cost item updated.');
     res.redirect(withReturnTo(`/jobs/${req.params.id}`, safeReturnTo(req.body.returnTo)));
@@ -1782,6 +1809,8 @@ router.post(
     // cost, so unlink rather than delete the allocation record.
     await db.prepare('UPDATE job_stock_allocations SET cost_item_id = NULL WHERE cost_item_id = ?').run(item.id);
     await db.prepare('DELETE FROM job_cost_items WHERE id = ?').run(item.id);
+
+    await logJobEvent(req.params.id, req.user.id, 'Cost item removed', `${item.description} (${item.category}, ${item.quantity} x ${formatMoneyForHistory(item.unit_cost)})`);
 
     setFlash(req, 'success', 'Cost item removed.');
     res.redirect(withReturnTo(`/jobs/${req.params.id}`, safeReturnTo(req.body.returnTo)));
@@ -1817,6 +1846,10 @@ router.post(
       await insert.run(job.id, url, f.originalname, f.mimetype, f.size, req.user.id);
     }
 
+    if (files.length) {
+      await logJobEvent(job.id, req.user.id, 'Quote files', `Uploaded ${files.map((f) => f.originalname).join(', ')}`);
+    }
+
     setFlash(req, 'success', files.length ? `${files.length} quote file${files.length > 1 ? 's' : ''} uploaded.` : 'No files selected.');
     res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
@@ -1847,6 +1880,8 @@ router.post(
 
     await deleteFile(file.filename);
     await db.prepare('DELETE FROM job_quote_files WHERE id = ?').run(file.id);
+
+    await logJobEvent(req.params.id, req.user.id, 'Quote files', `Removed "${file.original_name}"`);
 
     setFlash(req, 'success', 'Quote file removed.');
     res.redirect(withReturnTo(`/jobs/${req.params.id}`, safeReturnTo(req.body.returnTo)));
@@ -2282,6 +2317,9 @@ router.post(
     }
 
     const label = category === 'before' ? 'Before' : category === 'quote' ? 'Quote' : 'Completion';
+    if (files.length) {
+      await logJobEvent(req.job.id, req.user.id, 'Photos', `Added ${files.length} ${label.toLowerCase()} photo${files.length > 1 ? 's' : ''}`);
+    }
     setFlash(req, 'success', files.length ? `${files.length} ${label.toLowerCase()} photo${files.length > 1 ? 's' : ''} uploaded.` : 'No photos selected.');
     res.redirect(withReturnTo(`/jobs/${req.job.id}`, safeReturnTo(req.body.returnTo)));
   })
@@ -2315,6 +2353,9 @@ router.post(
 
     await deleteFile(attachment.filename);
     await db.prepare('DELETE FROM job_attachments WHERE id = ?').run(attachment.id);
+
+    const categoryLabel = attachment.category === 'before' ? 'before' : attachment.category === 'quote' ? 'quote' : 'completion';
+    await logJobEvent(req.job.id, req.user.id, 'Photos', `Removed 1 ${categoryLabel} photo (${attachment.original_name})`);
 
     setFlash(req, 'success', 'Photo removed.');
     res.redirect(withReturnTo(`/jobs/${req.job.id}`, safeReturnTo(req.body.returnTo)));

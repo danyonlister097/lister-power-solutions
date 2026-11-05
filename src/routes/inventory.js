@@ -3,6 +3,7 @@ const db = require('../db');
 const { requireRole, verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
+const { logJobEvent } = require('../lib/jobHistory');
 
 const router = express.Router();
 
@@ -199,6 +200,8 @@ router.post(
       .prepare(`INSERT INTO job_stock_allocations (job_id, item_id, quantity, cost_item_id, allocated_by) VALUES (?, ?, ?, ?, ?)`)
       .run(job.id, item.id, quantity, costItemId, req.user.id);
 
+    await logJobEvent(job.id, req.user.id, 'Stock', 'Added stock');
+
     setFlash(req, 'success', `${quantity} ${item.unit} of "${item.name}" allocated to ${job.title}.`);
     res.redirect(`/jobs/${job.id}`);
   })
@@ -227,6 +230,8 @@ router.post(
     if (allocation.cost_item_id) {
       await db.prepare('DELETE FROM job_cost_items WHERE id = ?').run(allocation.cost_item_id);
     }
+
+    await logJobEvent(allocation.job_id, req.user.id, 'Stock', 'Removed stock');
 
     setFlash(req, 'success', 'Stock allocation removed.');
     res.redirect(`/jobs/${allocation.job_id}`);
@@ -259,6 +264,7 @@ router.post(
         .prepare(`UPDATE inventory_items SET quantity_on_hand = GREATEST(quantity_on_hand - ?, 0), updated_at = datetime('now') WHERE id = ?`)
         .run(diff, allocation.item_id);
       await db.prepare('UPDATE job_stock_allocations SET quantity = ? WHERE id = ?').run(newQty, allocation.id);
+      await logJobEvent(allocation.job_id, req.user.id, 'Stock', 'Changed stock quantity');
       if (allocation.cost_item_id) {
         await db.prepare('UPDATE job_cost_items SET quantity = ? WHERE id = ?').run(newQty, allocation.cost_item_id);
       }
