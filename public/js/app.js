@@ -79,6 +79,70 @@
   window.showConfirm = showConfirm;
 })();
 
+// Site-wide behaviour: any <form data-geotag> has the browser's current GPS
+// position attached as hidden lat/lng fields right before it actually
+// submits - used by the job's actual start/finish time forms so admins can
+// see where the tech was when they logged it, in the job's History card.
+// Mirrors the data-confirm pattern above: intercept, do the async work, mark
+// the form so the resubmission isn't re-intercepted, then resubmit for real.
+// Never blocks the save on a flaky/denied GPS fix - falls back to no
+// location after a short timeout either way.
+(function () {
+  function setHidden(form, name, value) {
+    var input = form.querySelector('input[name="' + name + '"]');
+    if (!input) {
+      input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      form.appendChild(input);
+    }
+    input.value = value;
+  }
+
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-geotag')) return;
+    if (form.dataset.geotagged === 'true') return;
+    if (form.hasAttribute('data-confirm') && form.dataset.confirmed !== 'true') return;
+    e.preventDefault();
+
+    function finish(coords) {
+      form.dataset.geotagged = 'true';
+      if (coords) {
+        setHidden(form, 'lat', coords.latitude);
+        setHidden(form, 'lng', coords.longitude);
+      }
+      if (form.requestSubmit) form.requestSubmit();
+      else form.submit();
+    }
+
+    if (!navigator.geolocation) return finish(null);
+
+    var settled = false;
+    var timer = setTimeout(function () {
+      if (settled) return;
+      settled = true;
+      finish(null);
+    }, 5000);
+
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        finish(pos.coords);
+      },
+      function () {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        finish(null);
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+    );
+  });
+})();
+
 // Site-wide behaviour: disables every submit button in a form the instant it
 // actually starts submitting, so a slow connection (a click that feels like
 // nothing happened) can't be turned into a second click and a second POST -

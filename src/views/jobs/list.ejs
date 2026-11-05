@@ -598,10 +598,18 @@
         var strong = document.createElement('strong');
         strong.textContent = c.field + ':';
         cli.appendChild(strong);
-        if (c.from === undefined) {
-          cli.appendChild(document.createTextNode(' ' + c.to));
+        cli.appendChild(document.createTextNode(' '));
+        if (c.mapsUrl) {
+          var link = document.createElement('a');
+          link.href = c.mapsUrl;
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.textContent = c.to;
+          cli.appendChild(link);
+        } else if (c.from === undefined) {
+          cli.appendChild(document.createTextNode(c.to));
         } else {
-          cli.appendChild(document.createTextNode(' ' + (c.from || '(none)') + ' → ' + (c.to || '(none)')));
+          cli.appendChild(document.createTextNode((c.from || '(none)') + ' → ' + (c.to || '(none)')));
         }
         changes.appendChild(cli);
       });

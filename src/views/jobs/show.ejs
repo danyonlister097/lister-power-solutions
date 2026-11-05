@@ -106,7 +106,7 @@
   <% if (!job.actual_start) { %>
     <p class="text-muted" style="font-size:0.85rem;margin:0 0 0.75rem;">Log the time you arrived and started on site.</p>
   <% } %>
-  <form method="post" action="/jobs/<%= job.id %>/actual-start" class="form-row" data-preserve-scroll>
+  <form method="post" action="/jobs/<%= job.id %>/actual-start" class="form-row" data-preserve-scroll data-geotag>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input type="hidden" name="returnTo" value="<%= closeUrl %>">
     <label>
@@ -961,7 +961,7 @@
   <% if (!job.actual_end) { %>
     <p class="text-muted" style="font-size:0.85rem;margin:0 0 0.75rem;">Log when you finished on site. Required before marking job as completed.</p>
   <% } %>
-  <form method="post" action="/jobs/<%= job.id %>/actual-end" class="form-row" data-preserve-scroll>
+  <form method="post" action="/jobs/<%= job.id %>/actual-end" class="form-row" data-preserve-scroll data-geotag>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input type="hidden" name="returnTo" value="<%= closeUrl %>">
     <label>
@@ -1021,7 +1021,9 @@
               <span class="list-item-meta"><%= h.userName || 'Unknown user' %> &middot; <%= formatDbDateTime(h.createdAt) %></span>
               <ul class="job-history-changes">
                 <% h.changes.forEach(function (c) { %>
-                  <% if (c.from === undefined) { %>
+                  <% if (c.mapsUrl) { %>
+                    <li><strong><%= c.field %>:</strong> <a href="<%= c.mapsUrl %>" target="_blank" rel="noopener"><%= c.to %></a></li>
+                  <% } else if (c.from === undefined) { %>
                     <li><strong><%= c.field %>:</strong> <%= c.to %></li>
                   <% } else { %>
                     <li><strong><%= c.field %>:</strong> <%= c.from || '(none)' %> &rarr; <%= c.to || '(none)' %></li>

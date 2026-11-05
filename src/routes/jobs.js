@@ -219,6 +219,24 @@ function diffJobSnapshots(before, after) {
   return changes;
 }
 
+// Appends a "where were they" entry to a start/finish-time history diff -
+// only when that diff actually changed something (so resaving the same time
+// with no edit doesn't leave a location-only entry sitting on its own) and
+// only when the tech's browser actually supplied a GPS fix (denied/missing
+// geolocation just means the time gets logged with no location, same as
+// before this existed).
+function appendLocationChange(changes, latRaw, lngRaw) {
+  if (!changes.length) return;
+  const lat = Number.parseFloat(latRaw);
+  const lng = Number.parseFloat(lngRaw);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  changes.push({
+    field: 'Location',
+    to: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+    mapsUrl: `https://www.google.com/maps?q=${lat},${lng}`,
+  });
+}
+
 // Shared by the job page's History card and the Jobs list's on-demand
 // History popup, so both read the exact same data the exact same way. The
 // popup renders this JSON in the browser, so each timestamp also comes with a
@@ -2060,7 +2078,9 @@ router.post(
     await db.prepare(`UPDATE jobs SET actual_start = @actualStart, updated_at = datetime('now') WHERE id = @id`).run({ id: job.id, actualStart });
     await syncAutoLabourCostItems(job.id, req.user.id);
     const after = await captureJobSnapshot(job.id);
-    await recordJobHistory(job.id, req.user.id, diffJobSnapshots(before, after));
+    const changes = diffJobSnapshots(before, after);
+    appendLocationChange(changes, req.body.lat, req.body.lng);
+    await recordJobHistory(job.id, req.user.id, changes);
     setFlash(req, 'success', 'Start time saved.');
     res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
@@ -2078,7 +2098,9 @@ router.post(
     await db.prepare(`UPDATE jobs SET actual_end = @actualEnd, updated_at = datetime('now') WHERE id = @id`).run({ id: job.id, actualEnd });
     await syncAutoLabourCostItems(job.id, req.user.id);
     const after = await captureJobSnapshot(job.id);
-    await recordJobHistory(job.id, req.user.id, diffJobSnapshots(before, after));
+    const changes = diffJobSnapshots(before, after);
+    appendLocationChange(changes, req.body.lat, req.body.lng);
+    await recordJobHistory(job.id, req.user.id, changes);
     setFlash(req, 'success', 'Finish time saved.');
     res.redirect(withReturnTo(`/jobs/${job.id}`, safeReturnTo(req.body.returnTo)));
   })
