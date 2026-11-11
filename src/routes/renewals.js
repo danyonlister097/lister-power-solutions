@@ -7,6 +7,7 @@ const { verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { brisbaneTodayIso } = require('../lib/timesheetCalc');
 const { licenseUpload, putFile, fetchFile, deleteFile } = require('../lib/uploads');
+const { toArrayParam } = require('../lib/queryParams');
 
 const router = express.Router();
 
@@ -29,7 +30,7 @@ router.get(
 
     if (tab === 'documents') {
       const docCat = req.query.category || '';
-      const employee = req.query.employee || '';
+      const employee = toArrayParam(req.query.employee).map(Number);
 
       const clauses = [];
       const params = [];
@@ -37,8 +38,8 @@ router.get(
         clauses.push('d.category = ?');
         params.push(docCat);
       }
-      if (employee) {
-        clauses.push('d.user_id = ?');
+      if (employee.length) {
+        clauses.push('d.user_id = ANY(?)');
         params.push(employee);
       }
       const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
@@ -65,7 +66,7 @@ router.get(
     }
 
     const cat = req.query.category || '';
-    const employee = req.query.employee || '';
+    const employee = toArrayParam(req.query.employee).map(Number);
 
     const clauses = [];
     const params = [];
@@ -73,8 +74,8 @@ router.get(
       clauses.push('r.category = ?');
       params.push(cat);
     }
-    if (employee) {
-      clauses.push('r.user_id = ?');
+    if (employee.length) {
+      clauses.push('r.user_id = ANY(?)');
       params.push(employee);
     }
     const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
@@ -94,7 +95,7 @@ router.get(
     // employee filter excludes them entirely rather than showing every
     // vehicle regardless of who's selected.
     let assetRegos = [];
-    if ((!cat || cat === 'vehicle_rego') && !employee) {
+    if ((!cat || cat === 'vehicle_rego') && !employee.length) {
       assetRegos = await db
         .prepare(
           `SELECT id, name, registration_expiry AS expiry_date
@@ -129,8 +130,8 @@ router.get(
       flaggedClauses.push('ld.category = ?');
       flaggedParams.push(cat);
     }
-    if (employee) {
-      flaggedClauses.push('ld.user_id = ?');
+    if (employee.length) {
+      flaggedClauses.push('ld.user_id = ANY(?)');
       flaggedParams.push(employee);
     }
     const flaggedDocuments = await db

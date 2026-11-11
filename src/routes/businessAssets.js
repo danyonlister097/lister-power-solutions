@@ -3,6 +3,7 @@ const db = require('../db');
 const { requireRole, verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
+const { toArrayParam } = require('../lib/queryParams');
 
 const router = express.Router();
 
@@ -64,8 +65,8 @@ function safeReturnTo(raw) {
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const category = req.query.category || '';
-    const status = req.query.status || '';
+    const category = toArrayParam(req.query.category);
+    const status = toArrayParam(req.query.status);
 
     let sql = `
       SELECT business_assets.*, users.name AS assigned_to_name
@@ -74,12 +75,12 @@ router.get(
       WHERE 1 = 1
     `;
     const params = [];
-    if (category) {
-      sql += ' AND category = ?';
+    if (category.length) {
+      sql += ' AND category = ANY(?)';
       params.push(category);
     }
-    if (status) {
-      sql += ' AND status = ?';
+    if (status.length) {
+      sql += ' AND status = ANY(?)';
       params.push(status);
     }
     sql += ' ORDER BY asset_number ASC NULLS LAST, id ASC';

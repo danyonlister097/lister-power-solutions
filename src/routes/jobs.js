@@ -13,6 +13,7 @@ const { LEAVE_TYPE_LABELS } = require('../lib/leaveTypes');
 const { LABOUR_ONCOST_MULTIPLIER, syncAutoLabourCostItems } = require('../lib/labourCosting');
 const { formatDbDateTime } = require('../lib/dates');
 const { recordJobHistory, logJobEvent } = require('../lib/jobHistory');
+const { toArrayParam } = require('../lib/queryParams');
 
 const router = express.Router();
 
@@ -445,12 +446,13 @@ router.get(
   '/',
   asyncHandler(async (req, res) => {
     const isAdmin = req.user.role === 'admin';
-    const status = req.query.status || '';
-    const category = req.query.category || '';
+    const status = toArrayParam(req.query.status);
+    const category = toArrayParam(req.query.category);
     const customerId = req.query.customer || '';
     const range = req.query.range || 'all';
     const sort = req.query.sort === 'created' ? 'created' : 'scheduled';
-    const assignedTo = isAdmin ? req.query.assignedTo || '' : String(req.user.id);
+    const assignedToList = isAdmin ? toArrayParam(req.query.assignedTo).map(Number) : [];
+    const assignedTo = isAdmin ? assignedToList : String(req.user.id);
     const dupeReasons = await findDuplicateJobIds();
     // Non-admin-visible duplicate jobs still get flagged on their own rows,
     // but the "show me only duplicates" view is an admin data-hygiene tool -
@@ -468,18 +470,18 @@ router.get(
       if (!isAdmin) {
         clauses.push('EXISTS (SELECT 1 FROM job_assignees ja WHERE ja.job_id = jobs.id AND ja.user_id = @userId)');
         params.userId = req.user.id;
-      } else if (assignedTo) {
-        clauses.push('EXISTS (SELECT 1 FROM job_assignees ja WHERE ja.job_id = jobs.id AND ja.user_id = @assignedTo)');
-        params.assignedTo = assignedTo;
+      } else if (assignedToList.length) {
+        clauses.push('EXISTS (SELECT 1 FROM job_assignees ja WHERE ja.job_id = jobs.id AND ja.user_id = ANY(@assignedTo))');
+        params.assignedTo = assignedToList;
       }
 
-      if (status) {
-        clauses.push('jobs.status = @status');
+      if (status.length) {
+        clauses.push('jobs.status = ANY(@status)');
         params.status = status;
       }
 
-      if (category) {
-        clauses.push('jobs.category = @category');
+      if (category.length) {
+        clauses.push('jobs.category = ANY(@category)');
         params.category = category;
       }
 
@@ -509,7 +511,8 @@ router.get(
     if (sort === 'created') {
       orderBy = 'jobs.created_at ASC';
     } else {
-      orderBy = status === 'invoiced' ? 'jobs.scheduled_start DESC NULLS LAST' : 'jobs.scheduled_start ASC NULLS LAST';
+      orderBy =
+        status.length === 1 && status[0] === 'invoiced' ? 'jobs.scheduled_start DESC NULLS LAST' : 'jobs.scheduled_start ASC NULLS LAST';
     }
     const jobs = await db
       .prepare(
@@ -536,9 +539,9 @@ router.get(
 
     // Status counters — scoped to the same assignee/category/customer filter but across all time/status
     const countClauses = [];
-    const countParams = { uid: isAdmin ? Number(assignedTo) : req.user.id };
-    if (category) {
-      countClauses.push('jobs.category = @category');
+    const countParams = {};
+    if (category.length) {
+      countClauses.push('jobs.category = ANY(@category)');
       countParams.category = category;
     }
     if (customerId) {
@@ -546,14 +549,20 @@ router.get(
       countParams.customerId = customerId;
     }
     const countWhere = countClauses.length ? `WHERE ${countClauses.join(' AND ')}` : '';
-    const countRows = isAdmin && !assignedTo
-      ? await db.prepare(`SELECT status, COUNT(*) AS n FROM jobs ${countWhere} GROUP BY status`).all(countParams)
-      : await db.prepare(
+    let countRows;
+    if (isAdmin && !assignedToList.length) {
+      countRows = await db.prepare(`SELECT status, COUNT(*) AS n FROM jobs ${countWhere} GROUP BY status`).all(countParams);
+    } else {
+      countParams.uid = isAdmin ? assignedToList : [req.user.id];
+      countRows = await db
+        .prepare(
           `SELECT jobs.status, COUNT(*) AS n FROM jobs
-           JOIN job_assignees ja ON ja.job_id = jobs.id AND ja.user_id = @uid
+           JOIN job_assignees ja ON ja.job_id = jobs.id AND ja.user_id = ANY(@uid)
            ${countWhere}
            GROUP BY jobs.status`
-        ).all(countParams);
+        )
+        .all(countParams);
+    }
     const statusCounts = Object.fromEntries(STATUSES.map((s) => [s, 0]));
     for (const row of countRows) if (statusCounts[row.status] !== undefined) statusCounts[row.status] = Number(row.n);
 

@@ -633,6 +633,84 @@ form label.toggle-label {
 }
 .permissions-item input { width: auto; }
 
+/* Multi-select checkbox filter - a button that opens a checkbox list in a
+   popover, used wherever a list filter (status, category, assigned to...)
+   needs more than one value selected at once. See public/js/app.js for the
+   open/close/summarize behaviour. */
+.ms-filter { position: relative; }
+
+.ms-filter-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.3rem;
+  color: var(--color-muted);
+}
+
+.ms-filter-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+  cursor: pointer;
+  text-align: left;
+}
+
+.ms-filter-toggle:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-tint);
+}
+
+.ms-filter-toggle-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ms-filter-caret { color: var(--color-muted); font-size: 0.75rem; flex-shrink: 0; }
+
+.ms-filter-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin-top: 0.25rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.ms-filter-panel[hidden] { display: none; }
+
+.ms-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+  padding: 0.3rem 0;
+  white-space: nowrap;
+}
+.ms-filter-option input { width: auto; margin: 0; }
+
+.ms-filter-panel-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
 .autocomplete { position: relative; }
 
 .autocomplete-results {

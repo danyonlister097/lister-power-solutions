@@ -212,6 +212,83 @@
   }
 })();
 
+// Site-wide multi-select checkbox filter dropdown. Markup:
+//   <div class="ms-filter" data-placeholder="Any">
+//     <span class="ms-filter-label">Status</span>
+//     <button type="button" class="ms-filter-toggle"><span class="ms-filter-toggle-text"></span>...</button>
+//     <div class="ms-filter-panel" hidden>
+//       <label class="ms-filter-option"><input type="checkbox" name="status" value="scheduled"> Scheduled</label>
+//       ...
+//       <button type="button" class="ms-filter-clear">Clear</button>
+//     </div>
+//   </div>
+// Clicking the toggle opens/closes its panel (closing any other open one);
+// clicking outside, or Escape, closes whatever's open. The toggle's label
+// text reflects how many boxes are checked. Filtering itself happens on the
+// form's normal submit (a "Filter" button, or - where the markup includes
+// one - an "Apply" button inside the panel) - there's no auto-submit here,
+// since submitting after every single checkbox click would be unusable.
+(function () {
+  var filters = document.querySelectorAll('.ms-filter');
+  if (!filters.length) return;
+
+  function summarize(filter) {
+    var textEl = filter.querySelector('.ms-filter-toggle-text');
+    if (!textEl) return;
+    var boxes = filter.querySelectorAll('.ms-filter-panel input[type="checkbox"]');
+    var checked = Array.prototype.filter.call(boxes, function (b) { return b.checked; });
+    var placeholder = filter.getAttribute('data-placeholder') || 'Any';
+    if (!checked.length) textEl.textContent = placeholder;
+    else if (checked.length === 1) textEl.textContent = checked[0].closest('.ms-filter-option').textContent.trim();
+    else textEl.textContent = checked.length + ' selected';
+  }
+
+  function closeAll(except) {
+    document.querySelectorAll('.ms-filter-panel').forEach(function (p) {
+      if (p === except || p.hidden) return;
+      p.hidden = true;
+      var toggle = p.closest('.ms-filter').querySelector('.ms-filter-toggle');
+      if (toggle) toggle.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  filters.forEach(function (filter) {
+    var toggle = filter.querySelector('.ms-filter-toggle');
+    var panel = filter.querySelector('.ms-filter-panel');
+    var clearBtn = filter.querySelector('.ms-filter-clear');
+    if (!toggle || !panel) return;
+
+    summarize(filter);
+
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var opening = panel.hidden;
+      closeAll(opening ? panel : null);
+      panel.hidden = !opening;
+      toggle.setAttribute('aria-expanded', String(opening));
+    });
+
+    panel.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    panel.querySelectorAll('input[type="checkbox"]').forEach(function (box) {
+      box.addEventListener('change', function () { summarize(filter); });
+    });
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        panel.querySelectorAll('input[type="checkbox"]').forEach(function (box) { box.checked = false; });
+        summarize(filter);
+      });
+    }
+  });
+
+  document.addEventListener('click', function () { closeAll(null); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeAll(null);
+  });
+})();
+
 // Site-wide context menu (row-menu-btn + context-menu).
 // Usage: add class="row-menu-btn" to a trigger button, class="context-menu"
 // to the sibling dropdown, both inside a class="row-menu-cell" container.

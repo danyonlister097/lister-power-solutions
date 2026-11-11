@@ -10,24 +10,34 @@
 </div>
 
 <form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">
-  <label style="flex:1;min-width:160px;">
-    Category
-    <select name="category">
-      <option value="">All</option>
+  <div class="ms-filter" data-placeholder="All" style="flex:1;min-width:160px;">
+    <span class="ms-filter-label">Category</span>
+    <button type="button" class="ms-filter-toggle" aria-haspopup="true" aria-expanded="false">
+      <span class="ms-filter-toggle-text">All</span><span class="ms-filter-caret">&#9662;</span>
+    </button>
+    <div class="ms-filter-panel" hidden>
       <% CATEGORIES.forEach(c => { %>
-        <option value="<%= c %>" <%= category === c ? 'selected' : '' %>><%= c %></option>
+        <label class="ms-filter-option"><input type="checkbox" name="category" value="<%= c %>" <%= category.includes(c) ? 'checked' : '' %>><%= c %></label>
       <% }) %>
-    </select>
-  </label>
-  <label style="flex:1;min-width:160px;">
-    Status
-    <select name="status">
-      <option value="">All</option>
+      <div class="ms-filter-panel-actions">
+        <button type="button" class="ms-filter-clear btn-link">Clear</button>
+      </div>
+    </div>
+  </div>
+  <div class="ms-filter" data-placeholder="All" style="flex:1;min-width:160px;">
+    <span class="ms-filter-label">Status</span>
+    <button type="button" class="ms-filter-toggle" aria-haspopup="true" aria-expanded="false">
+      <span class="ms-filter-toggle-text">All</span><span class="ms-filter-caret">&#9662;</span>
+    </button>
+    <div class="ms-filter-panel" hidden>
       <% STATUSES.forEach(s => { %>
-        <option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= s.replace('_', ' ') %></option>
+        <label class="ms-filter-option"><input type="checkbox" name="status" value="<%= s %>" <%= status.includes(s) ? 'checked' : '' %>><%= s.replace('_', ' ') %></label>
       <% }) %>
-    </select>
-  </label>
+      <div class="ms-filter-panel-actions">
+        <button type="button" class="ms-filter-clear btn-link">Clear</button>
+      </div>
+    </div>
+  </div>
   <div class="actions">
     <button type="submit" class="btn btn-secondary">Filter</button>
   </div>

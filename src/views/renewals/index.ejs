@@ -55,7 +55,9 @@
     var qs = [];
     if (t === 'documents') qs.push('tab=documents');
     if (cat) qs.push('category=' + cat);
-    if (emp) qs.push('employee=' + emp);
+    (Array.isArray(emp) ? emp : (emp ? [emp] : [])).forEach(function (id) {
+      if (id !== '' && id !== undefined && id !== null) qs.push('employee=' + id);
+    });
     return '/renewals' + (qs.length ? '?' + qs.join('&') : '');
   }
 %>
@@ -123,16 +125,22 @@
 
 <form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">
   <input type="hidden" name="category" value="<%= category %>">
-  <label style="flex:1;min-width:200px;">
-    Staff member
-    <select name="employee" onchange="this.form.requestSubmit()">
-      <option value="">Anyone</option>
+  <div class="ms-filter" data-placeholder="Anyone" style="flex:1;min-width:200px;">
+    <span class="ms-filter-label">Staff member</span>
+    <button type="button" class="ms-filter-toggle" aria-haspopup="true" aria-expanded="false">
+      <span class="ms-filter-toggle-text">Anyone</span><span class="ms-filter-caret">&#9662;</span>
+    </button>
+    <div class="ms-filter-panel" hidden>
       <% users.forEach(u => { %>
-        <option value="<%= u.id %>" <%= String(employee) === String(u.id) ? 'selected' : '' %>><%= u.name %></option>
+        <label class="ms-filter-option"><input type="checkbox" name="employee" value="<%= u.id %>" <%= employee.includes(u.id) ? 'checked' : '' %>><%= u.name %></label>
       <% }) %>
-    </select>
-  </label>
-  <% if (employee) { %><a href="<%= renewalsUrl({ employee: '' }) %>" class="btn btn-secondary btn-sm">Clear</a><% } %>
+      <div class="ms-filter-panel-actions">
+        <button type="button" class="ms-filter-clear btn-link">Clear</button>
+        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+      </div>
+    </div>
+  </div>
+  <% if (employee.length) { %><a href="<%= renewalsUrl({ employee: '' }) %>" class="btn btn-secondary btn-sm">Clear</a><% } %>
 </form>
 
 <% if (!items.length) { %>
@@ -474,21 +482,27 @@
   <form method="get" class="card" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;">
     <input type="hidden" name="tab" value="documents">
     <input type="hidden" name="category" value="<%= category %>">
-    <label style="flex:1;min-width:200px;">
-      Staff member
-      <select name="employee" onchange="this.form.requestSubmit()">
-        <option value="">Anyone</option>
+    <div class="ms-filter" data-placeholder="Anyone" style="flex:1;min-width:200px;">
+      <span class="ms-filter-label">Staff member</span>
+      <button type="button" class="ms-filter-toggle" aria-haspopup="true" aria-expanded="false">
+        <span class="ms-filter-toggle-text">Anyone</span><span class="ms-filter-caret">&#9662;</span>
+      </button>
+      <div class="ms-filter-panel" hidden>
         <% users.forEach(u => { %>
-          <option value="<%= u.id %>" <%= String(employee) === String(u.id) ? 'selected' : '' %>><%= u.name %></option>
+          <label class="ms-filter-option"><input type="checkbox" name="employee" value="<%= u.id %>" <%= employee.includes(u.id) ? 'checked' : '' %>><%= u.name %></label>
         <% }) %>
-      </select>
-    </label>
-    <% if (employee) { %><a href="<%= renewalsUrl({ employee: '', tab: 'documents' }) %>" class="btn btn-secondary btn-sm">Clear</a><% } %>
+        <div class="ms-filter-panel-actions">
+          <button type="button" class="ms-filter-clear btn-link">Clear</button>
+          <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+        </div>
+      </div>
+    </div>
+    <% if (employee.length) { %><a href="<%= renewalsUrl({ employee: '', tab: 'documents' }) %>" class="btn btn-secondary btn-sm">Clear</a><% } %>
   </form>
 
   <% if (!documents.length) { %>
     <div class="empty-state">
-      <%= (category || employee) ? 'No documents match this filter.' : 'No documents or licenses on file yet.' %>
+      <%= (category || employee.length) ? 'No documents match this filter.' : 'No documents or licenses on file yet.' %>
     </div>
   <% } else { %>
     <ul class="list">
