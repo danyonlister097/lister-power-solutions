@@ -999,7 +999,13 @@
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <input type="hidden" name="returnTo" value="<%= closeUrl %>">
     <select name="status">
-      <% STATUSES.forEach(s => { %>
+      <%
+        var _nonAdminStatuses = ['scheduled', 'completed'];
+        var _statusOptions = currentUser.role === 'admin' ? STATUSES
+          : _nonAdminStatuses.includes(job.status) ? _nonAdminStatuses
+          : [job.status];
+      %>
+      <% _statusOptions.forEach(s => { %>
         <option value="<%= s %>" <%= job.status === s ? 'selected' : '' %>><%= s.replace('_', ' ') %></option>
       <% }) %>
     </select>

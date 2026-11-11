@@ -2118,6 +2118,9 @@ router.post(
     if (!STATUSES.includes(status)) {
       return res.status(400).render('error', { message: 'Invalid status.' });
     }
+    if (req.user.role !== 'admin' && !['scheduled', 'completed'].includes(status)) {
+      return res.status(403).render('error', { message: 'You can only set a job to scheduled or completed.' });
+    }
 
     if (jobIsDone(status) && !jobIsDone(job.status)) {
       const err = await checkCompletionRequirements(job.id);
