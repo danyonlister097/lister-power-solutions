@@ -1005,4 +1005,30 @@ CREATE TABLE IF NOT EXISTS chat_message_reactions (
 -- than reusing quoted_amount so a job can have either (or, oddly, both)
 -- without one overwriting the other.
 ALTER TABLE job_costs ADD COLUMN IF NOT EXISTS cash_quoted_amount REAL;
+
+-- Set only when an admin corrects an *existing* clock_events row (routes/timeclock.js
+-- POST /events/:id) - never on a fresh clock-in/out, and never touched by
+-- adding a brand-new manual event (that case is already unambiguous: it has
+-- no latitude/longitude). This is what lets the edit page flag "edited" on a
+-- row that still carries its original GPS location - without it, a real
+-- clock-in whose time got nudged by an admin would look identical to one
+-- nobody ever touched.
+ALTER TABLE clock_events ADD COLUMN IF NOT EXISTS edited_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE clock_events ADD COLUMN IF NOT EXISTS edited_at TEXT;
+
+-- Audit trail for admin changes to a clock event (add/edit/delete), so a
+-- deleted or overwritten time isn't just gone - mirrors job_history's shape.
+-- event_date is the day the clock event itself belongs to (not created_at,
+-- which is when the *edit* happened) so the edit page can show just this
+-- day's history; changed_by is the admin who made the change, user_id is the
+-- employee whose timesheet it affects.
+CREATE TABLE IF NOT EXISTS clock_event_history (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  event_date TEXT NOT NULL,
+  changes TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+CREATE INDEX IF NOT EXISTS idx_clock_event_history_user_date ON clock_event_history(user_id, event_date);
 CREATE INDEX IF NOT EXISTS idx_chat_message_reactions_message_id ON chat_message_reactions(message_id);

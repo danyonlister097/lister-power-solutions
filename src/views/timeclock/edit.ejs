@@ -23,6 +23,7 @@
               <option value="out" <%= e.type === 'out' ? 'selected' : '' %>>Clock out</option>
             </select>
             <input type="time" name="time" value="<%= e.occurred_at.slice(11, 16) %>" required>
+            <input type="text" name="reason" placeholder="Reason for change (optional)" class="timeclock-edit-reason" maxlength="200">
             <button type="submit" class="btn btn-secondary btn-sm">Save</button>
           </form>
           <span class="timeclock-edit-meta">
@@ -31,12 +32,40 @@
             <% } else { %>
               <span class="text-muted">no location (manual entry)</span>
             <% } %>
+            <% if (e.edited_by) { %>
+              <span class="badge badge-pending" title="<%= formatDbDateTime(e.edited_at) %>">&#9998; edited by <%= e.edited_by_name || 'someone' %></span>
+            <% } %>
           </span>
-          <form method="post" action="/timeclock/events/<%= e.id %>/delete" data-confirm="Delete this clock event?">
+          <form method="post" action="/timeclock/events/<%= e.id %>/delete" class="timeclock-edit-form" data-confirm="Delete this clock event?">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="text" name="reason" placeholder="Reason for deleting (optional)" class="timeclock-edit-reason" maxlength="200">
             <button type="submit" class="btn-link">Delete</button>
           </form>
         </div>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+
+<div class="section-heading">History</div>
+<% if (!history.length) { %>
+  <p class="text-muted">No changes recorded for this day.</p>
+<% } else { %>
+  <ul class="list">
+    <% history.forEach(function (h) { %>
+      <li>
+        <span class="list-item" style="display:block;">
+          <span class="list-item-meta"><%= h.changed_by_name || 'Unknown user' %> &middot; <%= formatDbDateTime(h.created_at) %></span>
+          <ul class="job-history-changes">
+            <% h.changes.forEach(function (c) { %>
+              <li>
+                <strong><%= c.field %>:</strong>
+                <% if (c.from !== undefined) { %><%= c.from %> &rarr; <%= c.to %><% } else { %><%= c.to %><% } %>
+                <% if (c.reason) { %><br><span class="text-muted" style="font-size:0.85rem;">Reason: <%= c.reason %></span><% } %>
+              </li>
+            <% }) %>
+          </ul>
+        </span>
       </li>
     <% }) %>
   </ul>
@@ -56,6 +85,10 @@
     <label>
       Time
       <input type="time" name="time" required>
+    </label>
+    <label>
+      Reason <span style="font-weight:400;">(optional)</span>
+      <input type="text" name="reason" placeholder="e.g. Forgot to clock in, confirmed with supervisor" maxlength="200">
     </label>
     <div class="actions">
       <button type="submit" class="btn btn-primary">Add event</button>

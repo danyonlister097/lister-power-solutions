@@ -30,6 +30,52 @@
   </div>
 </div>
 
+<div class="card">
+  <h2>Pay calculator</h2>
+  <p class="text-muted" style="font-size:0.85rem;margin-top:-0.5rem;">Enter hours, minutes and a pay rate to work out what a week's pay comes to.</p>
+  <form onsubmit="return false;">
+    <div class="form-row form-row-3">
+      <label>
+        Hours worked
+        <input type="number" id="pay-calc-hours" min="0" step="1" value="0" inputmode="numeric">
+      </label>
+      <label>
+        Minutes worked
+        <input type="number" id="pay-calc-minutes" min="0" max="59" step="1" value="0" inputmode="numeric">
+      </label>
+      <label>
+        Pay rate ($/hr)
+        <input type="number" id="pay-calc-rate" min="0" step="0.01" value="0" inputmode="decimal">
+      </label>
+    </div>
+  </form>
+  <div class="leave-stats" style="margin-top:0.5rem;">
+    <div class="leave-stat leave-stat-approved">
+      <span class="leave-stat-value" id="pay-calc-total">$0.00</span>
+      <span class="leave-stat-label">Weekly total</span>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var hoursEl = document.getElementById('pay-calc-hours');
+    var minutesEl = document.getElementById('pay-calc-minutes');
+    var rateEl = document.getElementById('pay-calc-rate');
+    var totalEl = document.getElementById('pay-calc-total');
+
+    function render() {
+      var hours = Number.parseFloat(hoursEl.value) || 0;
+      var minutes = Number.parseFloat(minutesEl.value) || 0;
+      var rate = Number.parseFloat(rateEl.value) || 0;
+      var total = (hours + minutes / 60) * rate;
+      totalEl.textContent = '$' + total.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    [hoursEl, minutesEl, rateEl].forEach(function (el) { el.addEventListener('input', render); });
+    render();
+  })();
+</script>
+
 <script type="application/json" id="team-week-data"><%- JSON.stringify(weekByUser).replace(/</g, '\\u003c') %></script>
 
 <div class="timesheet-scroll">

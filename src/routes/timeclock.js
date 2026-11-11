@@ -15,6 +15,24 @@ function getLastEvent(userId) {
   return db.prepare('SELECT * FROM clock_events WHERE user_id = ? ORDER BY occurred_at DESC, id DESC LIMIT 1').get(userId);
 }
 
+// "08:00" -> "8:00 am" - the friendly form used in clock_event_history
+// messages (occurred_at itself is stored as a naive wall-clock string, same
+// as clock_events.occurred_at - see dayStats/formatHours in timesheetCalc).
+function formatTimeLabel(hhmm) {
+  return new Date(`2000-01-01T${hhmm}:00`).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+}
+
+// Paper trail for admin changes to a clock event - added, corrected or
+// deleted - so a manually-adjusted or removed time is never just silently
+// gone. event_date is the day the clock event itself belongs to (not today),
+// so the edit page can show only this day's history.
+async function logClockEventChange(userId, changedBy, eventDate, changes) {
+  if (!changes || !changes.length) return;
+  await db
+    .prepare('INSERT INTO clock_event_history (user_id, changed_by, event_date, changes) VALUES (?, ?, ?, ?)')
+    .run(userId, changedBy || null, eventDate, JSON.stringify(changes));
+}
+
 // Per-employee week breakdown (Mon-Sun containing weekStartIso), shown in a
 // modal when tapping their avatar on the Today view - so clock in/out times
 // stay visible on narrow screens without losing access to the week's history.
@@ -303,8 +321,24 @@ router.get(
     if (!user) return res.status(404).render('error', { message: 'User not found.' });
 
     const events = await db
-      .prepare('SELECT * FROM clock_events WHERE user_id = ? AND (occurred_at)::date = (?)::date ORDER BY occurred_at ASC')
+      .prepare(
+        `SELECT clock_events.*, editor.name AS edited_by_name
+         FROM clock_events
+         LEFT JOIN users editor ON editor.id = clock_events.edited_by
+         WHERE clock_events.user_id = ? AND (clock_events.occurred_at)::date = (?)::date
+         ORDER BY clock_events.occurred_at ASC`
+      )
       .all(user.id, dateIso);
+    const historyRows = await db
+      .prepare(
+        `SELECT clock_event_history.*, users.name AS changed_by_name
+         FROM clock_event_history
+         LEFT JOIN users ON users.id = clock_event_history.changed_by
+         WHERE clock_event_history.user_id = ? AND clock_event_history.event_date = ?
+         ORDER BY clock_event_history.created_at DESC`
+      )
+      .all(user.id, dateIso);
+    const history = historyRows.map((h) => ({ ...h, changes: JSON.parse(h.changes) }));
     const dateAnchor = new Date(`${dateIso}T00:00:00`);
 
     res.render('timeclock/edit', {
@@ -313,6 +347,7 @@ router.get(
       dateIso,
       dateLabel: dateAnchor.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
       events,
+      history,
     });
   })
 );
@@ -325,6 +360,7 @@ router.post(
     const dateIso = req.params.date;
     const type = req.body.type === 'out' ? 'out' : 'in';
     const time = /^\d{2}:\d{2}$/.test(req.body.time || '') ? req.body.time : null;
+    const reason = (req.body.reason || '').trim().slice(0, 200) || undefined;
 
     if (!time) {
       setFlash(req, 'error', 'Please provide a valid time.');
@@ -332,6 +368,9 @@ router.post(
       await db
         .prepare('INSERT INTO clock_events (user_id, type, occurred_at) VALUES (?, ?, ?)')
         .run(req.params.userId, type, `${dateIso}T${time}:00`);
+      await logClockEventChange(req.params.userId, req.user.id, dateIso, [
+        { field: 'Clock event', to: `Added ${type === 'in' ? 'clock in' : 'clock out'} at ${formatTimeLabel(time)} (manual)`, reason },
+      ]);
       setFlash(req, 'success', 'Clock event added.');
     }
     res.redirect(`/timeclock/edit/${req.params.userId}/${dateIso}`);
@@ -349,11 +388,19 @@ router.post(
     const dateIso = event.occurred_at.slice(0, 10);
     const type = req.body.type === 'out' ? 'out' : 'in';
     const time = /^\d{2}:\d{2}$/.test(req.body.time || '') ? req.body.time : null;
+    const reason = (req.body.reason || '').trim().slice(0, 200) || undefined;
 
     if (!time) {
       setFlash(req, 'error', 'Please provide a valid time.');
     } else {
-      await db.prepare('UPDATE clock_events SET type = ?, occurred_at = ? WHERE id = ?').run(type, `${dateIso}T${time}:00`, event.id);
+      const oldLabel = `${event.type === 'in' ? 'Clock in' : 'Clock out'} at ${formatTimeLabel(event.occurred_at.slice(11, 16))}`;
+      const newLabel = `${type === 'in' ? 'Clock in' : 'Clock out'} at ${formatTimeLabel(time)}`;
+      await db
+        .prepare("UPDATE clock_events SET type = ?, occurred_at = ?, edited_by = ?, edited_at = datetime('now') WHERE id = ?")
+        .run(type, `${dateIso}T${time}:00`, req.user.id, event.id);
+      if (oldLabel !== newLabel) {
+        await logClockEventChange(event.user_id, req.user.id, dateIso, [{ field: 'Clock event', from: oldLabel, to: newLabel, reason }]);
+      }
       setFlash(req, 'success', 'Clock event updated.');
     }
     res.redirect(`/timeclock/edit/${event.user_id}/${dateIso}`);
@@ -370,7 +417,11 @@ router.post(
 
     const dateIso = event.occurred_at.slice(0, 10);
     const userId = event.user_id;
+    const reason = (req.body.reason || '').trim().slice(0, 200) || undefined;
+    const label = `${event.type === 'in' ? 'Clock in' : 'Clock out'} at ${formatTimeLabel(event.occurred_at.slice(11, 16))}`;
+
     await db.prepare('DELETE FROM clock_events WHERE id = ?').run(event.id);
+    await logClockEventChange(userId, req.user.id, dateIso, [{ field: 'Clock event', from: label, to: 'Deleted', reason }]);
 
     setFlash(req, 'success', 'Clock event deleted.');
     res.redirect(`/timeclock/edit/${userId}/${dateIso}`);

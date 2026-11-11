@@ -2994,13 +2994,15 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
   margin: 0;
 }
 .timeclock-edit-form select,
-.timeclock-edit-form input[type="time"] {
+.timeclock-edit-form input[type="time"],
+.timeclock-edit-form input[type="text"] {
   padding: 0.35rem 0.5rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   font: inherit;
 }
-.timeclock-edit-meta { color: var(--color-muted); font-size: 0.85rem; margin-left: auto; }
+.timeclock-edit-reason { width: 12rem; }
+.timeclock-edit-meta { color: var(--color-muted); font-size: 0.85rem; margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
 
 .timeclock-location-error {
   color: var(--color-danger);
