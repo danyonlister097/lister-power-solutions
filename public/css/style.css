@@ -2709,22 +2709,20 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
   flex-direction: column;
 }
 
-/* A .leave-stats row that's forced to a single nowrap row (e.g. Jobs list's
-   KPI chips) - rather than letting its fixed-min-width children overflow
-   the row and widen the whole page horizontally, it scrolls sideways on
-   its own on a narrow screen while the rest of the page stays put. */
-.leave-stats-scroll {
-  flex-wrap: nowrap;
+/* Jobs list's KPI chips: a fixed 3-per-row, 2-row grid (Scheduled/
+   Unscheduled/Duplicates on top, Completed/Invoiced/Cancelled below) at
+   every screen width, instead of 6 flex items that either overflow a
+   single nowrap row (widening the whole page on a narrow screen) or
+   stretch unevenly across one on a wide one. min-width: 0 overrides
+   .leave-stat's own 110px floor, which is for a flexible-count flex row,
+   not a fixed 3-column grid - at the grid's narrowest supported width a
+   column is still comfortably above the text's own natural width. */
+.leave-stats-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
 }
-
-@media (max-width: 768px) {
-  .leave-stats-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.25rem;
-  }
-  .leave-stats-scroll .leave-stat { flex: 0 0 auto; }
-}
+.leave-stats-grid-3 .leave-stat { min-width: 0; }
 
 .leave-stat-value { font-size: 1.7rem; font-weight: 700; line-height: 1.1; }
 .leave-stat-label { color: var(--color-muted); font-size: 0.8rem; font-weight: 600; margin-top: 0.15rem; }

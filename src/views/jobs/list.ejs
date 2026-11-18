@@ -38,9 +38,16 @@
     });
     return `?${parts.join('&')}`;
   }
+
+  // Top row: Scheduled, Unscheduled, Duplicates (or "In Progress" for a
+  // non-admin, who never sees the Duplicates swap below). Bottom row:
+  // Completed, Invoiced, Cancelled. Same STATUSES values, just a different
+  // display order for this tile grid - doesn't affect the Status filter
+  // dropdown or anywhere else STATUSES is used.
+  const tileOrder = ['scheduled', 'unscheduled', 'in_progress', 'completed', 'invoiced', 'cancelled'];
 %>
-<div class="leave-stats leave-stats-scroll" style="margin-bottom:1rem;">
-  <% STATUSES.forEach(s => {
+<div class="leave-stats leave-stats-grid-3" style="margin-bottom:1rem;">
+  <% tileOrder.forEach(s => {
     // Admins get a "Duplicate Jobs" card in place of "In Progress" - a
     // data-hygiene tool for spotting jobs entered twice (see
     // findDuplicateJobIds in routes/jobs.js). Everyone else keeps the
