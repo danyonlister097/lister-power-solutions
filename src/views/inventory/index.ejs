@@ -380,12 +380,19 @@
           category: categorySelect.value,
           sort: sortSelect.value,
           pageSize: pageSizeSelect.value,
-          page: currentPage
+          page: currentPage,
+          scroll: window.scrollY
         }));
         sessionStorage.setItem(RESTORE_KEY, '1');
       }
       window.invSaveState = saveState;
 
+      // Also save on every way off this page, not just the delete/duplicate
+      // submits above - clicking into an item to view/adjust its stock is
+      // the common case, and previously saved state only for those two.
+      window.addEventListener('pagehide', saveState);
+
+      var restoredScroll = null;
       if (sessionStorage.getItem(RESTORE_KEY) === '1') {
         sessionStorage.removeItem(RESTORE_KEY);
         try {
@@ -395,6 +402,7 @@
           if (saved.sort !== undefined) sortSelect.value = saved.sort;
           if (saved.pageSize !== undefined) pageSizeSelect.value = saved.pageSize;
           if (saved.page !== undefined) currentPage = saved.page;
+          if (typeof saved.scroll === 'number') restoredScroll = saved.scroll;
         } catch (e) {}
       }
 
@@ -410,6 +418,7 @@
       nextBtn.addEventListener('click', function () { currentPage += 1; render(); });
 
       render();
+      if (restoredScroll !== null) window.scrollTo(0, restoredScroll);
     })();
   </script>
   <script>
