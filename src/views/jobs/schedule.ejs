@@ -80,6 +80,23 @@
         document.querySelectorAll('.mobile-day-jobs-unassigned').forEach(function (el) { el.hidden = filter !== 'unassigned'; });
       });
     });
+
+    // Keeps --mobile-sched-header-h in sync with this page's own sticky
+    // header (List/Day toggle + week nav + the admin filter toggle) - its
+    // height isn't fixed (admins get an extra row), so .mobile-day-heading's
+    // own sticky offset (see style.css) can't just hardcode it. Without
+    // this, each day's sticky heading sticks too high and paints over the
+    // real topbar/sidebar bars above it instead of sitting below them.
+    (function () {
+      var schedHeader = document.querySelector('.mobile-sched-header');
+      if (!schedHeader) return;
+      function sync() {
+        document.documentElement.style.setProperty('--mobile-sched-header-h', schedHeader.offsetHeight + 'px');
+      }
+      sync();
+      if (window.ResizeObserver) new ResizeObserver(sync).observe(schedHeader);
+      else window.addEventListener('resize', sync);
+    })();
   </script>
 
   <div class="mobile-date-strip">

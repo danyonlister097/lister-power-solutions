@@ -1604,9 +1604,13 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
     justify-content: space-between;
     padding: 0.6rem 1rem 0.4rem;
     position: sticky;
-    top: 0;
+    /* Sticks right below the topbar/sidebar/.mobile-sched-header stack
+       above it - not the viewport's own top (0). Without accounting for
+       that stack's height, this ties for z-index with .sidebar and, being
+       later in the DOM, wins the tie and paints over it while scrolling. */
+    top: calc(var(--topbar-h, 0px) + var(--sidebar-h, 0px) + var(--mobile-sched-header-h, 0px));
     background: var(--color-bg);
-    z-index: 5;
+    z-index: 2;
     border-bottom: 1px solid var(--color-border);
   }
 
