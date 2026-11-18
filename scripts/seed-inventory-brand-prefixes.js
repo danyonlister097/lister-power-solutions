@@ -42,6 +42,7 @@ const CONFIDENT_PREFIXES = {
   PAN: 'Panasonic', // code PANCS/CU-RZ25XKR matches real Panasonic aircon model codes
   TEL: 'Telstra', // "TELSTRA ROPE 6MM X 400MT BLUE/YELLOW"
   VES: 'Vessel', // "VESSEL ELECTRIC SCREWDRIVER USB 3 SPEED"
+  SUN: 'SAL', // user-confirmed: SAL (Sunny Lighting) - "SUN" in the code is the product's own model code, not the brand abbreviation
 };
 
 async function main() {
