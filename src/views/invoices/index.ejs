@@ -140,6 +140,65 @@
 
 <% } %>
 
+<div class="filters" style="justify-content:flex-end;align-items:center;gap:1rem;border:none;padding:0.5rem 0;" id="billing-page-size-row" hidden>
+  <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--color-muted);">
+    Per page
+    <select id="billing-page-size" style="width:auto;">
+      <option value="20">20</option>
+      <option value="40">40</option>
+      <option value="80">80</option>
+    </select>
+  </label>
+</div>
+<div class="inventory-pagination" id="billing-pagination" hidden>
+  <button type="button" class="btn btn-secondary btn-sm" id="billing-prev-page">&larr; Previous</button>
+  <span id="billing-page-info" class="text-muted"></span>
+  <button type="button" class="btn btn-secondary btn-sm" id="billing-next-page">Next &rarr;</button>
+</div>
+<script>
+  (function () {
+    // Both tabs on this page (Bills, Invoices/Sales) share this one paging
+    // setup - only one of the two tables is ever in the DOM at once (the
+    // other branch isn't rendered server-side), so there's no need to
+    // scope this per tab.
+    var rows = Array.prototype.slice.call(document.querySelectorAll('.timesheet-scroll table tbody tr'));
+    if (!rows.length) return;
+
+    var pageSizeRow = document.getElementById('billing-page-size-row');
+    var pageSizeSelect = document.getElementById('billing-page-size');
+    var prevBtn = document.getElementById('billing-prev-page');
+    var nextBtn = document.getElementById('billing-next-page');
+    var pageInfo = document.getElementById('billing-page-info');
+    var pager = document.getElementById('billing-pagination');
+    pageSizeRow.hidden = false;
+
+    var currentPage = 1;
+
+    function render() {
+      var pageSize = Number.parseInt(pageSizeSelect.value, 10) || 20;
+      var totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+
+      var start = (currentPage - 1) * pageSize;
+      var visible = new Set(rows.slice(start, start + pageSize));
+
+      rows.forEach(function (row) { row.hidden = !visible.has(row); });
+
+      pageInfo.textContent = 'Page ' + currentPage + ' of ' + totalPages;
+      prevBtn.disabled = currentPage <= 1;
+      nextBtn.disabled = currentPage >= totalPages;
+      pager.hidden = totalPages <= 1;
+    }
+
+    pageSizeSelect.addEventListener('change', function () { currentPage = 1; render(); });
+    prevBtn.addEventListener('click', function () { currentPage--; render(); });
+    nextBtn.addEventListener('click', function () { currentPage++; render(); });
+
+    render();
+  })();
+</script>
+
 <%# ── Add Bill modal ────────────────────────────────────────────────────────── %>
 <div id="new-bill-modal" class="modal-backdrop" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="new-bill-modal-title" style="max-width:520px;">
