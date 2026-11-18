@@ -641,6 +641,10 @@
         <span class="leave-stat-value"><%= formatMoney(costing.totalCost) %></span>
         <span class="leave-stat-label">Total cost (ex GST)</span>
       </div>
+      <div class="leave-stat leave-stat-pending">
+        <span class="leave-stat-value"><%= formatMoney(costing.materialCost) %></span>
+        <span class="leave-stat-label">Material cost (ex GST)</span>
+      </div>
       <div class="leave-stat leave-stat-approved">
         <span class="leave-stat-value"><%= formatMoney(costing.profit) %></span>
         <span class="leave-stat-label">Profit (ex GST)</span>

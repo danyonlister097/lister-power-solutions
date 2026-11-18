@@ -1605,6 +1605,9 @@ router.get(
       const jobCosts = await db.prepare('SELECT * FROM job_costs WHERE job_id = ?').get(job.id);
       const costItems = await db.prepare('SELECT * FROM job_cost_items WHERE job_id = ? ORDER BY created_at ASC, id ASC').all(job.id);
       const totalCost = costItems.reduce((sum, i) => sum + i.quantity * i.unit_cost, 0);
+      const materialCost = costItems
+        .filter((i) => i.category === 'material')
+        .reduce((sum, i) => sum + i.quantity * i.unit_cost, 0);
       const quotedAmount = jobCosts ? jobCosts.quoted_amount : null;
       const cashQuotedAmount = jobCosts ? jobCosts.cash_quoted_amount : null;
       // Lets the Add cost item form fill in Unit cost straight from an
@@ -1624,6 +1627,7 @@ router.get(
         cashQuotedAmount,
         costItems,
         totalCost,
+        materialCost,
         profit:
           quotedAmount !== null || cashQuotedAmount !== null
             ? (quotedAmount || 0) + (cashQuotedAmount || 0) - totalCost
