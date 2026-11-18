@@ -1473,6 +1473,35 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
     color: #fff;
   }
 
+  /* Admin-only mobile toggle between a day/week's assigned ("Scheduled")
+     jobs and its unassigned ones (the same jobs desktop's "Unassigned
+     shifts" lane shows) - same look as .mobile-view-toggle. */
+  .mobile-job-filter-toggle {
+    display: flex;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--color-surface);
+    margin: 0 1rem 0.5rem;
+  }
+
+  .mobile-job-filter-btn {
+    flex: 1;
+    padding: 0.4rem 1.1rem;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-muted);
+    border: none;
+    background: none;
+    cursor: pointer;
+  }
+
+  .mobile-job-filter-btn.active {
+    background: var(--color-primary);
+    color: #fff;
+  }
+
   /* Date strip (List view) */
   .mobile-date-strip {
     display: flex;

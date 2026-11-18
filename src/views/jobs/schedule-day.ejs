@@ -9,10 +9,17 @@
 </div>
 
 <%
-  /* Mobile day view — flat deduplicated job list sorted by time */
-  const mobileDayJobs = (dayJobs || []).slice().sort(function(a, b) {
+  /* Mobile day view — flat deduplicated job list sorted by time, split into
+     "assigned" (a real tech on the job) and "unassigned" (the same jobs
+     desktop's own "Unassigned shifts" lane shows) so they're not silently
+     merged into one confusing list on a phone. A non-admin's dayJobs never
+     contains an unassigned one in the first place (see isAdmin gating in
+     routes/jobs.js), so mobileDayUnassigned is always empty for them. */
+  const mobileDaySorted = (dayJobs || []).slice().sort(function(a, b) {
     return (a.scheduled_start || '').localeCompare(b.scheduled_start || '');
   });
+  const mobileDayJobs = mobileDaySorted.filter(function(j) { return j.assigneeIds && j.assigneeIds.length > 0; });
+  const mobileDayUnassigned = mobileDaySorted.filter(function(j) { return !j.assigneeIds || j.assigneeIds.length === 0; });
   const mobileDayShort = new Date(dayIso + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: '2-digit', month: '2-digit' });
 %>
 <div class="mobile-sched">
@@ -37,35 +44,78 @@
     </a>
     <a class="mobile-day-nav-btn" href="?view=day&start=<%= nextStartIso %>">›</a>
   </div>
+  <% if (isAdmin) { %>
+    <div class="mobile-job-filter-toggle" role="group" aria-label="Show scheduled or unassigned jobs">
+      <button type="button" class="mobile-job-filter-btn active" data-job-filter="assigned">Scheduled</button>
+      <button type="button" class="mobile-job-filter-btn" data-job-filter="unassigned">Unassigned</button>
+    </div>
+  <% } %>
   <script>
     document.getElementById('mobile-day-picker').addEventListener('change', function () {
       if (this.value) window.location.href = '?view=day&start=' + this.value;
     });
+    document.querySelectorAll('.mobile-job-filter-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var filter = btn.dataset.jobFilter;
+        document.querySelectorAll('.mobile-job-filter-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
+        document.querySelectorAll('.mobile-day-jobs-assigned').forEach(function (el) { el.hidden = filter !== 'assigned'; });
+        document.querySelectorAll('.mobile-day-jobs-unassigned').forEach(function (el) { el.hidden = filter !== 'unassigned'; });
+      });
+    });
   </script>
 
   <div class="mobile-day-only-list">
-    <% if (!mobileDayJobs.length) { %>
-      <p class="mobile-no-jobs-center">No jobs scheduled for this day</p>
-    <% } else { %>
-      <% mobileDayJobs.forEach(function(j) { %>
-        <a href="/jobs/<%= j.id %>?returnTo=<%= _returnTo %>"
-           class="mobile-job-card shift-<%= j.status %><%= j.color ? ' has-color' : '' %>"
-           <% if (j.color) { %>style="background-color: <%= j.color %>;"<% } %>>
-          <div class="mobile-job-time">
-            <% if (j.all_day) { %>All day<% } else if (j.scheduled_start) { %>
-              <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %>
-              <% if (j.scheduled_end) { %>
-                <br><%= new Date(j.scheduled_end).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %>
-              <% } %>
-            <% } else { %>—<% } %>
-          </div>
-          <div class="mobile-job-body">
-            <div class="mobile-job-title"><% if (j.status === 'completed' || j.status === 'invoiced') { %><span class="mobile-job-done" title="<%= j.status === 'invoiced' ? 'Invoiced' : 'Completed' %>">&#10003;</span><% } %><%= j.title %></div>
-            <div class="mobile-job-meta"><%= j.customer_name %><% if (j.assigneeNames) { %> · <%= j.assigneeNames %><% } %></div>
-          </div>
-          <span class="mobile-job-arrow">›</span>
-        </a>
-      <% }) %>
+    <div class="mobile-day-jobs-assigned">
+      <% if (!mobileDayJobs.length) { %>
+        <p class="mobile-no-jobs-center">No jobs scheduled for this day</p>
+      <% } else { %>
+        <% mobileDayJobs.forEach(function(j) { %>
+          <a href="/jobs/<%= j.id %>?returnTo=<%= _returnTo %>"
+             class="mobile-job-card shift-<%= j.status %><%= j.color ? ' has-color' : '' %>"
+             <% if (j.color) { %>style="background-color: <%= j.color %>;"<% } %>>
+            <div class="mobile-job-time">
+              <% if (j.all_day) { %>All day<% } else if (j.scheduled_start) { %>
+                <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %>
+                <% if (j.scheduled_end) { %>
+                  <br><%= new Date(j.scheduled_end).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %>
+                <% } %>
+              <% } else { %>—<% } %>
+            </div>
+            <div class="mobile-job-body">
+              <div class="mobile-job-title"><% if (j.status === 'completed' || j.status === 'invoiced') { %><span class="mobile-job-done" title="<%= j.status === 'invoiced' ? 'Invoiced' : 'Completed' %>">&#10003;</span><% } %><%= j.title %></div>
+              <div class="mobile-job-meta"><%= j.customer_name %><% if (j.assigneeNames) { %> · <%= j.assigneeNames %><% } %></div>
+            </div>
+            <span class="mobile-job-arrow">›</span>
+          </a>
+        <% }) %>
+      <% } %>
+    </div>
+    <% if (isAdmin) { %>
+      <div class="mobile-day-jobs-unassigned" hidden>
+        <% if (!mobileDayUnassigned.length) { %>
+          <p class="mobile-no-jobs-center">No unassigned jobs for this day</p>
+        <% } else { %>
+          <% mobileDayUnassigned.forEach(function(j) { %>
+            <a href="/jobs/<%= j.id %>?returnTo=<%= _returnTo %>"
+               class="mobile-job-card shift-<%= j.status %><%= j.color ? ' has-color' : '' %>"
+               <% if (j.color) { %>style="background-color: <%= j.color %>;"<% } %>>
+              <div class="mobile-job-time">
+                <% if (j.all_day) { %>All day<% } else if (j.scheduled_start) { %>
+                  <%= new Date(j.scheduled_start).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %>
+                  <% if (j.scheduled_end) { %>
+                    <br><%= new Date(j.scheduled_end).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) %>
+                  <% } %>
+                <% } else { %>—<% } %>
+              </div>
+              <div class="mobile-job-body">
+                <div class="mobile-job-title"><% if (j.status === 'completed' || j.status === 'invoiced') { %><span class="mobile-job-done" title="<%= j.status === 'invoiced' ? 'Invoiced' : 'Completed' %>">&#10003;</span><% } %><%= j.title %></div>
+                <div class="mobile-job-meta"><%= j.customer_name %> · <span class="text-muted">Unassigned</span></div>
+              </div>
+              <span class="mobile-job-arrow">›</span>
+            </a>
+          <% }) %>
+        <% } %>
+      </div>
     <% } %>
   </div>
 </div>
