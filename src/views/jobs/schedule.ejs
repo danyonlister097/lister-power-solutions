@@ -48,6 +48,12 @@
         <span class="mobile-view-btn active">List</span>
         <a class="mobile-view-btn" href="?view=day&start=<%= todayIso %>">Day</a>
       </div>
+      <% if (isAdmin) { %>
+        <div class="mobile-job-filter-toggle" role="group" aria-label="Show scheduled or unassigned jobs">
+          <button type="button" class="mobile-job-filter-btn active" data-job-filter="assigned" title="Scheduled jobs">Sched</button>
+          <button type="button" class="mobile-job-filter-btn" data-job-filter="unassigned" title="Jobs with no tech assigned">Unassigned</button>
+        </div>
+      <% } %>
       <% if (isAdmin) { %><a class="btn btn-primary btn-sm" href="/jobs/new?returnTo=<%= _returnTo %>">+ New</a><% } %>
     </div>
     <div class="mobile-week-nav">
@@ -61,12 +67,6 @@
       </a>
       <a class="mobile-day-nav-btn" href="?view=week&start=<%= nextStartIso %>">›</a>
     </div>
-    <% if (isAdmin) { %>
-      <div class="mobile-job-filter-toggle" role="group" aria-label="Show scheduled or unassigned jobs">
-        <button type="button" class="mobile-job-filter-btn active" data-job-filter="assigned">Scheduled</button>
-        <button type="button" class="mobile-job-filter-btn" data-job-filter="unassigned">Unassigned</button>
-      </div>
-    <% } %>
   </div>
   <script>
     document.getElementById('mobile-week-picker').addEventListener('change', function () {

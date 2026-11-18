@@ -1433,10 +1433,14 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
   .mobile-sched-header-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     padding: 0.6rem 1rem;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
+
+  /* Pushed to the far right of the row - List/Day and the Scheduled/
+     Unassigned toggle sit together on the left instead. */
+  .mobile-sched-header-row > .btn { margin-left: auto; }
 
   .mobile-week-nav {
     display: flex;
@@ -1475,26 +1479,28 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
 
   /* Admin-only mobile toggle between a day/week's assigned ("Scheduled")
      jobs and its unassigned ones (the same jobs desktop's "Unassigned
-     shifts" lane shows) - same look as .mobile-view-toggle. */
+     shifts" lane shows) - sits inline with the List/Day toggle, so it's
+     deliberately smaller than it (shorter padding/font) to still leave
+     room for "+ New" on the same row. */
   .mobile-job-filter-toggle {
     display: flex;
     border: 1px solid var(--color-border);
     border-radius: 8px;
     overflow: hidden;
     background: var(--color-surface);
-    margin: 0 1rem 0.5rem;
+    flex-shrink: 0;
   }
 
   .mobile-job-filter-btn {
-    flex: 1;
-    padding: 0.4rem 1.1rem;
+    padding: 0.3rem 0.55rem;
     font: inherit;
-    font-size: 0.875rem;
+    font-size: 0.7rem;
     font-weight: 500;
     color: var(--color-muted);
     border: none;
     background: none;
     cursor: pointer;
+    white-space: nowrap;
   }
 
   .mobile-job-filter-btn.active {
