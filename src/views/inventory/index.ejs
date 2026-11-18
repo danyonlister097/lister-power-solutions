@@ -4,6 +4,7 @@
   <% if (currentUser.role === 'admin') { %>
     <div class="actions">
       <button type="button" class="btn btn-danger btn-sm" id="bulk-delete-btn" hidden>Delete selected (<span id="bulk-delete-count">0</span>)</button>
+      <a class="btn btn-secondary btn-sm" href="/inventory/brands">Manage brands</a>
       <button type="button" class="btn btn-primary" id="add-stock-open">+ Add stock</button>
     </div>
   <% } %>
@@ -132,9 +133,9 @@
         <% items.forEach(item => {
              var low = item.reorder_threshold !== null && item.quantity_on_hand <= item.reorder_threshold;
         %>
-          <tr data-id="<%= item.id %>" data-name="<%= item.name.toLowerCase() %>" data-category="<%= (item.category || '').toLowerCase() %>" data-qty="<%= item.quantity_on_hand %>" data-cost="<%= item.unit_cost !== null ? item.unit_cost : '' %>" data-supplier="<%= (item.supplier_code || '').toLowerCase() %>" data-updated="<%= item.updated_at || '' %>">
+          <tr data-id="<%= item.id %>" data-name="<%= item.name.toLowerCase() %>" data-brand="<%= (item.brand || '').toLowerCase() %>" data-category="<%= (item.category || '').toLowerCase() %>" data-qty="<%= item.quantity_on_hand %>" data-cost="<%= item.unit_cost !== null ? item.unit_cost : '' %>" data-supplier="<%= (item.supplier_code || '').toLowerCase() %>" data-updated="<%= item.updated_at || '' %>">
             <% if (currentUser.role === 'admin') { %><td><input type="checkbox" class="item-select" value="<%= item.id %>" aria-label="Select <%= item.name %>"></td><% } %>
-            <td><a href="/inventory/<%= item.id %>"><%= item.name %></a></td>
+            <td><a href="/inventory/<%= item.id %>"><% if (item.brand) { %><span class="text-muted" style="font-weight:600;"><%= item.brand %></span> &middot; <% } %><%= item.name %></a></td>
             <td class="text-muted" style="font-size:0.85em;font-family:monospace;"><%= item.supplier_code || '—' %></td>
             <td><%= item.category || '—' %></td>
             <td class="<%= low ? 'timesheet-overtime' : '' %>">
@@ -255,11 +256,22 @@
         categorySelect.appendChild(option);
       });
 
+      // Tokenized, word-order-independent: every word typed has to appear
+      // somewhere across name/brand/category/code, but not necessarily in
+      // that order or as one literal phrase - "hager rcbo 32a" now matches
+      // an item named "RCBO 1M 1PN 6KA C32A 30MA A" once it's brand-tagged
+      // Hager, even though none of those words appear in that order.
       function getFilteredSortedRows() {
-        var q = searchInput.value.trim().toLowerCase();
+        var tokens = searchInput.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
         var cat = categorySelect.value;
         var filtered = rows.filter(function (row) {
-          var matchesSearch = !q || row.getAttribute('data-name').indexOf(q) !== -1 || row.getAttribute('data-category').indexOf(q) !== -1 || row.getAttribute('data-supplier').indexOf(q) !== -1;
+          var haystack = [
+            row.getAttribute('data-name'),
+            row.getAttribute('data-brand'),
+            row.getAttribute('data-category'),
+            row.getAttribute('data-supplier'),
+          ].join(' ');
+          var matchesSearch = tokens.every(function (t) { return haystack.indexOf(t) !== -1; });
           var matchesCategory = !cat || row.getAttribute('data-category') === cat;
           var matchesStat = !statFilter || statFilter(row);
           return matchesSearch && matchesCategory && matchesStat;

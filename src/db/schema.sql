@@ -1032,3 +1032,19 @@ CREATE TABLE IF NOT EXISTS clock_event_history (
 );
 CREATE INDEX IF NOT EXISTS idx_clock_event_history_user_date ON clock_event_history(user_id, event_date);
 CREATE INDEX IF NOT EXISTS idx_chat_message_reactions_message_id ON chat_message_reactions(message_id);
+
+-- A supplier_code is mostly a brand's own prefix plus a product-line code
+-- concatenated with no delimiter (e.g. HAGADC932T = Hager's "ADC932T"), and
+-- many items' own name never says the brand at all - just "RCBO 1M 1PN 6KA
+-- C32A 30MA A" - making them nearly impossible to find without already
+-- knowing the exact code. This maps a 3-letter code prefix to a brand name
+-- once an admin confirms it (see /inventory/brands), so every item sharing
+-- that prefix - past and future imports alike - gets labelled and becomes
+-- searchable by brand instead of just by code.
+CREATE TABLE IF NOT EXISTS inventory_brand_prefixes (
+  prefix TEXT PRIMARY KEY,
+  brand TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT now_utc_text()
+);
+
+ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS brand TEXT;

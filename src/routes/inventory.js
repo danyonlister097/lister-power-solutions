@@ -4,6 +4,7 @@ const { requireRole, verifyCsrf } = require('../middleware/auth');
 const { setFlash } = require('../lib/flash');
 const { asyncHandler } = require('../lib/asyncHandler');
 const { logJobEvent } = require('../lib/jobHistory');
+const { prefixOf, applyKnownPrefixes } = require('../lib/inventoryBrands');
 
 const router = express.Router();
 
@@ -271,6 +272,67 @@ router.post(
     }
 
     res.redirect(`/jobs/${allocation.job_id}`);
+  })
+);
+
+// Must come before GET/POST '/:id' below, or Express would try to treat
+// "brands" as an item id.
+router.get(
+  '/brands',
+  requireRole('admin'),
+  asyncHandler(async (req, res) => {
+    // Catches anything newly imported under an already-known prefix, not
+    // just what's resolved below.
+    await applyKnownPrefixes();
+
+    const known = await db.prepare('SELECT * FROM inventory_brand_prefixes ORDER BY brand').all();
+
+    const unbranded = await db
+      .prepare(
+        `SELECT id, name, supplier_code FROM inventory_items
+         WHERE brand IS NULL AND supplier_code IS NOT NULL AND supplier_code != ''
+         ORDER BY supplier_code`
+      )
+      .all();
+    const groups = new Map();
+    unbranded.forEach((item) => {
+      const prefix = prefixOf(item.supplier_code);
+      if (!prefix) return;
+      if (!groups.has(prefix)) groups.set(prefix, { prefix, count: 0, example: item.name, exampleCode: item.supplier_code });
+      groups.get(prefix).count += 1;
+    });
+    const unresolved = [...groups.values()].sort((a, b) => b.count - a.count);
+
+    res.render('inventory/brands', { title: 'Inventory Brands', known, unresolved });
+  })
+);
+
+router.post(
+  '/brands',
+  requireRole('admin'),
+  verifyCsrf,
+  asyncHandler(async (req, res) => {
+    const prefix = (req.body.prefix || '').trim().toUpperCase().slice(0, 3);
+    const brand = (req.body.brand || '').trim();
+    if (!prefix || !brand) {
+      setFlash(req, 'error', 'Both a prefix and a brand name are required.');
+      return res.redirect('/inventory/brands');
+    }
+
+    await db
+      .prepare('INSERT INTO inventory_brand_prefixes (prefix, brand) VALUES (?, ?) ON CONFLICT (prefix) DO UPDATE SET brand = excluded.brand')
+      .run(prefix, brand);
+    // Applies to every item sharing this prefix, not just unbranded ones -
+    // lets an admin correct a wrong guess later by resubmitting it here.
+    const result = await db
+      .prepare(
+        `UPDATE inventory_items SET brand = ?, updated_at = datetime('now')
+         WHERE supplier_code IS NOT NULL AND UPPER(LEFT(supplier_code, 3)) = ?`
+      )
+      .run(brand, prefix);
+
+    setFlash(req, 'success', `"${prefix}" labelled ${brand} - applied to ${result.changes} item${result.changes === 1 ? '' : 's'}.`);
+    res.redirect('/inventory/brands');
   })
 );
 

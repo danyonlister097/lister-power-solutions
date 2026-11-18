@@ -550,7 +550,7 @@
     </form>
     <script>
       (function () {
-        var items = <%- JSON.stringify(inventoryItems.map((i) => ({ id: i.id, name: i.name, code: i.supplier_code || '', unit: i.unit, qty: i.quantity_on_hand }))) %>;
+        var items = <%- JSON.stringify(inventoryItems.map((i) => ({ id: i.id, name: i.name, brand: i.brand || '', code: i.supplier_code || '', unit: i.unit, qty: i.quantity_on_hand }))) %>;
         var search = document.getElementById('stock-item-search');
         var hiddenId = document.getElementById('stock-item-id');
         var results = document.getElementById('stock-item-results');
@@ -561,14 +561,19 @@
           results.innerHTML = '';
         }
 
+        // Tokenized, word-order-independent: every word typed has to appear
+        // somewhere across name/brand/code, but not necessarily in that
+        // order - "hager rcbo 32a" now matches an item named "RCBO 1M 1PN
+        // 6KA C32A 30MA A" once it's brand-tagged Hager, even though none
+        // of those words appear in that order in the name itself.
         search.addEventListener('input', function () {
           hiddenId.value = '';
-          var q = search.value.trim().toLowerCase();
-          if (!q) return closeResults();
+          var tokens = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+          if (!tokens.length) return closeResults();
 
           var matches = items.filter(function (i) {
-            return i.name.toLowerCase().indexOf(q) !== -1 ||
-              (i.code && i.code.toLowerCase().indexOf(q) !== -1);
+            var haystack = (i.name + ' ' + i.brand + ' ' + i.code).toLowerCase();
+            return tokens.every(function (t) { return haystack.indexOf(t) !== -1; });
           });
           // In-stock items first, so techs don't have to scroll past
           // out-of-stock ones to find something they can actually allocate.
@@ -583,6 +588,7 @@
           results.innerHTML = matches
             .map(function (i) {
               return '<div class="autocomplete-result" data-id="' + i.id + '" data-name="' + i.name.replace(/"/g, '&quot;') + '" data-qty="' + i.qty + '">' +
+                (i.brand ? '<strong>' + i.brand + '</strong> &middot; ' : '') +
                 i.name +
                 (i.code ? ' <span class="autocomplete-meta">' + i.code + '</span>' : '') +
                 ' <span class="autocomplete-meta">(' + i.qty + ' ' + i.unit + ' on hand)</span></div>';
@@ -642,8 +648,16 @@
         <span class="leave-stat-label">Total cost (ex GST)</span>
       </div>
       <div class="leave-stat leave-stat-pending">
+        <span class="leave-stat-value"><%= formatMoney(costing.labourCost) %></span>
+        <span class="leave-stat-label">Total labour cost (ex GST)</span>
+      </div>
+      <div class="leave-stat leave-stat-pending">
         <span class="leave-stat-value"><%= formatMoney(costing.materialCost) %></span>
         <span class="leave-stat-label">Material cost (ex GST)</span>
+      </div>
+      <div class="leave-stat leave-stat-pending">
+        <span class="leave-stat-value"><%= formatMoney(costing.materialLabourCost) %></span>
+        <span class="leave-stat-label">Total material/labour cost (ex GST)</span>
       </div>
       <div class="leave-stat leave-stat-approved">
         <span class="leave-stat-value"><%= formatMoney(costing.profit) %></span>

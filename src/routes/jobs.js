@@ -1605,9 +1605,11 @@ router.get(
       const jobCosts = await db.prepare('SELECT * FROM job_costs WHERE job_id = ?').get(job.id);
       const costItems = await db.prepare('SELECT * FROM job_cost_items WHERE job_id = ? ORDER BY created_at ASC, id ASC').all(job.id);
       const totalCost = costItems.reduce((sum, i) => sum + i.quantity * i.unit_cost, 0);
-      const materialCost = costItems
-        .filter((i) => i.category === 'material')
-        .reduce((sum, i) => sum + i.quantity * i.unit_cost, 0);
+      const costByCategory = (category) =>
+        costItems.filter((i) => i.category === category).reduce((sum, i) => sum + i.quantity * i.unit_cost, 0);
+      const labourCost = costByCategory('labour');
+      const materialCost = costByCategory('material');
+      const materialLabourCost = labourCost + materialCost;
       const quotedAmount = jobCosts ? jobCosts.quoted_amount : null;
       const cashQuotedAmount = jobCosts ? jobCosts.cash_quoted_amount : null;
       // Lets the Add cost item form fill in Unit cost straight from an
@@ -1627,7 +1629,9 @@ router.get(
         cashQuotedAmount,
         costItems,
         totalCost,
+        labourCost,
         materialCost,
+        materialLabourCost,
         profit:
           quotedAmount !== null || cashQuotedAmount !== null
             ? (quotedAmount || 0) + (cashQuotedAmount || 0) - totalCost
@@ -1639,7 +1643,7 @@ router.get(
       };
     }
 
-    const inventoryItems = await db.prepare('SELECT id, name, supplier_code, unit, quantity_on_hand FROM inventory_items ORDER BY name ASC').all();
+    const inventoryItems = await db.prepare('SELECT id, name, brand, supplier_code, unit, quantity_on_hand FROM inventory_items ORDER BY name ASC').all();
     const stockAllocations = await db
       .prepare(
         `SELECT job_stock_allocations.*, inventory_items.name AS item_name, inventory_items.unit AS item_unit
