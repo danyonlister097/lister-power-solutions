@@ -115,11 +115,15 @@
     </label>
     <div class="actions">
       <button type="submit" class="btn btn-primary btn-sm">Save start time</button>
+      <% if (job.actual_start) { %>
+        <button type="button" class="btn btn-secondary btn-sm" id="job-actual-start-clear">Clear</button>
+      <% } %>
     </div>
     <script>
       (function () {
         var input = document.getElementById('job-actual-start-input');
         var form = input.closest('form');
+        var clearBtn = document.getElementById('job-actual-start-clear');
         input.addEventListener('click', function () {
           if (typeof input.showPicker === 'function') input.showPicker();
         });
@@ -127,6 +131,15 @@
           if (form.requestSubmit) form.requestSubmit();
           else form.submit();
         });
+        if (clearBtn) {
+          clearBtn.addEventListener('click', function () {
+            window.showConfirm('Clear start time?', 'This removes the logged start time for this job.', function () {
+              input.value = '';
+              if (form.requestSubmit) form.requestSubmit();
+              else form.submit();
+            }, { okLabel: 'Clear', variant: 'danger' });
+          });
+        }
       })();
     </script>
   </form>
@@ -988,11 +1001,24 @@
     </label>
     <div class="actions">
       <button type="submit" class="btn btn-primary btn-sm">Save finish time</button>
+      <% if (job.actual_end) { %>
+        <button type="button" class="btn btn-secondary btn-sm" id="job-actual-end-clear">Clear</button>
+      <% } %>
     </div>
     <script>
       (function () {
         var input = document.getElementById('job-actual-end-input');
         var form = input.closest('form');
+        var clearBtn = document.getElementById('job-actual-end-clear');
+        if (clearBtn) {
+          clearBtn.addEventListener('click', function () {
+            window.showConfirm('Clear finish time?', 'This removes the logged finish time for this job.', function () {
+              input.value = '';
+              if (form.requestSubmit) form.requestSubmit();
+              else form.submit();
+            }, { okLabel: 'Clear', variant: 'danger' });
+          });
+        }
         input.addEventListener('click', function () {
           if (typeof input.showPicker === 'function') input.showPicker();
         });
