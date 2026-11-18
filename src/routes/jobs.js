@@ -2359,8 +2359,20 @@ router.post(
     }
 
     const label = category === 'before' ? 'Before' : category === 'quote' ? 'Quote' : 'Completion';
+    const photoLabel = (n) => `Added ${n} ${label.toLowerCase()} photo${n > 1 ? 's' : ''}`;
     if (files.length) {
-      await logJobEvent(req.job.id, req.user.id, 'Photos', `Added ${files.length} ${label.toLowerCase()} photo${files.length > 1 ? 's' : ''}`);
+      // The browser uploads one photo per request (compressing/retrying
+      // each individually), so a dozen photos picked at once would
+      // otherwise log a dozen near-identical rows - merge them into one
+      // running count instead, as long as they keep arriving within 10
+      // minutes of each other (generous: a big batch on a slow connection
+      // can take a while).
+      await logJobEvent(req.job.id, req.user.id, 'Photos', photoLabel(files.length), {
+        key: `photos:${category}:added`,
+        windowMinutes: 10,
+        countBy: files.length,
+        label: photoLabel,
+      });
     }
     setFlash(req, 'success', files.length ? `${files.length} ${label.toLowerCase()} photo${files.length > 1 ? 's' : ''} uploaded.` : 'No photos selected.');
     res.redirect(withReturnTo(`/jobs/${req.job.id}`, safeReturnTo(req.body.returnTo)));
