@@ -39,7 +39,7 @@
     return `?${parts.join('&')}`;
   }
 %>
-<div class="leave-stats" style="margin-bottom:1rem;flex-wrap:nowrap;">
+<div class="leave-stats leave-stats-scroll" style="margin-bottom:1rem;">
   <% STATUSES.forEach(s => {
     // Admins get a "Duplicate Jobs" card in place of "In Progress" - a
     // data-hygiene tool for spotting jobs entered twice (see

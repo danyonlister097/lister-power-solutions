@@ -2709,6 +2709,23 @@ button.badge { border: none; font: inherit; font-weight: 600; cursor: pointer; }
   flex-direction: column;
 }
 
+/* A .leave-stats row that's forced to a single nowrap row (e.g. Jobs list's
+   KPI chips) - rather than letting its fixed-min-width children overflow
+   the row and widen the whole page horizontally, it scrolls sideways on
+   its own on a narrow screen while the rest of the page stays put. */
+.leave-stats-scroll {
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 768px) {
+  .leave-stats-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.25rem;
+  }
+  .leave-stats-scroll .leave-stat { flex: 0 0 auto; }
+}
+
 .leave-stat-value { font-size: 1.7rem; font-weight: 700; line-height: 1.1; }
 .leave-stat-label { color: var(--color-muted); font-size: 0.8rem; font-weight: 600; margin-top: 0.15rem; }
 
