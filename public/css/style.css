@@ -778,6 +778,23 @@ form label.toggle-label {
 .flash-error a { display: block; margin-top: 0.35rem; font-weight: 600; }
 .flash-toast { margin-bottom: 0; border-radius: var(--radius); }
 
+.upload-queue-pill {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  z-index: 500;
+  background: var(--color-primary-dark);
+  color: #fff;
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  max-width: calc(100vw - 2rem);
+  text-align: center;
+}
+
 .list { list-style: none; margin: 0; padding: 0; }
 
 .list-item {

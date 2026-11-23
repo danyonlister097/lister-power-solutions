@@ -386,12 +386,39 @@
     // purely for styling - Quote files below uses that same class for its
     // look but has its own separate form/script, so it's deliberately not
     // matched by this more specific selector.
+    //
+    // Compressed files go to window.UploadQueue (app.js) instead of being
+    // fetched here directly - it persists them in IndexedDB and uploads
+    // from there, so the batch survives navigating off this page or the
+    // app closing before every photo is out. This page just waits for an
+    // upload-queue:settled event for each file it queued (which may well
+    // arrive after a reload, from a drain that happened on another page)
+    // before reloading to show the result.
+    var jobId = <%= job.id %>;
     document.querySelectorAll('.job-photo-upload-form').forEach(function (form) {
       var fileInput = form.querySelector('input[type="file"]');
       var submitBtn = form.querySelector('button[type="submit"]');
-      var csrfInput = form.querySelector('input[name="_csrf"]');
       var returnToInput = form.querySelector('input[name="returnTo"]');
       var categoryInput = form.querySelector('input[name="category"]');
+      var originalText = submitBtn.textContent;
+      var pending = 0;
+      var failedNames = [];
+
+      function onSettled(e) {
+        if (e.detail.jobId !== jobId) return;
+        pending--;
+        if (!e.detail.ok) failedNames.push(e.detail.fileName);
+        if (pending <= 0) {
+          window.removeEventListener('upload-queue:settled', onSettled);
+          if (failedNames.length) {
+            alert(
+              failedNames.length + ' photo' + (failedNames.length > 1 ? 's' : '') +
+              ' failed to upload: ' + failedNames.join(', ') + ' - try again.'
+            );
+          }
+          window.location.reload();
+        }
+      }
 
       form.addEventListener('submit', function (e) {
         var files = fileInput.files;
@@ -399,44 +426,27 @@
 
         e.preventDefault();
         submitBtn.disabled = true;
-        var originalText = submitBtn.textContent;
-        var failed = [];
-        var i = 0;
+        submitBtn.textContent = 'Queuing…';
 
-        function uploadNext() {
-          if (i >= files.length) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalText;
-            if (failed.length) {
-              alert(
-                (files.length - failed.length) + ' of ' + files.length + ' photo' + (files.length > 1 ? 's' : '') +
-                ' uploaded. Failed: ' + failed.join(', ') + ' - try again, maybe one at a time if it keeps happening.'
-              );
-            }
-            window.location.reload();
-            return;
-          }
-
-          var file = files[i];
-          submitBtn.textContent = 'Uploading ' + (i + 1) + ' of ' + files.length + '…';
-
-          compressImage(file).then(function (uploadFile) {
-            var fd = new FormData();
-            fd.append('_csrf', csrfInput.value);
-            if (returnToInput) fd.append('returnTo', returnToInput.value);
-            if (categoryInput) fd.append('category', categoryInput.value);
-            fd.append('photos', uploadFile);
-            return fetch(form.action, { method: 'POST', body: fd });
-          })
-            .then(function (res) { if (!res.ok) failed.push(file.name); })
-            .catch(function () { failed.push(file.name); })
-            .finally(function () {
-              i++;
-              uploadNext();
-            });
-        }
-
-        uploadNext();
+        Promise.all(Array.prototype.map.call(files, compressImage)).then(function (uploadFiles) {
+          pending += uploadFiles.length;
+          window.addEventListener('upload-queue:settled', onSettled);
+          return window.UploadQueue.enqueue(uploadFiles.map(function (f) {
+            return {
+              jobId: jobId,
+              url: form.action,
+              category: categoryInput ? categoryInput.value : undefined,
+              returnTo: returnToInput ? returnToInput.value : undefined,
+              fileName: f.name,
+              fileType: f.type,
+              blob: f,
+            };
+          }));
+        }).then(function () {
+          fileInput.value = '';
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+        });
       });
     });
   })();

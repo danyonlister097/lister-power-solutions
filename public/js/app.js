@@ -494,3 +494,179 @@
 
   refreshState();
 })();
+
+// Durable queue for job-photo uploads (see the job-photo-upload-form script
+// in jobs/show.ejs). Phone camera photos get picked, compressed, then
+// enqueued here into IndexedDB *before* anything goes over the network -
+// so a batch survives navigating to another part of the app, or the app
+// being closed outright, before every photo has actually gone out.
+// Drains on every page load, whenever the browser regains a connection, and
+// on a slow interval as a safety net for flaky mobile signal that doesn't
+// fire real online/offline events - so an upload started on a job page
+// keeps going (or picks back up) no matter where in the app it's next
+// looked at from.
+(function () {
+  if (!('indexedDB' in window)) {
+    window.UploadQueue = { enqueue: function () { return Promise.reject(new Error('IndexedDB unavailable')); } };
+    return;
+  }
+
+  var DB_NAME = 'lps-upload-queue';
+  var STORE = 'uploads';
+  var dbPromise = null;
+
+  function openDb() {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise(function (resolve, reject) {
+      var req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = function () {
+        req.result.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+    return dbPromise;
+  }
+
+  function add(record) {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).add(record);
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+
+  function remove(id) {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).delete(id);
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+
+  function getAll() {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var req = db.transaction(STORE, 'readonly').objectStore(STORE).getAll();
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error); };
+      });
+    });
+  }
+
+  var draining = false;
+  var needsAuth = false;
+
+  // The session-wide CSRF token lives in a hidden input rendered in the
+  // topbar on every authenticated page (see header.ejs) - not just the form
+  // the photo was originally queued from - so this keeps working even after
+  // the queue has carried a photo over to a page the form never saw.
+  function currentCsrf() {
+    var input = document.querySelector('input[name="_csrf"]');
+    return input ? input.value : '';
+  }
+
+  function uploadOne(row) {
+    var fd = new FormData();
+    fd.append('_csrf', currentCsrf());
+    if (row.returnTo) fd.append('returnTo', row.returnTo);
+    if (row.category) fd.append('category', row.category);
+    fd.append('photos', new File([row.blob], row.fileName, { type: row.fileType }));
+    return fetch(row.url, { method: 'POST', body: fd }).then(function (res) {
+      // A logged-out upload hits requireAuth's redirect to /login, which
+      // fetch follows transparently into a 200 - res.ok alone can't tell
+      // that apart from an actual success.
+      return { ok: res.ok, status: res.status, loginRedirect: res.redirected && /\/login(\?|$)/.test(res.url) };
+    });
+  }
+
+  function settle(row, ok) {
+    return remove(row.id).then(function () {
+      window.dispatchEvent(new CustomEvent('upload-queue:settled', {
+        detail: { id: row.id, jobId: row.jobId, fileName: row.fileName, ok: ok },
+      }));
+    });
+  }
+
+  function drain() {
+    if (draining) return;
+    draining = true;
+    needsAuth = false;
+
+    function next() {
+      getAll().then(function (rows) {
+        if (!rows.length) { draining = false; updatePill(); return; }
+        rows.sort(function (a, b) { return a.id - b.id; });
+        var row = rows[0];
+        uploadOne(row)
+          .then(function (result) {
+            if (result.loginRedirect) {
+              needsAuth = true;
+              draining = false;
+              updatePill();
+              return;
+            }
+            if (result.ok || (result.status >= 400 && result.status < 500)) {
+              // Either uploaded, or the server permanently rejected it
+              // (e.g. the job was deleted while this was queued) - nothing
+              // more to do for this one either way.
+              return settle(row, result.ok).then(function () {
+                updatePill();
+                next();
+              });
+            }
+            draining = false; // 5xx - leave queued, retry later
+            updatePill();
+          })
+          .catch(function () {
+            draining = false; // network error - leave queued, retry later
+            updatePill();
+          });
+      }).catch(function () { draining = false; });
+    }
+
+    next();
+  }
+
+  function enqueue(records) {
+    return Promise.all(records.map(add)).then(function () {
+      updatePill();
+      drain();
+    });
+  }
+
+  window.UploadQueue = { enqueue: enqueue, drain: drain };
+
+  window.addEventListener('online', drain);
+  setInterval(drain, 20000);
+
+  // Small "still uploading" pill so it's obvious from anywhere in the app
+  // that photos are queued rather than silently lost.
+  var pill = null;
+  function renderPill(count, authNeeded) {
+    if (!count) {
+      if (pill) { pill.remove(); pill = null; }
+      return;
+    }
+    if (!pill) {
+      pill = document.createElement('div');
+      pill.className = 'upload-queue-pill';
+      document.body.appendChild(pill);
+    }
+    pill.textContent = authNeeded
+      ? 'Sign in again to finish uploading ' + count + ' photo' + (count > 1 ? 's' : '')
+      : 'Uploading ' + count + ' photo' + (count > 1 ? 's' : '') + '…';
+  }
+  function updatePill() {
+    getAll().then(function (rows) { renderPill(rows.length, needsAuth); }).catch(function () {});
+  }
+
+  updatePill();
+  drain();
+})();
